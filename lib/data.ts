@@ -1,6 +1,7 @@
 import { createClient } from "./supabase/server";
 import { BADGES } from "./badges";
 import type { GeneratedQuestion } from "./ai";
+import type { PartyPrompt } from "./party-content";
 
 export interface Profile {
   id: string;
@@ -119,4 +120,11 @@ export async function getBadgesWithStatus(): Promise<BadgeWithStatus[]> {
   }
 
   return BADGES.map((b) => ({ ...b, unlocked: earnedIds.has(b.id) }));
+}
+
+/** Catalogue public Action ou Vérité (mode Soirée), chargé une fois pour la session locale. */
+export async function getPartyPrompts(): Promise<PartyPrompt[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("dare_truth_prompts").select("type, depth, text");
+  return (data as PartyPrompt[]) ?? [];
 }

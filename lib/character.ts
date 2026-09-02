@@ -13,7 +13,7 @@ export interface BuiltCharacter {
   secondary: string;
 }
 
-function seededRng(seedStr: string): () => number {
+export function seededRng(seedStr: string): () => number {
   let h = 1779033703 ^ seedStr.length;
   for (let i = 0; i < seedStr.length; i++) {
     h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
@@ -27,7 +27,7 @@ function seededRng(seedStr: string): () => number {
   };
 }
 
-function pick<T>(rng: () => number, arr: T[]): T {
+export function pick<T>(rng: () => number, arr: T[]): T {
   return arr[Math.floor(rng() * arr.length)];
 }
 

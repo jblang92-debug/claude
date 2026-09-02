@@ -3,6 +3,8 @@
 // `dare_truth_prompts`) — jamais de contenu généré par les utilisateurs ici,
 // voir lib/party-content.ts vs. les prompts perso par salon (non publics).
 
+import { seededRng, pick } from "./character";
+
 export type PartyType = "action" | "verite";
 export type PartyDepth = "leger" | "ose";
 
@@ -82,3 +84,9 @@ export const PARTY_CONTENT: PartyPrompt[] = [
 
 export const PARTY_NICK_NOUNS = ["Casse-cou", "Séducteur·rice", "Provocateur·rice", "Stratège", "Frimeur·se", "Sage", "Farceur·se", "Charmeur·se"];
 export const PARTY_NICK_ADJ = ["Audacieux·se", "Charmeur·se", "Mystérieux·se", "Espiègle", "Intense", "Taquin·e", "Magnétique", "Imprévisible"];
+
+/** Surnom de circonstance, déterministe par prénom (même prénom -> même surnom pendant la partie). */
+export function partyNickname(name: string): string {
+  const rng = seededRng(name + "-party");
+  return `${pick(rng, PARTY_NICK_NOUNS)} ${pick(rng, PARTY_NICK_ADJ)}`;
+}

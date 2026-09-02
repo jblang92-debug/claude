@@ -47,6 +47,15 @@ export default async function Home() {
         ))}
       </div>
 
+      <Link href="/soiree" className="party-banner">
+        <span className="party-banner-emoji">🎉</span>
+        <span className="party-banner-text">
+          <strong>Mode Soirée</strong>
+          <span>Action ou Vérité, à plusieurs, même téléphone</span>
+        </span>
+        <span className="party-banner-arrow">→</span>
+      </Link>
+
       <p className="footnote">
         Tes réponses restent privées. Tu peux relier un email plus tard pour
         retrouver ta collection sur un autre appareil, depuis ta galerie.
