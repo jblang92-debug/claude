@@ -1,156 +1,213 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { db } from "./db";
-import { generateQuiz, generatePortrait } from "./ai";
-import { computeTraitScores, type TraitDef } from "./scoring";
-import { generateSlug } from "./slug";
-import { getOrCreateCreatorId } from "./creator";
-import { getTheme, type ThemeId } from "./themes";
+import { createClient } from "./supabase/server";
+import { generateQuestions, generatePortrait } from "./ai";
+import { findQuizCategory, getCategory, slugify, type Depth } from "./catalog";
+import { newlyUnlockedBadges } from "./badges";
+import type { TestRow } from "./data";
 
-export interface CreateQuizState {
+/**
+ * Charge un test depuis le cache (table `tests`) ou le génère à la volée
+ * puis le met en cache pour tout le monde. C'est ce qui donne un
+ * "chargement instantané" dès la deuxième personne à choisir ce test.
+ */
+export async function getOrCreateTest(title: string, categoryId?: string): Promise<TestRow> {
+  const supabase = await createClient();
+  const slug = slugify(title);
+
+  const { data: existing } = await supabase
+    .from("tests")
+    .select("*")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (existing) return existing as TestRow;
+
+  const category = categoryId ? getCategory(categoryId) : findQuizCategory(title);
+  const catalogQuiz = category?.quizzes.find((q) => q.title === title);
+  const depth: Depth = catalogQuiz?.depth ?? "leger";
+
+  const questions = await generateQuestions(title, category?.label);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: inserted, error } = await supabase
+    .from("tests")
+    .insert({
+      slug,
+      category_id: category?.id ?? null,
+      title,
+      depth,
+      emoji: category?.emoji ?? null,
+      is_custom: !catalogQuiz,
+      questions,
+      created_by: user?.id ?? null,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    // Un autre utilisateur a pu créer ce même test entre notre lecture et
+    // notre écriture (ex. deux personnes choisissent le même titre en même
+    // temps) : on relit simplement le résultat de la course.
+    const { data: raced } = await supabase
+      .from("tests")
+      .select("*")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (raced) return raced as TestRow;
+    throw error;
+  }
+  return inserted as TestRow;
+}
+
+export interface SubmitTestState {
   error?: string;
 }
 
-export async function createQuiz(
-  _prevState: CreateQuizState,
-  formData: FormData,
-): Promise<CreateQuizState> {
-  const themeIdRaw = String(formData.get("theme") || "").trim();
-  const customTheme = String(formData.get("customTheme") || "").trim();
-
-  if (!themeIdRaw && !customTheme) {
-    return { error: "Choisis un thème ou décris le tien pour continuer." };
-  }
-
-  const theme = themeIdRaw ? getTheme(themeIdRaw) : undefined;
-  if (!theme && !customTheme) {
-    return { error: "Thème invalide." };
-  }
-
-  let generated;
-  try {
-    generated = await generateQuiz({
-      themeId: theme?.id as ThemeId | undefined,
-      customTheme: customTheme || undefined,
-    });
-  } catch (err) {
-    console.error(err);
-    return { error: "Impossible de générer le test pour le moment. Réessaie dans un instant." };
-  }
-
-  const creatorId = await getOrCreateCreatorId();
-  const slug = generateSlug();
-
-  let quizSlug: string;
-  try {
-    const quiz = await db.quiz.create({
-      data: {
-        slug,
-        theme: theme?.id ?? "custom",
-        title: generated.title,
-        intro: generated.intro,
-        emoji: generated.emoji,
-        traits: JSON.stringify(generated.traits),
-        creatorId,
-        questions: {
-          create: generated.questions.map((q, index) => ({
-            order: index,
-            text: q.text,
-            type: "choice",
-            options: JSON.stringify(q.options),
-          })),
-        },
-      },
-    });
-    quizSlug = quiz.slug;
-  } catch (err) {
-    console.error(err);
-    return { error: "Impossible d'enregistrer ton test pour le moment. Réessaie dans un instant." };
-  }
-
-  redirect(`/test/${quizSlug}`);
+function daysBetween(isoDateA: string, isoDateB: string): number {
+  const a = new Date(isoDateA + "T00:00:00Z").getTime();
+  const b = new Date(isoDateB + "T00:00:00Z").getTime();
+  return Math.round((b - a) / 86_400_000);
 }
 
-export interface SubmitResponseState {
-  error?: string;
-}
-
-export async function submitResponse(
-  quizSlug: string,
-  _prevState: SubmitResponseState,
+/**
+ * Enregistre les réponses, génère le portrait, met à jour streak/badges,
+ * puis redirige vers la page de résultat.
+ */
+export async function submitTest(
+  test: TestRow,
+  _prevState: SubmitTestState,
   formData: FormData,
-): Promise<SubmitResponseState> {
-  const quiz = await db.quiz.findUnique({
-    where: { slug: quizSlug },
-    include: { questions: { orderBy: { order: "asc" } } },
-  });
-  if (!quiz) return { error: "Ce test n'existe pas ou plus." };
-
-  const respondentName = String(formData.get("respondentName") || "").trim() || null;
-
-  const answers = new Map<string, number>();
-  for (const q of quiz.questions) {
-    const raw = formData.get(`q_${q.id}`);
-    if (raw === null) {
+): Promise<SubmitTestState> {
+  const answers: string[] = [];
+  for (let i = 0; i < test.questions.length; i++) {
+    const value = formData.get(`q_${i}`);
+    if (typeof value !== "string" || !value) {
       return { error: "Merci de répondre à toutes les questions avant de valider." };
     }
-    const optionIndex = Number(raw);
-    const options = JSON.parse(q.options) as { label: string; trait: string }[];
-    if (Number.isNaN(optionIndex) || optionIndex < 0 || optionIndex >= options.length) {
-      return { error: "Une réponse est invalide, merci de réessayer." };
-    }
-    answers.set(q.id, optionIndex);
+    answers.push(value);
   }
 
-  const traits = JSON.parse(quiz.traits) as TraitDef[];
-  const questionsForScoring = quiz.questions.map((q) => ({
-    id: q.id,
-    options: JSON.parse(q.options) as { label: string; trait: string }[],
-  }));
-  const scores = computeTraitScores(traits, questionsForScoring, answers);
-  const themeDef = getTheme(quiz.theme);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Session introuvable, recharge la page et réessaie." };
 
-  let responseSlug: string;
+  let resultId: string;
   try {
-    const portrait = await generatePortrait({
-      quizTitle: quiz.title,
-      themeLabel: themeDef?.label ?? quiz.title,
-      emoji: quiz.emoji,
-      vibe: themeDef?.vibe,
-      respondentName,
-      traits,
-      scores,
-    });
+    const { portrait, traits } = await generatePortrait(test.title, test.questions, answers);
 
-    responseSlug = generateSlug();
+    const { data: result, error: insertError } = await supabase
+      .from("results")
+      .insert({ test_id: test.id, user_id: user.id, answers, portrait, traits })
+      .select("id")
+      .single();
+    if (insertError || !result) throw insertError ?? new Error("Échec de l'enregistrement du résultat");
+    resultId = result.id;
 
-    await db.response.create({
-      data: {
-        slug: responseSlug,
-        quizId: quiz.id,
-        respondentName,
-        submittedAt: new Date(),
-        answers: {
-          create: Array.from(answers.entries()).map(([questionId, value]) => ({
-            questionId,
-            value: String(value),
-          })),
-        },
-        result: {
-          create: {
-            headline: portrait.headline,
-            portrait: portrait.portrait,
-            emoji: portrait.emoji,
-            traits: JSON.stringify(scores),
-          },
-        },
-      },
-    });
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("current_streak, longest_streak, last_test_date, tests_completed")
+      .eq("id", user.id)
+      .single();
+
+    if (profile) {
+      const today = new Date().toISOString().slice(0, 10);
+      let newStreak = 1;
+      if (profile.last_test_date) {
+        const diff = daysBetween(profile.last_test_date, today);
+        if (diff === 0) newStreak = profile.current_streak;
+        else if (diff === 1) newStreak = profile.current_streak + 1;
+        else newStreak = 1;
+      }
+      const newTestsCompleted = profile.tests_completed + 1;
+      const newLongest = Math.max(profile.longest_streak, newStreak);
+
+      await supabase
+        .from("profiles")
+        .update({
+          current_streak: newStreak,
+          longest_streak: newLongest,
+          last_test_date: today,
+          tests_completed: newTestsCompleted,
+        })
+        .eq("id", user.id);
+
+      const unlocked = newlyUnlockedBadges(profile.tests_completed, newTestsCompleted);
+      if (unlocked.length) {
+        await supabase
+          .from("profile_badges")
+          .insert(unlocked.map((b) => ({ profile_id: user.id, badge_id: b.id })))
+          .select();
+      }
+    }
   } catch (err) {
     console.error(err);
     return { error: "Impossible de générer ton portrait pour le moment. Réessaie dans un instant." };
   }
 
-  redirect(`/r/${responseSlug}`);
+  redirect(`/resultat/${resultId}`);
+}
+
+/** Réaction ("ça te ressemble ?") sur son propre résultat. */
+export async function setResultReaction(resultId: string, emoji: string): Promise<void> {
+  const supabase = await createClient();
+  await supabase.from("results").update({ reaction: emoji }).eq("id", resultId);
+}
+
+export interface StartCustomTestState {
+  error?: string;
+}
+
+/** Crée (ou récupère) un test à partir d'un thème tapé librement, puis y redirige. */
+export async function startCustomTest(
+  _prevState: StartCustomTestState,
+  formData: FormData,
+): Promise<StartCustomTestState> {
+  const title = String(formData.get("customTheme") || "").trim();
+  if (!title) return { error: "Décris le thème de ton test pour continuer." };
+  if (title.length > 140) return { error: "Choisis un titre un peu plus court." };
+
+  let slug: string;
+  try {
+    const test = await getOrCreateTest(title);
+    slug = test.slug;
+  } catch (err) {
+    console.error(err);
+    return { error: "Impossible de générer ce test pour le moment. Réessaie dans un instant." };
+  }
+
+  redirect(`/test/${slug}`);
+}
+
+export interface LinkEmailState {
+  error?: string;
+  success?: boolean;
+}
+
+/**
+ * Fait passer le compte anonyme à un compte permanent en y attachant un
+ * email : un lien de confirmation est envoyé, et une fois cliqué, les
+ * mêmes résultats/streaks/badges restent associés au même utilisateur —
+ * mais accessibles depuis n'importe quel appareil.
+ */
+export async function linkEmail(
+  _prevState: LinkEmailState,
+  formData: FormData,
+): Promise<LinkEmailState> {
+  const email = String(formData.get("email") || "").trim();
+  if (!email || !email.includes("@")) {
+    return { error: "Merci d'indiquer un email valide." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ email });
+  if (error) {
+    return { error: "Impossible d'envoyer le lien de confirmation. Réessaie dans un instant." };
+  }
+  return { success: true };
 }

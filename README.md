@@ -1,133 +1,208 @@
-# Facette — tests de personnalité à partager
+# Miroir — tests de personnalité
 
-Application web mobile-first pour créer des tests de personnalité courts et
-fun, les partager via un simple lien, et découvrir instantanément le portrait
-de la personne qui répond — sans compte obligatoire, sans dépendance à un
-service tiers pour l'essentiel du parcours.
+Application web mobile-first de tests de personnalité courts et fun,
+pensée pour être jouée seule (et, à terme, à deux ou en groupe). Chaque
+test génère un portrait narratif — jamais un score — et un petit
+personnage illustré à collectionner.
+
+> **Statut** : Phase 1 (parcours solo complet). Le mode Duo et le mode
+> Soirée (local et à distance) décrits dans le brief ne sont pas encore
+> implémentés — voir [Roadmap](#roadmap) plus bas.
 
 ## Concept
 
-1. Un·e créateur·ice choisit un thème (ou en décrit un sur mesure) sur la
-   page d'accueil.
-2. L'app génère un test de 15 à 25 questions à choix multiple, sur un ton
-   léger et bienveillant, et fournit un lien unique à partager (SMS,
-   WhatsApp, copier-coller...).
-3. La personne qui reçoit le lien répond en quelques minutes, sans créer de
-   compte.
-4. Dès la validation, un portrait de personnalité **narratif** (pas un
-   simple score) s'affiche instantanément :
-   - au répondant, directement dans l'app ;
-   - au créateur, via un lien de résultat partageable, ou depuis son
-     historique (`/mes-tests`), identifié anonymement par un cookie.
+1. Depuis l'accueil, choisis une catégorie (Amour & relations, Amitié,
+   Aventure & survie, Humour, Valeurs de vie, Rapport à l'argent, Travail
+   & ambition, Culture) puis un test précis — filtrable par humeur
+   (☀️ Léger / 🌊 Profond) — ou décris ton propre thème.
+2. Réponds à 15 questions à choix multiples (4 à 6 options variées).
+3. Ton portrait de personnalité s'affiche instantanément : quelques
+   phrases chaleureuses et 4 traits de caractère, jamais un diagnostic.
+4. Un personnage visuel généré par algorithme (forme, couleurs,
+   expression, rareté, surnom) accompagne le portrait — le même résultat
+   revisité affiche toujours le même personnage. Partage-le en image
+   (Web Share API, avec repli en téléchargement).
+5. Chaque test complété alimente ta série (streak) et débloque des
+   badges, visibles dans ta collection (`/galerie`).
+
+Aucune inscription n'est requise pour jouer : un compte anonyme est créé
+automatiquement à la première visite (Supabase Auth). Depuis la galerie,
+tu peux relier un email pour retrouver ta collection sur un autre
+appareil.
 
 ## Stack technique
 
-- **Next.js 16** (App Router, Server Actions, React 19)
-- **Tailwind CSS v4** pour le style, mobile-first
-- **Prisma 7** + **SQLite** (via l'adaptateur `@prisma/adapter-better-sqlite3`)
-  pour la persistance (tests, questions, réponses, portraits)
-- **Claude (API Anthropic)** pour générer dynamiquement les questions et les
-  portraits, avec repli automatique sur une banque de contenu pré-écrite
-  quand aucune clé API n'est configurée (l'app reste donc pleinement
-  fonctionnelle sans IA, pratique pour développer/tester hors-ligne)
+- **Next.js 16** (App Router, Server Actions, React 19), proxy Node.js
+  (`proxy.ts`, ex-"middleware")
+- **Supabase** : Postgres (schéma + RLS, voir `supabase/migrations/`),
+  Auth (comptes anonymes + upgrade par email), et à terme Realtime +
+  Storage pour le mode Soirée à distance (Phase 2)
+- **Claude (API Anthropic)** pour générer à la volée les tests non
+  pré-écrits et le portrait de chaque résultat (`lib/ai.ts`)
+- CSS plain (pas de framework utilitaire) reproduisant fidèlement la
+  palette et la typographie du prototype de référence (Fraunces + Inter,
+  fond violine, accents citron/corail/menthe/violet)
 
 ## Démarrer en local
 
+### 1. Base de données Supabase
+
+Deux options :
+
+**a. Un vrai projet Supabase** (recommandé si tu veux tester Auth de bout
+en bout) :
+
+```bash
+# Sur https://supabase.com : crée un projet, récupère son URL et sa clé anon
+npx supabase link --project-ref <ton-project-ref>
+npx supabase db push          # applique supabase/migrations/
+# Le contenu pré-écrit (supabase/seed.sql) n'est PAS appliqué automatiquement
+# sur un projet distant : colle son contenu dans l'éditeur SQL du dashboard,
+# ou exécute-le avec `psql` en pointant sur ta base distante.
+```
+
+Active aussi la connexion anonyme dans le dashboard : **Authentication →
+Sign In / Providers → Anonymous Sign-Ins**.
+
+**b. Supabase local via Docker** (si Docker est disponible sur ta
+machine — ce n'était pas le cas dans l'environnement où ce projet a été
+développé, voir [Limites de test](#limites-de-test-dans-cet-environnement)) :
+
+```bash
+npx supabase start   # démarre Postgres + Auth + Realtime + Storage en local
+                      # applique automatiquement migrations + seed.sql
+```
+
+### 2. Variables d'environnement
+
+```bash
+cp .env.example .env
+# Renseigne NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY
+# (affichées par `npx supabase start`, ou dans Project Settings > API
+# sur le dashboard distant), et ANTHROPIC_API_KEY.
+```
+
+### 3. Lancer l'app
+
 ```bash
 npm install
-cp .env.example .env
-npx prisma migrate deploy   # crée la base SQLite locale
 npm run dev
 ```
 
 Ouvre [http://localhost:3000](http://localhost:3000).
 
-Sans `ANTHROPIC_API_KEY` renseignée dans `.env`, l'app fonctionne quand même
-en mode "template" : les tests et les portraits utilisent une banque de
-contenu prête à l'emploi (`lib/question-bank.ts`, `lib/portrait-bank.ts`)
-au lieu d'un appel IA. Ajoute une clé pour activer la génération dynamique
-par Claude (`lib/ai.ts`).
+**Sans `ANTHROPIC_API_KEY`**, les 11 tests pré-écrits (voir
+`lib/preseeded-tests.ts`) restent jouables (chargement depuis la base,
+aucun appel IA). Les autres tests du catalogue et les thèmes
+personnalisés nécessitent une clé pour être générés.
 
 ## Scripts utiles
 
-| Commande              | Description                                                  |
-| ---------------------- | -------------------------------------------------------------|
-| `npm run dev`           | Lance le serveur de développement                            |
-| `npm run build`         | Build de production (applique aussi les migrations Prisma)   |
-| `npm run start`         | Démarre le build de production                                |
-| `npm run db:migrate`    | Crée/applique une migration Prisma en dev                    |
-| `npm run db:studio`     | Ouvre Prisma Studio pour explorer les données                |
+| Commande                                                | Description                                                        |
+| -------------------------------------------------------- | -------------------------------------------------------------------|
+| `npm run dev`                                              | Serveur de développement                                            |
+| `npm run build`                                             | Build de production                                                  |
+| `npm run supabase:start` / `supabase:stop`                   | Instance Supabase locale (nécessite Docker)                         |
+| `npm run supabase:reset`                                      | Réapplique migrations + seed sur la base locale                     |
+| `node --experimental-strip-types scripts/generate-seed.ts`     | Régénère `supabase/seed.sql` depuis `lib/catalog.ts` + `lib/preseeded-tests.ts` |
 
 ## Architecture du code
 
 ```
 app/
-  page.tsx                 → accueil : choix du thème + création du test
-  test/[slug]/page.tsx      → page du créateur : lien à partager + réponses reçues
-  t/[slug]/page.tsx         → parcours de réponse (public, sans compte)
-  r/[slug]/page.tsx         → page de résultat (portrait), partageable
-  mes-tests/page.tsx        → historique des tests créés (via cookie créateur)
+  page.tsx                    → accueil : grille de catégories
+  categorie/[id]/page.tsx      → liste des tests de la catégorie, filtre humeur, thème libre
+  test/[slug]/page.tsx          → charge/génère le test puis lance le quiz
+  resultat/[id]/page.tsx         → portrait + personnage + partage
+  galerie/page.tsx                → collection, badges, lien du compte
 components/
-  CreateQuizForm.tsx        → formulaire de création (Server Action)
-  QuizRunner.tsx             → parcours de questions pas-à-pas (client)
-  ShareLink.tsx               → copier / partager un lien (Web Share API)
-  TraitBars.tsx                → visualisation du profil (barres de traits)
+  QuizRunner.tsx                    → parcours de questions pas-à-pas (client)
+  ReactionPicker.tsx                 → réaction "ça te ressemble ?" sur son résultat
+  ShareCharacterButton.tsx            → export du personnage en image (canvas + Web Share API)
+  CustomThemeForm.tsx, LinkEmailForm.tsx → formulaires avec Server Actions
 lib/
-  ai.ts                        → génération IA (Claude) + repli "template"
-  themes.ts                    → les 9 thèmes proposés et leurs traits
-  question-bank.ts             → banque de questions prêtes à l'emploi
-  portrait-bank.ts             → banque de portraits narratifs prêts à l'emploi
-  scoring.ts                    → calcul du profil (répartition des traits) à partir des réponses
-  actions.ts                    → Server Actions : createQuiz, submitResponse
-  creator.ts                    → identité anonyme du créateur (cookie, sans compte)
-  db.ts                          → client Prisma (SQLite + adaptateur)
-prisma/
-  schema.prisma                  → modèles Quiz, Question, Response, Answer, Result, Creator
+  ai.ts                                → génération IA (Claude) des questions et portraits
+  catalog.ts                            → catégories + liste des tests proposés
+  preseeded-tests.ts                     → contenu des 11 tests pré-écrits
+  character.ts                            → génération procédurale déterministe du personnage
+  badges.ts                                → catalogue des badges de progression
+  actions.ts                                → Server Actions (cache/génération de test, soumission, réaction, lien email)
+  data.ts                                    → lectures Supabase (profil, galerie, résultat, badges)
+  supabase/{client,server}.ts                 → clients Supabase (browser / Server Components)
+proxy.ts                                        → rafraîchit la session + connexion anonyme automatique
+supabase/
+  migrations/0001_init.sql                       → schéma (profiles, tests, results, badges, profile_badges) + RLS
+  seed.sql                                          → généré par scripts/generate-seed.ts (badges + tests pré-écrits)
 ```
 
 ## Modèle de données (résumé)
 
-- **Quiz** : thème, titre, intro, emoji, 4 traits mesurés, questions liées,
-  rattaché à un `Creator` anonyme.
-- **Question** : texte + 4 options, chacune reliée à l'un des 4 traits du
-  quiz.
-- **Response** : une session de réponse d'un destinataire (nom optionnel),
-  liée à un `Quiz` et à un `Result`.
-- **Result** : le portrait généré (titre, texte narratif, émoji, répartition
-  des traits en %).
+- **profiles** : étend `auth.users` (créé automatiquement par trigger à
+  l'inscription, y compris anonyme) — streak courant/record, date du
+  dernier test, nombre de tests complétés.
+- **tests** : catalogue (titre, catégorie, profondeur, 15 questions en
+  JSON). Lecture publique ; écriture ouverte aux utilisateurs connectés
+  (y compris anonymes) pour permettre la mise en cache d'un test généré
+  à la volée — le premier joueur à choisir un test du catalogue sans
+  contenu pré-écrit déclenche sa génération, les suivants le chargent
+  instantanément depuis la base.
+- **results** : un run complet d'un utilisateur (réponses, portrait, 4
+  traits, réaction) — strictement privé au propriétaire (RLS). Le
+  personnage visuel n'est **pas** stocké : il est recalculé à la volée à
+  partir d'un seed déterministe (`id du résultat` + `slug du test`), ce
+  qui garantit qu'il est toujours identique à la revisite sans dupliquer
+  de données.
+- **badges** / **profile_badges** : catalogue public + badges débloqués
+  par utilisateur.
 
-Le calcul du profil (`lib/scoring.ts`) est déterministe : chaque réponse
-"vote" pour le trait de l'option choisie, ce qui garantit que les
-pourcentages affichés sur la page de résultat correspondent exactement aux
-réponses données, que le portrait soit généré par l'IA ou par le mode
-template.
+## Sécurité (RLS)
 
-## Vie privée & identité du créateur
+Chaque table sensible est protégée par des policies Postgres row-level
+security, validées dans cet environnement contre une vraie instance
+Postgres (voir plus bas) : un utilisateur ne peut lire ou modifier que
+ses propres `results` et `profile_badges` ; le catalogue de tests et les
+badges sont en lecture publique.
 
-Aucun compte n'est requis, ni pour créer un test ni pour y répondre. Le
-créateur est identifié de façon anonyme via un cookie longue durée
-(`creator_id`), ce qui permet de retrouver l'historique de ses tests
-(`/mes-tests`) depuis le même navigateur, sans inscription. La page de
-gestion d'un test (`/test/[slug]`) n'affiche la liste des réponses reçues
-qu'au créateur reconnu par ce cookie ; toute autre personne qui ouvrirait ce
-lien est redirigée vers le parcours de réponse.
+## Limites de test dans cet environnement
 
-## Prochaines étapes (v2)
+Docker n'était pas utilisable dans l'environnement où ce projet a été
+développé (le démon ne peut pas démarrer), donc **`npx supabase start`
+n'a pas pu être exécuté ici** — l'intégration complète avec Supabase Auth
+et l'API REST n'a donc pas pu être testée en conditions réelles depuis
+cette session.
 
-- **Envoi d'email transactionnel** (ex. Resend/SendGrid) pour notifier
-  automatiquement le créateur quand une réponse arrive, et/ou envoyer le
-  résultat au répondant — actuellement le partage se fait uniquement via le
-  lien in-app, comme demandé en priorité.
-- Authentification optionnelle pour un historique multi-appareils (le cookie
-  anonyme actuel est local au navigateur).
-- Questions de type "curseur" (le modèle de données prévoit déjà un champ
-  `type` sur `Question` pour cette extension).
+Ce qui a néanmoins été vérifié :
 
-## Déploiement en production
+- Le schéma (`supabase/migrations/0001_init.sql`) et `supabase/seed.sql`
+  ont été appliqués avec succès sur une instance PostgreSQL 16 native
+  (installée sans Docker), avec un schéma `auth` minimal reproduisant
+  `auth.users`, `auth.uid()` et `auth.role()`.
+- Les policies RLS ont été exercées avec de vraies transactions
+  (`SET LOCAL request.jwt.claim.*` + `SET ROLE authenticated`/`anon`,
+  comme le fait PostgREST) : un utilisateur ne voit ni ne peut modifier
+  les résultats d'un autre, un rôle anonyme ne lit que le catalogue
+  public, et le trigger de création de profil fonctionne.
+- `npm run build`, `npm run lint` et `tsc --noEmit` passent sans erreur.
+- L'app a été démarrée avec `next dev` : toutes les routes répondent
+  (200/404 selon les cas) et se dégradent proprement (écran d'erreur
+  géré, pas de crash serveur) quand Supabase est injoignable — utile
+  pour juger du comportement, mais ce n'est pas un test du parcours réel.
 
-Le script `build` exécute `prisma migrate deploy` (non destructif) avant de
-builder l'app — pense à définir `DATABASE_URL` vers une base persistante
-(un fichier SQLite ne survit pas à un déploiement serverless sans disque
-persistant : pour une prod sérieuse, migre vers Postgres en adaptant
-`prisma/schema.prisma` et l'adaptateur dans `lib/db.ts`, par exemple avec
-`@prisma/adapter-pg`).
+**À faire avant mise en production** : connecter un vrai projet Supabase
+(ou lancer `npx supabase start` sur une machine avec Docker) et rejouer
+le parcours complet (création de compte anonyme, test pré-écrit, test
+généré à la volée, portrait, partage, galerie, streak, badges, lien
+d'email) en conditions réelles.
+
+## Roadmap
+
+Décrit dans le brief mais pas encore construit :
+
+- **Mode Duo** (même téléphone, deux joueurs, révélation simultanée +
+  compatibilité calculée par l'IA).
+- **Mode Soirée** local (Action ou Vérité à plusieurs, même téléphone).
+- **Mode Soirée à distance** (salons synchronisés en temps réel via
+  Supabase Realtime, upload de preuves photo sur le palier Léger via
+  Supabase Storage, questions personnalisées par salon).
+- Monétisation freemium (tests "profonds" et mode Soirée à distance en
+  premium, cosmétiques de personnage).

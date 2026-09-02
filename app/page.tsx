@@ -1,39 +1,56 @@
-import { CreateQuizForm } from "@/components/CreateQuizForm";
+import Link from "next/link";
+import { CATEGORIES } from "@/lib/catalog";
+import { getCurrentProfile, getGallery } from "@/lib/data";
 
-export default function Home() {
+export default async function Home() {
+  const [profile, gallery] = await Promise.all([getCurrentProfile(), getGallery()]);
+
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-5 pb-16 pt-4">
-      <section className="flex flex-col gap-3 text-center sm:text-left">
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
-          Apprends à connaître tes proches, un test à la fois.
+    <>
+      <div className="brand">
+        <div className="brand-mark" />
+        <div className="brand-name">Miroir</div>
+        {profile && profile.current_streak > 0 ? (
+          <span className="streak-pill">🔥 {profile.current_streak}</span>
+        ) : null}
+        {gallery.length > 0 ? (
+          <Link href="/galerie" className="gallery-pill">
+            🗂️ <span className="count">{gallery.length}</span>
+          </Link>
+        ) : null}
+      </div>
+
+      <div className="hero">
+        <h1>
+          Découvre-toi,
+          <br />
+          et découvre les autres.
         </h1>
-        <p className="text-base leading-relaxed text-foreground/70">
-          Choisis un thème (ou invente le tien), on génère un test rigolo en
-          quelques secondes. Partage le lien, la personne répond sans compte,
-          et son portrait de personnalité s&apos;affiche instantanément — pour
-          elle comme pour toi.
+        <p>
+          Choisis une catégorie, puis un test précis. Réponds en quelques
+          minutes et reçois un vrai portrait — pas juste un score.
         </p>
-      </section>
+      </div>
 
-      <section className="rounded-3xl border border-border bg-surface/70 p-5 shadow-sm backdrop-blur sm:p-7">
-        <CreateQuizForm />
-      </section>
-
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {[
-          { emoji: "🔗", text: "Un lien unique à envoyer, sans inscription pour répondre" },
-          { emoji: "⚡", text: "Un portrait généré instantanément, jamais un simple score" },
-          { emoji: "🔒", text: "Un lien de résultat rien qu'à vous deux, à partager si vous le voulez" },
-        ].map((item) => (
-          <div
-            key={item.text}
-            className="flex flex-col items-start gap-2 rounded-2xl border border-border bg-surface/50 p-4"
+      <div className="cat-grid">
+        {CATEGORIES.map((cat) => (
+          <Link
+            key={cat.id}
+            href={`/categorie/${cat.id}`}
+            className="cat-tile"
+            style={{ "--tile-color": cat.color } as React.CSSProperties}
           >
-            <span className="text-xl">{item.emoji}</span>
-            <p className="text-sm text-foreground/70">{item.text}</p>
-          </div>
+            <span className="glow" />
+            <span className="cat-emoji">{cat.emoji}</span>
+            <span className="cat-name">{cat.label}</span>
+          </Link>
         ))}
-      </section>
-    </main>
+      </div>
+
+      <p className="footnote">
+        Tes réponses restent privées. Tu peux relier un email plus tard pour
+        retrouver ta collection sur un autre appareil, depuis ta galerie.
+      </p>
+    </>
   );
 }
