@@ -1127,6 +1127,119 @@ input[type="email"]::placeholder {
   margin-top: 14px;
 }
 
+/* ---- Mode Soirée à distance ---- */
+.remote-variant {
+  background: linear-gradient(135deg, rgba(94, 230, 197, 0.14), rgba(245, 197, 24, 0.14));
+  border-color: var(--accent-mint);
+}
+.room-code-display {
+  font-family: var(--font-fraunces), serif;
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent-citrus);
+  margin-bottom: 10px;
+  text-align: center;
+}
+.answer-zone {
+  margin-bottom: 18px;
+}
+.answer-zone textarea {
+  width: 100%;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-family: var(--font-inter), sans-serif;
+  resize: vertical;
+  min-height: 80px;
+}
+.answer-zone textarea:focus {
+  outline: none;
+  border-color: var(--accent-mint);
+}
+.friend-answer {
+  margin-top: 12px;
+  font-size: 14.5px;
+  font-style: italic;
+  color: var(--text);
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.proof-zone {
+  margin-bottom: 18px;
+}
+.file-input-wrap {
+  border: 1.5px dashed var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  background: var(--surface);
+}
+.file-input-wrap input[type="file"] {
+  width: 100%;
+  color: var(--muted);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 13px;
+}
+.file-input-wrap input[type="file"]::file-selector-button {
+  background: var(--accent-mint);
+  color: #0a1f1a;
+  border: none;
+  border-radius: 100px;
+  padding: 10px 16px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  margin-right: 12px;
+}
+.proof-label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+.proof-preview {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 1.5px solid var(--line);
+}
+
+.turn-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.turn-card {
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+.turn-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.turn-card-name {
+  font-family: var(--font-fraunces), serif;
+  font-weight: 600;
+  font-size: 14.5px;
+}
+.turn-card-prompt {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
 .footnote {
   text-align: center;
   color: var(--muted);

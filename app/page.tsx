@@ -56,6 +56,15 @@ export default async function Home() {
         <span className="party-banner-arrow">→</span>
       </Link>
 
+      <Link href="/soiree-distance" className="party-banner remote-variant">
+        <span className="party-banner-emoji">📡</span>
+        <span className="party-banner-text">
+          <strong>Soirée à distance</strong>
+          <span>Chacun·e sur son téléphone, avec preuves</span>
+        </span>
+        <span className="party-banner-arrow">→</span>
+      </Link>
+
       <p className="footnote">
         Tes réponses restent privées. Tu peux relier un email plus tard pour
         retrouver ta collection sur un autre appareil, depuis ta galerie.
