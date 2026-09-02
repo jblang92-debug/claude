@@ -1,0 +1,90 @@
+// Schema Prisma — Application de tests de personnalité
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Un créateur est identifié anonymement via un cookie (creatorId, uuid).
+// Aucune inscription n'est nécessaire : l'historique se construit simplement
+// à partir des tests que ce navigateur a créés.
+model Creator {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  quizzes   Quiz[]
+}
+
+model Quiz {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  theme       String
+  title       String
+  intro       String
+  emoji       String   @default("✨")
+  // JSON stringifié : les 4 dimensions/traits mesurés par ce test, ex.
+  // [{"key":"romantique","label":"Romantique"}, ...]
+  traits      String
+  createdAt   DateTime @default(now())
+
+  creatorId   String?
+  creator     Creator? @relation(fields: [creatorId], references: [id])
+
+  questions   Question[]
+  responses   Response[]
+}
+
+model Question {
+  id        String   @id @default(uuid())
+  quizId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  order     Int
+  text      String
+  // Type de question : "choice" (choix multiple) ou "slider" (curseur)
+  type      String   @default("choice")
+  // JSON stringifié : liste d'options pour "choice", ou {min,max,minLabel,maxLabel} pour "slider"
+  options   String
+
+  answers   Answer[]
+}
+
+// Une "Response" représente une session de réponse d'un destinataire à un quiz.
+model Response {
+  id           String    @id @default(uuid())
+  slug         String    @unique
+  quizId       String
+  quiz         Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  respondentName String?
+  createdAt    DateTime  @default(now())
+  submittedAt  DateTime?
+
+  answers      Answer[]
+  result       Result?
+}
+
+model Answer {
+  id         String   @id @default(uuid())
+  responseId String
+  response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  // Index de l'option choisie (choice) ou valeur numérique stringifiée (slider)
+  value      String
+
+  @@unique([responseId, questionId])
+}
+
+model Result {
+  id         String   @id @default(uuid())
+  responseId String   @unique
+  response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  headline   String
+  portrait   String
+  traits     String   // JSON stringifié : liste de {label, value 0-100}
+  emoji      String
+  createdAt  DateTime @default(now())
+}
