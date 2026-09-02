@@ -92,9 +92,15 @@ npm run dev
 Ouvre [http://localhost:3000](http://localhost:3000).
 
 **Sans `ANTHROPIC_API_KEY`**, les 11 tests pré-écrits (voir
-`lib/preseeded-tests.ts`) restent jouables (chargement depuis la base,
-aucun appel IA). Les autres tests du catalogue et les thèmes
-personnalisés nécessitent une clé pour être générés.
+`lib/preseeded-tests.ts`) restent jouables de bout en bout : les questions
+viennent de la base (aucun appel IA), et le portrait final retombe sur une
+petite banque de portraits tout prêts (`lib/portrait-fallback.ts`) plutôt
+que d'échouer — moins personnalisé (il ne tient pas compte des réponses
+précises), mais ça permet de tester tout le parcours sans clé payante. Le
+personnage visuel, lui, n'a jamais besoin d'IA (généré par algorithme,
+voir `lib/character.ts`). Les tests du catalogue non pré-écrits et les
+thèmes personnalisés nécessitent en revanche une clé pour générer leurs
+questions.
 
 ## Scripts utiles
 

@@ -89,12 +89,22 @@ export interface GeneratedPortrait {
   traits: string[];
 }
 
-/** Génère le portrait narratif + 4 traits à partir des réponses données. */
+/**
+ * Génère le portrait narratif + 4 traits à partir des réponses données.
+ * Sans ANTHROPIC_API_KEY, retombe sur une petite banque de portraits
+ * prêts à l'emploi (lib/portrait-fallback.ts) — moins personnalisé, mais
+ * permet de tester tout le parcours sans clé payante.
+ */
 export async function generatePortrait(
   title: string,
   questions: GeneratedQuestion[],
   answers: string[],
 ): Promise<GeneratedPortrait> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    const { fallbackPortrait } = await import("./portrait-fallback");
+    return fallbackPortrait();
+  }
+
   const client = getClient();
 
   const qa = questions
