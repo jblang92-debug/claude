@@ -10,6 +10,7 @@ import { writeFileSync } from "node:fs";
 import { findQuizCategory, slugify, type Depth } from "../lib/catalog.ts";
 import { PRESEEDED_TESTS } from "../lib/preseeded-tests.ts";
 import { BADGES } from "../lib/badges.ts";
+import { PARTY_CONTENT } from "../lib/party-content.ts";
 
 function sqlString(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
@@ -68,9 +69,20 @@ for (const [title, questions] of Object.entries(PRESEEDED_TESTS)) {
 }
 lines.push("");
 
+lines.push("-- Catalogue Action ou Vérité (mode Soirée), pré-écrit et modéré");
+lines.push("insert into public.dare_truth_prompts (type, depth, text) values");
+lines.push(
+  PARTY_CONTENT.map(
+    (p) => `  (${sqlString(p.type)}, ${sqlString(p.depth)}, ${sqlString(p.text)})`,
+  ).join(",\n") + "\non conflict (type, depth, text) do nothing;",
+);
+lines.push("");
+
 const outPath = new URL("../supabase/seed.sql", import.meta.url);
 writeFileSync(outPath, lines.join("\n") + "\n", "utf8");
-console.log(`Écrit : ${outPath.pathname} (${count} tests pré-écrits, ${BADGES.length} badges)`);
+console.log(
+  `Écrit : ${outPath.pathname} (${count} tests pré-écrits, ${BADGES.length} badges, ${PARTY_CONTENT.length} prompts Action/Vérité)`,
+);
 
 // Vérifie que chaque test pré-écrit a bien 15 questions et 4-6 options chacune.
 for (const [title, questions] of Object.entries(PRESEEDED_TESTS)) {

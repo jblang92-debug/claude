@@ -162,3 +162,77 @@ export async function generatePortrait(
   }
   return data;
 }
+
+export interface GeneratedCompat {
+  percent: number;
+  compatText: string;
+}
+
+/**
+ * Calcule la compatibilité entre deux portraits réels (mode Duo). Sans
+ * ANTHROPIC_API_KEY, retombe sur une estimation locale (lib/portrait-fallback.ts).
+ */
+export async function generateCompatibility(
+  title: string,
+  portraitA: string,
+  traitsA: string[],
+  portraitB: string,
+  traitsB: string[],
+): Promise<GeneratedCompat> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    const { fallbackCompat } = await import("./portrait-fallback");
+    return fallbackCompat();
+  }
+
+  const client = getClient();
+
+  const schema = {
+    type: "object" as const,
+    properties: {
+      percent: {
+        type: "integer",
+        minimum: 30,
+        maximum: 98,
+        description: "pourcentage de compatibilité réaliste entre les deux profils",
+      },
+      compatText: {
+        type: "string",
+        description:
+          "phrase courte, fun et bienveillante expliquant ce qui les rapproche ou les distingue, sans jamais être blessante",
+      },
+    },
+    required: ["percent", "compatText"],
+  };
+
+  const message = await client.messages.create({
+    model: MODEL,
+    max_tokens: 500,
+    system:
+      "Tu compares deux portraits de personnalité réels obtenus au même test, pour un mode duo entre deux ami·es ou un couple. Ton chaleureux, jamais blessant. Réponds uniquement en français.",
+    messages: [
+      {
+        role: "user",
+        content: `Deux personnes ont répondu séparément au même test de personnalité intitulé "${title}".\n\nPortrait 1 : ${portraitA}\nTraits 1 : ${traitsA.join(", ")}\n\nPortrait 2 : ${portraitB}\nTraits 2 : ${traitsB.join(", ")}\n\nCalcule leur compatibilité et explique ce qui les rapproche ou les distingue.`,
+      },
+    ],
+    tools: [
+      {
+        name: "submit_compat",
+        description: "Envoie le résultat de compatibilité",
+        input_schema: schema,
+      },
+    ],
+    tool_choice: { type: "tool", name: "submit_compat" },
+  });
+
+  const toolUse = message.content.find(
+    (c): c is Anthropic.ToolUseBlock => c.type === "tool_use",
+  );
+  if (!toolUse) throw new Error("Aucune réponse structurée reçue de l'IA");
+
+  const data = toolUse.input as GeneratedCompat;
+  if (typeof data.percent !== "number" || !data.compatText) {
+    throw new Error("Compatibilité IA incomplète");
+  }
+  return data;
+}

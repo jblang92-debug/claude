@@ -3,7 +3,7 @@
 // clé payante. Moins personnalisé que la génération IA (ne tient pas compte
 // des réponses précises), mais garde le même ton chaleureux et fun.
 
-import type { GeneratedPortrait } from "./ai";
+import type { GeneratedCompat, GeneratedPortrait } from "./ai";
 
 interface FallbackEntry {
   portrait: string;
@@ -54,4 +54,19 @@ function pickFallback(): FallbackEntry {
 export function fallbackPortrait(): GeneratedPortrait {
   const entry = pickFallback();
   return { portrait: entry.portrait, traits: [...entry.traits] };
+}
+
+const COMPAT_TEXTS = [
+  "Vous vous complétez plus que vous ne le pensez : là où l'un fonce, l'autre pose les bonnes questions.",
+  "Une belle énergie commune se dégage de vos deux profils, avec juste assez de différences pour ne jamais s'ennuyer.",
+  "Vos points communs sautent aux yeux, et vos différences donnent plutôt du relief à la relation.",
+  "Vous n'abordez pas les choses pareil, mais c'est justement ce qui rend le duo intéressant.",
+  "Un vrai équilibre : ce qui manque à l'un, l'autre semble l'avoir en réserve.",
+];
+
+/** Repli local (sans IA) pour la compatibilité en mode Duo. */
+export function fallbackCompat(): GeneratedCompat {
+  const percent = 55 + Math.floor(Math.random() * 40); // 55-94, jamais trop bas ni parfait
+  const compatText = COMPAT_TEXTS[Math.floor(Math.random() * COMPAT_TEXTS.length)];
+  return { percent, compatText };
 }

@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCategory } from "@/lib/catalog";
-import { slugify } from "@/lib/catalog";
-import { PRESEEDED_TESTS } from "@/lib/preseeded-tests";
 import { CustomThemeForm } from "@/components/CustomThemeForm";
+import { QuizList } from "@/components/QuizList";
 
 export default async function CategoryPage({
   params,
@@ -62,23 +61,7 @@ export default async function CategoryPage({
           ton propre test ci-dessous.
         </p>
       ) : null}
-      <div className="quiz-list">
-        {quizzes.map((q) => (
-          <Link
-            key={q.title}
-            href={`/test/${slugify(q.title)}`}
-            className="quiz-card"
-            style={{ "--tile-color": category.color } as React.CSSProperties}
-          >
-            <span className="qi">{category.emoji}</span>
-            <span className="qt">
-              {q.title}
-              <span className="depth-tag">{q.depth === "profond" ? "🌊 profond" : "☀️ léger"}</span>
-            </span>
-            <span className="arrow">{PRESEEDED_TESTS[q.title] ? "⚡" : "✨"}</span>
-          </Link>
-        ))}
-      </div>
+      <QuizList quizzes={quizzes} categoryColor={category.color} categoryEmoji={category.emoji} />
 
       <CustomThemeForm />
     </>

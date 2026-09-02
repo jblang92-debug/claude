@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "./supabase/server";
-import { generateQuestions, generatePortrait } from "./ai";
+import { generateQuestions, generatePortrait, generateCompatibility, type GeneratedPortrait, type GeneratedCompat } from "./ai";
 import { findQuizCategory, getCategory, slugify, type Depth } from "./catalog";
 import { newlyUnlockedBadges } from "./badges";
 import type { TestRow } from "./data";
@@ -210,4 +210,47 @@ export async function linkEmail(
     return { error: "Impossible d'envoyer le lien de confirmation. Réessaie dans un instant." };
   }
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Mode Duo (même téléphone) : deux tests joués à la suite sur le même
+// appareil. Volontairement éphémère — rien n'est enregistré en base (ni
+// résultat, ni streak, ni badge), car les deux joueurs partagent la même
+// session sur cet appareil et ça n'aurait pas de sens de mélanger leurs
+// portraits dans une seule galerie personnelle.
+// ---------------------------------------------------------------------------
+
+export type DuoPortraitResult =
+  | ({ ok: true } & GeneratedPortrait)
+  | { ok: false; error: string };
+
+export async function generateDuoPortrait(
+  test: TestRow,
+  answers: string[],
+): Promise<DuoPortraitResult> {
+  try {
+    const result = await generatePortrait(test.title, test.questions, answers);
+    return { ok: true, ...result };
+  } catch (err) {
+    console.error(err);
+    return { ok: false, error: "Impossible de générer ce portrait pour le moment." };
+  }
+}
+
+export type DuoCompatResult = ({ ok: true } & GeneratedCompat) | { ok: false; error: string };
+
+export async function generateDuoCompat(
+  title: string,
+  portraitA: string,
+  traitsA: string[],
+  portraitB: string,
+  traitsB: string[],
+): Promise<DuoCompatResult> {
+  try {
+    const result = await generateCompatibility(title, portraitA, traitsA, portraitB, traitsB);
+    return { ok: true, ...result };
+  } catch (err) {
+    console.error(err);
+    return { ok: false, error: "Impossible de calculer la compatibilité pour le moment." };
+  }
 }
