@@ -178,16 +178,12 @@ export function RemoteRoomRunner({
   async function startGame() {
     setBusy(true);
     setError(null);
-    const first = orderedPlayers()[0];
-    const patch = { depth: depthChoice, status: "active" as const, current_player_id: first?.id ?? null };
-    const { data, error: updateError } = await supabase
-      .from("rooms")
-      .update(patch)
-      .eq("id", room.id)
-      .select()
-      .single();
+    const { data, error: rpcError } = await supabase.rpc("start_game", {
+      target_room_id: room.id,
+      chosen_depth: depthChoice,
+    });
     setBusy(false);
-    if (updateError) setError("Impossible de lancer la partie pour le moment.");
+    if (rpcError) setError("Impossible de lancer la partie pour le moment.");
     else if (data) setRoom(data as RoomRow);
   }
 
@@ -197,13 +193,14 @@ export function RemoteRoomRunner({
     setError(null);
     const prompt = pickPrompt(catalog, customPrompts, type, room.depth, usedTextsRef.current);
     usedTextsRef.current.add(prompt);
-    const { data, error: insertError } = await supabase
-      .from("turns")
-      .insert({ room_id: room.id, player_id: me.id, turn_type: type, depth: room.depth, prompt })
-      .select()
-      .single();
+    const { data, error: rpcError } = await supabase.rpc("choose_turn", {
+      target_room_id: room.id,
+      p_turn_type: type,
+      p_depth: room.depth,
+      p_prompt: prompt,
+    });
     setBusy(false);
-    if (insertError) setError("Impossible de démarrer ce tour pour le moment.");
+    if (rpcError) setError("Impossible de démarrer ce tour pour le moment.");
     else if (data) setTurns((prev) => [data as TurnRow, ...prev]);
   }
 
@@ -221,25 +218,18 @@ export function RemoteRoomRunner({
     const prompt = pickPrompt(catalog, customPrompts, myPendingTurn.turn_type, room.depth, usedTextsRef.current);
     usedTextsRef.current.add(prompt);
 
-    const { data: playerData, error: playerError } = await supabase
-      .from("players")
-      .update({ skips_left: me.skips_left - 1 })
-      .eq("id", me.id)
-      .select()
-      .single();
-    const { data: turnData, error: updateError } = await supabase
-      .from("turns")
-      .update({ prompt })
-      .eq("id", myPendingTurn.id)
-      .select()
-      .single();
+    const { data, error: rpcError } = await supabase.rpc("skip_turn", {
+      target_turn_id: myPendingTurn.id,
+      new_prompt: prompt,
+    });
     setBusy(false);
-    if (updateError || playerError) {
+    if (rpcError) {
       setError("Impossible de changer de question pour le moment.");
       return;
     }
-    if (playerData) setPlayers((prev) => prev.map((p) => (p.id === playerData.id ? (playerData as PlayerRow) : p)));
-    if (turnData) setTurns((prev) => prev.map((t) => (t.id === turnData.id ? (turnData as TurnRow) : t)));
+    const result = data as { player: PlayerRow; turn: TurnRow };
+    setPlayers((prev) => prev.map((p) => (p.id === result.player.id ? result.player : p)));
+    setTurns((prev) => prev.map((t) => (t.id === result.turn.id ? result.turn : t)));
   }
 
   async function submitTurn() {
@@ -268,32 +258,21 @@ export function RemoteRoomRunner({
           ? "C'est fait ✅"
           : null;
 
-    const { data: turnData, error: updateError } = await supabase
-      .from("turns")
-      .update({
-        status: "answered",
-        response_text: responseText,
-        proof_path: proofPath,
-        answered_at: new Date().toISOString(),
-      })
-      .eq("id", myPendingTurn.id)
-      .select()
-      .single();
+    const { data, error: rpcError } = await supabase.rpc("submit_turn", {
+      target_turn_id: myPendingTurn.id,
+      p_response_text: responseText,
+      p_proof_path: proofPath,
+      p_next_player_id: nextPlayerId(),
+    });
 
-    if (updateError) {
+    if (rpcError) {
       setBusy(false);
       setError("Impossible d'envoyer ta réponse pour le moment.");
       return;
     }
-    if (turnData) setTurns((prev) => prev.map((t) => (t.id === turnData.id ? (turnData as TurnRow) : t)));
-
-    const { data: roomData } = await supabase
-      .from("rooms")
-      .update({ current_player_id: nextPlayerId() })
-      .eq("id", room.id)
-      .select()
-      .single();
-    if (roomData) setRoom(roomData as RoomRow);
+    const result = data as { turn: TurnRow; room: RoomRow };
+    setTurns((prev) => prev.map((t) => (t.id === result.turn.id ? result.turn : t)));
+    setRoom(result.room);
 
     setAnswerText("");
     setProofFile(null);
@@ -307,16 +286,17 @@ export function RemoteRoomRunner({
     const text = String(formData.get("text") || "").trim();
     if (!text) return;
     setBusy(true);
-    const { data, error: insertError } = await supabase
-      .from("room_custom_prompts")
-      .insert({ room_id: room.id, type, depth, text, created_by: myUserId })
-      .select()
-      .single();
+    const { data, error: rpcError } = await supabase.rpc("add_custom_prompt", {
+      target_room_id: room.id,
+      p_type: type,
+      p_depth: depth,
+      p_text: text,
+    });
     setBusy(false);
-    if (!insertError) {
+    if (!rpcError) {
       if (data) {
         setCustomPrompts((prev) =>
-          prev.some((p) => p.id === data.id) ? prev : [...prev, data as CustomPrompt],
+          prev.some((p) => p.id === (data as CustomPrompt).id) ? prev : [...prev, data as CustomPrompt],
         );
       }
       setShowCustomForm(false);
