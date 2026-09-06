@@ -17,6 +17,7 @@ export default async function SalonPage({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) notFound();
+  console.error(`[DEBUG salon page] user=${user.id} code=${code}`);
 
   const { data: room } = await supabase
     .from("rooms")

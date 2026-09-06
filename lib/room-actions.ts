@@ -72,6 +72,7 @@ export async function joinRoom(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Session introuvable, recharge la page et réessaie." };
+  console.error(`[DEBUG joinRoom] user=${user.id} code=${code}`);
 
   const { data: room } = await supabase.from("rooms").select("id, code").eq("code", code).maybeSingle();
   if (!room) return { error: "Aucun salon ne correspond à ce code." };
@@ -79,7 +80,11 @@ export async function joinRoom(
   const { error: playerError } = await supabase
     .from("players")
     .upsert({ room_id: room.id, user_id: user.id, name }, { onConflict: "room_id,user_id" });
-  if (playerError) return { error: `Impossible de rejoindre le salon : ${playerError.message}` };
+  if (playerError) {
+    console.error(`[DEBUG joinRoom] insert failed user=${user.id} room=${room.id} error=${playerError.message}`);
+    return { error: `Impossible de rejoindre le salon : ${playerError.message}` };
+  }
+  console.error(`[DEBUG joinRoom] insert OK user=${user.id} room=${room.id}`);
 
   redirect(`/salon/${room.code}`);
 }

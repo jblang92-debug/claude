@@ -34,10 +34,15 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    const { error } = await supabase.auth.signInAnonymously();
+    console.error(`[DEBUG proxy] no session, signing in anonymously — ${request.method} ${request.nextUrl.pathname}`);
+    const { data, error } = await supabase.auth.signInAnonymously();
     if (error) {
       console.error("Échec de la connexion anonyme automatique :", error.message);
+    } else {
+      console.error(`[DEBUG proxy] new anon user=${data.user?.id} — ${request.method} ${request.nextUrl.pathname}`);
     }
+  } else {
+    console.error(`[DEBUG proxy] existing session user=${user.id} — ${request.method} ${request.nextUrl.pathname}`);
   }
 
   return response;
