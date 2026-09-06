@@ -73,6 +73,8 @@ export async function joinRoom(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Session introuvable, recharge la page et réessaie." };
   console.error(`[DEBUG joinRoom] user=${user.id} code=${code}`);
+  const { data: dbAuth } = await supabase.rpc("debug_auth");
+  console.error(`[DEBUG joinRoom] db sees: ${JSON.stringify(dbAuth)}`);
 
   const { data: room } = await supabase.from("rooms").select("id, code").eq("code", code).maybeSingle();
   if (!room) return { error: "Aucun salon ne correspond à ce code." };
