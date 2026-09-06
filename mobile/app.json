@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Miroir Rencontre",
+    "slug": "miroir-rencontre",
+    "scheme": "miroir-rencontre",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Miroir a besoin de la caméra pour ton selfie de vérification de profil."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Miroir a besoin d'accéder à tes photos pour ton profil."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Miroir utilise ta ville pour te proposer des profils proches de toi."
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

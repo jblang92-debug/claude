@@ -1,0 +1,3 @@
+-- Aucune donnée de test pré-écrite pour l'instant (contrairement à l'app
+-- de tests de personnalité, racine du dépôt). Le catalogue d'axes
+-- (trait_axes) est inséré directement dans 0001_init.sql, pas ici.
