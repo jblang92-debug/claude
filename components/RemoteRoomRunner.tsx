@@ -143,6 +143,42 @@ export function RemoteRoomRunner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.id]);
 
+  // Filet de sécurité en complément du temps réel : si un événement Realtime
+  // est manqué (connexion instable, etc.), on rattrape l'état du salon en
+  // le relisant périodiquement.
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      const [{ data: roomData }, { data: playersData }, { data: turnsData }, { data: promptsData }] =
+        await Promise.all([
+          supabase
+            .from("rooms")
+            .select("id, code, depth, status, host_user_id, current_player_id")
+            .eq("id", room.id)
+            .maybeSingle(),
+          supabase.from("players").select("id, user_id, name, skips_left, joined_at").eq("room_id", room.id),
+          supabase
+            .from("turns")
+            .select("id, player_id, turn_type, depth, prompt, response_text, proof_path, status, created_at")
+            .eq("room_id", room.id)
+            .order("created_at", { ascending: false })
+            .limit(50),
+          supabase.from("room_custom_prompts").select("id, type, depth, text").eq("room_id", room.id),
+        ]);
+      if (cancelled) return;
+      if (roomData) setRoom(roomData as RoomRow);
+      if (playersData) setPlayers(playersData as PlayerRow[]);
+      if (turnsData) setTurns(turnsData as TurnRow[]);
+      if (promptsData) setCustomPrompts(promptsData as CustomPrompt[]);
+    };
+    const interval = setInterval(poll, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.id]);
+
   // Charge les URLs signées des preuves photo au fur et à mesure qu'elles apparaissent.
   useEffect(() => {
     const missing = turns.filter((t) => t.proof_path && !proofPreviewUrls[t.proof_path]);
@@ -151,8 +187,11 @@ export function RemoteRoomRunner({
       const entries: Record<string, string> = {};
       for (const t of missing) {
         if (!t.proof_path) continue;
-        const { data } = await supabase.storage.from("party-proofs").createSignedUrl(t.proof_path, 3600);
-        if (data?.signedUrl) entries[t.proof_path] = data.signedUrl;
+        const { data, error: signError } = await supabase.storage
+          .from("party-proofs")
+          .createSignedUrl(t.proof_path, 3600);
+        if (signError) console.error("Impossible de générer l'URL de la preuve photo :", signError.message);
+        else if (data?.signedUrl) entries[t.proof_path] = data.signedUrl;
       }
       if (Object.keys(entries).length) {
         setProofPreviewUrls((prev) => ({ ...prev, ...entries }));
