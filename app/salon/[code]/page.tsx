@@ -51,7 +51,9 @@ export default async function SalonPage({
       .eq("room_id", room.id),
     supabase
       .from("turns")
-      .select("id, player_id, turn_type, depth, prompt, response_text, proof_path, status, created_at")
+      .select(
+        "id, player_id, turn_type, depth, prompt, response_text, proof_path, status, created_at, author_player_id",
+      )
       .eq("room_id", room.id)
       .order("created_at", { ascending: false })
       .limit(50),

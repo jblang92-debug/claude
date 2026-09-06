@@ -27,11 +27,12 @@ export interface TurnRow {
   player_id: string;
   turn_type: PartyType;
   depth: PartyDepth;
-  prompt: string;
+  prompt: string | null;
   response_text: string | null;
   proof_path: string | null;
-  status: "pending" | "answered" | "skipped";
+  status: "awaiting_prompt" | "pending" | "answered" | "skipped";
   created_at: string;
+  author_player_id: string | null;
 }
 
 export interface CustomPrompt {
@@ -39,6 +40,19 @@ export interface CustomPrompt {
   type: PartyType;
   depth: PartyDepth;
   text: string;
+}
+
+const VIDEO_EXTENSIONS = ["mp4", "mov", "webm", "m4v", "avi"];
+
+function isVideoPath(path: string): boolean {
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  return VIDEO_EXTENSIONS.includes(ext);
+}
+
+function fileExtension(file: File): string {
+  const fromName = file.name.split(".").pop();
+  if (fromName && fromName.length <= 5) return fromName.toLowerCase();
+  return file.type.startsWith("video") ? "mp4" : "jpg";
 }
 
 function pickPrompt(
@@ -82,6 +96,8 @@ export function RemoteRoomRunner({
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreviewUrls, setProofPreviewUrls] = useState<Record<string, string>>({});
   const [showCustomForm, setShowCustomForm] = useState(false);
+  const [pendingLibreType, setPendingLibreType] = useState<PartyType | null>(null);
+  const [libreDraft, setLibreDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const usedTextsRef = useRef<Set<string>>(new Set());
@@ -159,7 +175,9 @@ export function RemoteRoomRunner({
           supabase.from("players").select("id, user_id, name, skips_left, joined_at").eq("room_id", room.id),
           supabase
             .from("turns")
-            .select("id, player_id, turn_type, depth, prompt, response_text, proof_path, status, created_at")
+            .select(
+              "id, player_id, turn_type, depth, prompt, response_text, proof_path, status, created_at, author_player_id",
+            )
             .eq("room_id", room.id)
             .order("created_at", { ascending: false })
             .limit(50),
@@ -179,7 +197,7 @@ export function RemoteRoomRunner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.id]);
 
-  // Charge les URLs signées des preuves photo au fur et à mesure qu'elles apparaissent.
+  // Charge les URLs signées des preuves photo/vidéo au fur et à mesure qu'elles apparaissent.
   useEffect(() => {
     const missing = turns.filter((t) => t.proof_path && !proofPreviewUrls[t.proof_path]);
     if (missing.length === 0) return;
@@ -190,7 +208,7 @@ export function RemoteRoomRunner({
         const { data, error: signError } = await supabase.storage
           .from("party-proofs")
           .createSignedUrl(t.proof_path, 3600);
-        if (signError) console.error("Impossible de générer l'URL de la preuve photo :", signError.message);
+        if (signError) console.error("Impossible de générer l'URL de la preuve :", signError.message);
         else if (data?.signedUrl) entries[t.proof_path] = data.signedUrl;
       }
       if (Object.keys(entries).length) {
@@ -204,6 +222,15 @@ export function RemoteRoomRunner({
   const isMyTurn = room.status === "active" && me !== null && room.current_player_id === me.id;
   const currentPlayer = players.find((p) => p.id === room.current_player_id) ?? null;
   const myPendingTurn = me ? turns.find((t) => t.player_id === me.id && t.status === "pending") : undefined;
+  // Mode Libre : quelqu'un peut m'avoir désigné pour écrire son défi, ou je
+  // peux moi-même attendre que la personne désignée écrive le mien — ça peut
+  // arriver même quand ce n'est pas "mon tour" au sens du salon.
+  const myAuthoringTurn = me
+    ? turns.find((t) => t.author_player_id === me.id && t.status === "awaiting_prompt")
+    : undefined;
+  const myWaitingTurn = me
+    ? turns.find((t) => t.player_id === me.id && t.status === "awaiting_prompt")
+    : undefined;
   const answeredTurns = turns.filter((t) => t.status === "answered").slice(0, 20);
 
   function playerName(playerId: string): string {
@@ -228,6 +255,11 @@ export function RemoteRoomRunner({
 
   async function chooseType(type: PartyType) {
     if (!me) return;
+    if (room.depth === "libre") {
+      setError(null);
+      setPendingLibreType(type);
+      return;
+    }
     setBusy(true);
     setError(null);
     const prompt = pickPrompt(catalog, customPrompts, type, room.depth, usedTextsRef.current);
@@ -243,6 +275,38 @@ export function RemoteRoomRunner({
     else if (data) setTurns((prev) => [data as TurnRow, ...prev]);
   }
 
+  async function chooseLibreAuthor(authorId: string) {
+    if (!me || !pendingLibreType) return;
+    setBusy(true);
+    setError(null);
+    const { data, error: rpcError } = await supabase.rpc("choose_turn_libre", {
+      target_room_id: room.id,
+      p_turn_type: pendingLibreType,
+      p_author_player_id: authorId,
+    });
+    setBusy(false);
+    setPendingLibreType(null);
+    if (rpcError) setError("Impossible de démarrer ce tour pour le moment.");
+    else if (data) setTurns((prev) => [data as TurnRow, ...prev]);
+  }
+
+  async function submitLibrePrompt() {
+    if (!myAuthoringTurn || !libreDraft.trim()) return;
+    setBusy(true);
+    setError(null);
+    const { data, error: rpcError } = await supabase.rpc("write_libre_prompt", {
+      target_turn_id: myAuthoringTurn.id,
+      p_prompt: libreDraft.trim(),
+    });
+    setBusy(false);
+    if (rpcError) {
+      setError("Impossible d'envoyer ta question/ton défi pour le moment.");
+      return;
+    }
+    if (data) setTurns((prev) => prev.map((t) => (t.id === (data as TurnRow).id ? (data as TurnRow) : t)));
+    setLibreDraft("");
+  }
+
   function nextPlayerId(): string | null {
     const ordered = orderedPlayers();
     if (ordered.length === 0) return null;
@@ -251,7 +315,7 @@ export function RemoteRoomRunner({
   }
 
   async function skipTurn() {
-    if (!me || !myPendingTurn || me.skips_left <= 0) return;
+    if (!me || !myPendingTurn || me.skips_left <= 0 || myPendingTurn.depth === "libre") return;
     setBusy(true);
     setError(null);
     const prompt = pickPrompt(catalog, customPrompts, myPendingTurn.turn_type, room.depth, usedTextsRef.current);
@@ -277,25 +341,21 @@ export function RemoteRoomRunner({
     setError(null);
 
     let proofPath: string | null = null;
-    if (myPendingTurn.turn_type === "action" && myPendingTurn.depth === "leger" && proofFile) {
-      const path = `${room.id}/${myPendingTurn.id}.jpg`;
+    if (myPendingTurn.turn_type === "action" && proofFile) {
+      const path = `${room.id}/${myPendingTurn.id}.${fileExtension(proofFile)}`;
       const { error: uploadError } = await supabase.storage
         .from("party-proofs")
-        .upload(path, proofFile, { upsert: true, contentType: proofFile.type || "image/jpeg" });
+        .upload(path, proofFile, { upsert: true, contentType: proofFile.type || "application/octet-stream" });
       if (uploadError) {
         setBusy(false);
-        setError("Impossible d'envoyer la photo pour le moment.");
+        setError("Impossible d'envoyer la preuve pour le moment.");
         return;
       }
       proofPath = path;
     }
 
     const responseText =
-      myPendingTurn.turn_type === "verite"
-        ? answerText.trim() || null
-        : myPendingTurn.depth === "ose"
-          ? "C'est fait ✅"
-          : null;
+      myPendingTurn.turn_type === "verite" ? answerText.trim() || null : proofPath ? null : "C'est fait ✅";
 
     const { data, error: rpcError } = await supabase.rpc("submit_turn", {
       target_turn_id: myPendingTurn.id,
@@ -391,6 +451,19 @@ export function RemoteRoomRunner({
                 Plus intime, suggestif — jamais explicite
               </span>
             </button>
+            <button
+              type="button"
+              className="depth-option"
+              style={depthChoice === "libre" ? { borderColor: "var(--accent-violet)" } : undefined}
+              onClick={() => setDepthChoice("libre")}
+            >
+              <span className="depth-emoji">✍️</span>
+              <span>
+                <strong>Libre</strong>
+                <br />
+                Chacun·e écrit les questions/défis pour un·e autre, en direct
+              </span>
+            </button>
             {error ? <div className="error-box warn">{error}</div> : null}
             <button
               type="button"
@@ -404,6 +477,75 @@ export function RemoteRoomRunner({
         ) : (
           <p className="footnote">En attente que l&apos;hôte lance la partie…</p>
         )}
+      </div>
+    );
+  }
+
+  // Mode Libre : quelqu'un m'a désigné pour écrire son défi/sa question.
+  if (myAuthoringTurn) {
+    const forName = playerName(myAuthoringTurn.player_id);
+    return (
+      <div className="party-turn-screen">
+        <div className="party-turn-name">Écris pour {forName}</div>
+        <p style={{ color: "var(--muted)" }}>
+          {myAuthoringTurn.turn_type === "verite"
+            ? `Écris une question (Vérité) que ${forName} devra te répondre.`
+            : `Écris un défi (Action) que ${forName} devra réaliser.`}
+        </p>
+        <div className="answer-zone">
+          <textarea
+            value={libreDraft}
+            onChange={(e) => setLibreDraft(e.target.value)}
+            placeholder={myAuthoringTurn.turn_type === "verite" ? "Ta question…" : "Ton défi…"}
+          />
+        </div>
+        {error ? <div className="error-box warn">{error}</div> : null}
+        <button type="button" className="btn btn-primary" disabled={busy || !libreDraft.trim()} onClick={submitLibrePrompt}>
+          Envoyer
+        </button>
+      </div>
+    );
+  }
+
+  // Mode Libre : mon tour, mais j'attends que la personne désignée écrive.
+  if (myWaitingTurn) {
+    return (
+      <div className="party-turn-screen">
+        <div className="party-turn-name">{me?.name}</div>
+        <p style={{ color: "var(--muted)" }}>
+          En attente que {playerName(myWaitingTurn.author_player_id ?? "")} écrive ta{" "}
+          {myWaitingTurn.turn_type === "verite" ? "question" : "action"}…
+        </p>
+      </div>
+    );
+  }
+
+  if (isMyTurn && pendingLibreType) {
+    const others = players.filter((p) => p.id !== me?.id);
+    return (
+      <div className="party-turn-screen">
+        <div className="party-turn-name">Qui écrit pour toi ?</div>
+        <p style={{ color: "var(--muted)" }}>
+          Choisis qui va t&apos;écrire {pendingLibreType === "verite" ? "une question" : "un défi"}.
+        </p>
+        <div className="party-players">
+          {others.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className="party-chip"
+              disabled={busy}
+              onClick={() => chooseLibreAuthor(p.id)}
+              style={{ cursor: "pointer", font: "inherit", color: "inherit" }}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+        {error ? <div className="error-box warn">{error}</div> : null}
+        <button type="button" className="link-btn" onClick={() => setPendingLibreType(null)}>
+          ← Retour
+        </button>
       </div>
     );
   }
@@ -427,7 +569,7 @@ export function RemoteRoomRunner({
   }
 
   if (isMyTurn && myPendingTurn) {
-    const needsProof = myPendingTurn.turn_type === "action" && myPendingTurn.depth === "leger";
+    const needsProof = myPendingTurn.turn_type === "action";
     return (
       <div>
         <span className={`party-type-tag ${myPendingTurn.turn_type === "verite" ? "truth" : "dare"}`}>
@@ -447,32 +589,30 @@ export function RemoteRoomRunner({
           </div>
         ) : needsProof ? (
           <div className="proof-zone">
-            <span className="proof-label">Preuve photo (facultative)</span>
+            <span className="proof-label">Preuve photo ou vidéo (facultative)</span>
             <div className="file-input-wrap">
               <input
                 type="file"
-                accept="image/*"
+                accept="image/*,video/*"
                 onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
               />
             </div>
           </div>
-        ) : (
-          <p className="footnote" style={{ marginTop: 0, textAlign: "left" }}>
-            Palier osé : aucune preuve demandée, juste ta confirmation.
-          </p>
-        )}
+        ) : null}
 
         {error ? <div className="error-box warn">{error}</div> : null}
 
-        <button
-          type="button"
-          className="link-btn"
-          style={{ display: "flex", justifyContent: "center", width: "100%", marginBottom: 16 }}
-          disabled={busy || (me?.skips_left ?? 0) <= 0}
-          onClick={skipTurn}
-        >
-          Passer ({me?.skips_left ?? 0} restant{(me?.skips_left ?? 0) > 1 ? "s" : ""})
-        </button>
+        {myPendingTurn.depth !== "libre" ? (
+          <button
+            type="button"
+            className="link-btn"
+            style={{ display: "flex", justifyContent: "center", width: "100%", marginBottom: 16 }}
+            disabled={busy || (me?.skips_left ?? 0) <= 0}
+            onClick={skipTurn}
+          >
+            Passer ({me?.skips_left ?? 0} restant{(me?.skips_left ?? 0) > 1 ? "s" : ""})
+          </button>
+        ) : null}
         <button type="button" className="btn btn-primary" disabled={busy} onClick={submitTurn}>
           {myPendingTurn.turn_type === "verite" ? "Envoyer ma réponse" : "C'est fait ✅"}
         </button>
@@ -484,7 +624,9 @@ export function RemoteRoomRunner({
   return (
     <div>
       <div className="party-header">
-        <span className="party-type-tag truth">{room.depth === "ose" ? "🔥 Osé" : "☀️ Léger"}</span>
+        <span className="party-type-tag truth">
+          {room.depth === "ose" ? "🔥 Osé" : room.depth === "libre" ? "✍️ Libre" : "☀️ Léger"}
+        </span>
       </div>
       <div className="party-turn-screen" style={{ minHeight: "20vh" }}>
         <div className="party-turn-name" style={{ fontSize: 22 }}>
@@ -513,8 +655,12 @@ export function RemoteRoomRunner({
               <div className="turn-card-prompt">{t.prompt}</div>
               {t.response_text ? <div className="friend-answer">{t.response_text}</div> : null}
               {t.proof_path && proofPreviewUrls[t.proof_path] ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={proofPreviewUrls[t.proof_path]} alt="Preuve" className="proof-preview" />
+                isVideoPath(t.proof_path) ? (
+                  <video src={proofPreviewUrls[t.proof_path]} controls className="proof-preview" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={proofPreviewUrls[t.proof_path]} alt="Preuve" className="proof-preview" />
+                )
               ) : null}
             </div>
           ))
@@ -532,7 +678,7 @@ export function RemoteRoomRunner({
             <option value="verite">Vérité</option>
             <option value="action">Action</option>
           </select>
-          <select name="depth" defaultValue={room.depth} className="chip" style={{ marginBottom: 10, width: "100%" }}>
+          <select name="depth" defaultValue={room.depth === "libre" ? "leger" : room.depth} className="chip" style={{ marginBottom: 10, width: "100%" }}>
             <option value="leger">Léger</option>
             <option value="ose">Osé</option>
           </select>
@@ -541,11 +687,11 @@ export function RemoteRoomRunner({
             Ajouter
           </button>
         </form>
-      ) : (
+      ) : room.depth !== "libre" ? (
         <button type="button" className="link-btn" onClick={() => setShowCustomForm(true)}>
           + Ajouter un Action/Vérité perso pour ce salon
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

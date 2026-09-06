@@ -6,7 +6,10 @@
 import { seededRng, pick } from "./character";
 
 export type PartyType = "action" | "verite";
-export type PartyDepth = "leger" | "ose";
+// "libre" : personne d'autre n'écrit la question/le défi à l'avance — c'est
+// une personne du salon qui l'improvise pour une autre, en direct (voir
+// choose_turn_libre/write_libre_prompt) ; aucun contenu de catalogue.
+export type PartyDepth = "leger" | "ose" | "libre";
 
 export interface PartyPrompt {
   type: PartyType;
