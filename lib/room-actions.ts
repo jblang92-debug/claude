@@ -13,6 +13,36 @@ function generateRoomCode(): string {
   return code;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Juste après une connexion anonyme toute fraîche, Supabase met parfois une
+ * poignée de secondes à propager la session pour les écritures protégées
+ * par RLS (les lectures et `auth.uid()` sont déjà corrects entre-temps).
+ * On retente donc l'upsert quelques fois avant d'abandonner.
+ */
+async function upsertPlayerWithRetry(
+  supabase: SupabaseClient,
+  row: { room_id: string; user_id: string; name: string },
+) {
+  const delaysMs = [500, 1000, 2000];
+  let lastError: { message: string } | null = null;
+  for (let attempt = 0; attempt <= delaysMs.length; attempt++) {
+    const { error } = await supabase
+      .from("players")
+      .upsert(row, { onConflict: "room_id,user_id" });
+    if (!error) return null;
+    lastError = error;
+    if (!error.message.includes("row-level security")) return error;
+    if (attempt < delaysMs.length) await sleep(delaysMs[attempt]);
+  }
+  return lastError;
+}
+
 export interface CreateRoomState {
   error?: string;
 }
@@ -41,9 +71,7 @@ export async function createRoom(
       .select("id")
       .single();
     if (!roomError && room) {
-      const { error: playerError } = await supabase
-        .from("players")
-        .insert({ room_id: room.id, user_id: user.id, name });
+      const playerError = await upsertPlayerWithRetry(supabase, { room_id: room.id, user_id: user.id, name });
       if (playerError) return { error: `Impossible de rejoindre ton propre salon : ${playerError.message}` };
       redirect(`/salon/${code}`);
     }
@@ -72,21 +100,12 @@ export async function joinRoom(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Session introuvable, recharge la page et réessaie." };
-  console.error(`[DEBUG joinRoom] user=${user.id} code=${code}`);
-  const { data: dbAuth } = await supabase.rpc("debug_auth");
-  console.error(`[DEBUG joinRoom] db sees: ${JSON.stringify(dbAuth)}`);
 
   const { data: room } = await supabase.from("rooms").select("id, code").eq("code", code).maybeSingle();
   if (!room) return { error: "Aucun salon ne correspond à ce code." };
 
-  const { error: playerError } = await supabase
-    .from("players")
-    .upsert({ room_id: room.id, user_id: user.id, name }, { onConflict: "room_id,user_id" });
-  if (playerError) {
-    console.error(`[DEBUG joinRoom] insert failed user=${user.id} room=${room.id} error=${playerError.message}`);
-    return { error: `Impossible de rejoindre le salon : ${playerError.message}` };
-  }
-  console.error(`[DEBUG joinRoom] insert OK user=${user.id} room=${room.id}`);
+  const playerError = await upsertPlayerWithRetry(supabase, { room_id: room.id, user_id: user.id, name });
+  if (playerError) return { error: `Impossible de rejoindre le salon : ${playerError.message}` };
 
   redirect(`/salon/${room.code}`);
 }

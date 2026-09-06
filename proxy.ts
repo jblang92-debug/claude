@@ -34,15 +34,10 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    console.error(`[DEBUG proxy] no session, signing in anonymously — ${request.method} ${request.nextUrl.pathname}`);
-    const { data, error } = await supabase.auth.signInAnonymously();
+    const { error } = await supabase.auth.signInAnonymously();
     if (error) {
       console.error("Échec de la connexion anonyme automatique :", error.message);
-    } else {
-      console.error(`[DEBUG proxy] new anon user=${data.user?.id} — ${request.method} ${request.nextUrl.pathname}`);
     }
-  } else {
-    console.error(`[DEBUG proxy] existing session user=${user.id} — ${request.method} ${request.nextUrl.pathname}`);
   }
 
   return response;
@@ -50,6 +45,17 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    {
+      source: "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+      // Next.js précharge en arrière-plan les liens visibles à l'écran (toutes
+      // les catégories, la galerie, etc.) : sans cette exclusion, chacune de
+      // ces requêtes de préchargement déclenchait sa propre connexion
+      // anonyme en parallèle, créant plusieurs identités concurrentes pour
+      // un seul et même visiteur.
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
   ],
 };
