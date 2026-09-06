@@ -68,11 +68,11 @@ create trigger on_auth_user_created
 -- ---------------------------------------------------------------------------
 create table public.verifications (
   id uuid primary key default gen_random_uuid (),
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
   type text not null check (type in ('email', 'selfie', 'age')),
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   evidence_path text, -- chemin Storage du selfie (bucket privé), null pour email/age
-  reviewed_by uuid references auth.users (id),
+  reviewed_by uuid references public.profiles (id),
   reviewed_at timestamptz,
   created_at timestamptz not null default now()
 );
@@ -91,7 +91,7 @@ create policy "verifications: insert own" on public.verifications
 -- ---------------------------------------------------------------------------
 create table public.consents (
   id uuid primary key default gen_random_uuid (),
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
   type text not null check (type in ('cgu', 'data_processing', 'notifications')),
   version text not null,
   accepted_at timestamptz not null default now(),
@@ -140,7 +140,7 @@ insert into public.trait_axes (key, label, pole_a, pole_b, description) values
 -- évolue, sans redemander le questionnaire (voir recompute_profiles()).
 -- ---------------------------------------------------------------------------
 create table public.onboarding_responses (
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
   question_id text not null,
   option_id text not null,
   created_at timestamptz not null default now(),
@@ -165,7 +165,7 @@ create policy "onboarding_responses: update own" on public.onboarding_responses
 -- ---------------------------------------------------------------------------
 create table public.personality_vectors (
   id uuid primary key default gen_random_uuid (),
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
   version integer not null,
   scores jsonb not null,
   source text not null check (source in ('onboarding', 'recomputed')),
@@ -209,8 +209,8 @@ $$ language plpgsql security definer set search_path = public;
 -- ---------------------------------------------------------------------------
 create table public.daily_matches (
   id uuid primary key default gen_random_uuid (),
-  user_id uuid not null references auth.users (id) on delete cascade,
-  candidate_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  candidate_id uuid not null references public.profiles (id) on delete cascade,
   batch_date date not null,
   rank integer not null,
   status text not null default 'suggested' check (status in ('suggested', 'viewed', 'liked', 'passed')),
@@ -232,8 +232,8 @@ create policy "daily_matches: update own status" on public.daily_matches
 -- ---------------------------------------------------------------------------
 create table public.decisions (
   id uuid primary key default gen_random_uuid (),
-  user_id uuid not null references auth.users (id) on delete cascade,
-  target_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  target_id uuid not null references public.profiles (id) on delete cascade,
   decision text not null check (decision in ('liked', 'passed')),
   created_at timestamptz not null default now(),
   unique (user_id, target_id),
@@ -250,8 +250,8 @@ create policy "decisions: insert own" on public.decisions
 
 create table public.mutual_likes (
   id uuid primary key default gen_random_uuid (),
-  user_low uuid not null references auth.users (id) on delete cascade,
-  user_high uuid not null references auth.users (id) on delete cascade,
+  user_low uuid not null references public.profiles (id) on delete cascade,
+  user_high uuid not null references public.profiles (id) on delete cascade,
   matched_at timestamptz not null default now(),
   unique (user_low, user_high),
   check (user_low < user_high) -- paire ordonnée : une seule ligne par couple, quel que soit qui like en premier
@@ -314,8 +314,8 @@ create trigger on_decision_created
 -- ---------------------------------------------------------------------------
 create table public.match_narratives (
   id uuid primary key default gen_random_uuid (),
-  profile_low_id uuid not null references auth.users (id) on delete cascade,
-  profile_high_id uuid not null references auth.users (id) on delete cascade,
+  profile_low_id uuid not null references public.profiles (id) on delete cascade,
+  profile_high_id uuid not null references public.profiles (id) on delete cascade,
   version_low integer not null,
   version_high integer not null,
   narrative_text text not null,
@@ -341,7 +341,7 @@ create policy "match_narratives: select if party" on public.match_narratives
 create table public.match_consents (
   id uuid primary key default gen_random_uuid (),
   mutual_like_id uuid not null references public.mutual_likes (id) on delete cascade,
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
   consented_at timestamptz not null default now(),
   unique (mutual_like_id, user_id)
 );
@@ -429,8 +429,8 @@ $$ language plpgsql security definer set search_path = public;
 -- ---------------------------------------------------------------------------
 create table public.blocks (
   id uuid primary key default gen_random_uuid (),
-  blocker_id uuid not null references auth.users (id) on delete cascade,
-  blocked_id uuid not null references auth.users (id) on delete cascade,
+  blocker_id uuid not null references public.profiles (id) on delete cascade,
+  blocked_id uuid not null references public.profiles (id) on delete cascade,
   created_at timestamptz not null default now(),
   unique (blocker_id, blocked_id),
   check (blocker_id <> blocked_id)
@@ -466,7 +466,7 @@ $$ language sql security definer set search_path = public stable;
 create table public.messages (
   id uuid primary key default gen_random_uuid (),
   conversation_id uuid not null references public.conversations (id) on delete cascade,
-  sender_id uuid not null references auth.users (id) on delete cascade,
+  sender_id uuid not null references public.profiles (id) on delete cascade,
   content text not null,
   moderation_status text not null default 'ok' check (moderation_status in ('ok', 'flagged', 'removed')),
   created_at timestamptz not null default now()
@@ -494,13 +494,13 @@ create policy "messages: insert if member and not blocked" on public.messages
 -- ---------------------------------------------------------------------------
 create table public.reports (
   id uuid primary key default gen_random_uuid (),
-  reporter_id uuid not null references auth.users (id) on delete cascade,
-  reported_id uuid not null references auth.users (id) on delete cascade,
+  reporter_id uuid not null references public.profiles (id) on delete cascade,
+  reported_id uuid not null references public.profiles (id) on delete cascade,
   conversation_id uuid references public.conversations (id) on delete set null,
   reason text not null,
   details text,
   status text not null default 'pending' check (status in ('pending', 'reviewed', 'actioned')),
-  reviewed_by uuid references auth.users (id),
+  reviewed_by uuid references public.profiles (id),
   reviewed_at timestamptz,
   created_at timestamptz not null default now()
 );
@@ -522,7 +522,7 @@ create policy "reports: insert own" on public.reports
 -- ---------------------------------------------------------------------------
 create table public.push_tokens (
   id uuid primary key default gen_random_uuid (),
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
   expo_push_token text not null unique,
   created_at timestamptz not null default now()
 );
