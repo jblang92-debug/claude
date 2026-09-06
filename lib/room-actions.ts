@@ -41,7 +41,10 @@ export async function createRoom(
       .select("id")
       .single();
     if (!roomError && room) {
-      await supabase.from("players").insert({ room_id: room.id, user_id: user.id, name });
+      const { error: playerError } = await supabase
+        .from("players")
+        .insert({ room_id: room.id, user_id: user.id, name });
+      if (playerError) return { error: `Impossible de rejoindre ton propre salon : ${playerError.message}` };
       redirect(`/salon/${code}`);
     }
     // code déjà pris (collision très improbable) : on retente avec un autre.
@@ -73,9 +76,10 @@ export async function joinRoom(
   const { data: room } = await supabase.from("rooms").select("id, code").eq("code", code).maybeSingle();
   if (!room) return { error: "Aucun salon ne correspond à ce code." };
 
-  await supabase
+  const { error: playerError } = await supabase
     .from("players")
     .upsert({ room_id: room.id, user_id: user.id, name }, { onConflict: "room_id,user_id" });
+  if (playerError) return { error: `Impossible de rejoindre le salon : ${playerError.message}` };
 
   redirect(`/salon/${room.code}`);
 }
