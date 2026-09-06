@@ -199,6 +199,13 @@ supabase/
   salon. **dare_truth_prompts** : banque publique de prompts Action/Vérité.
   L'appartenance à un salon est vérifiée via la fonction
   `is_room_member()` (`SECURITY DEFINER`) pour éviter la récursion RLS.
+  Créer un salon ou en rejoindre un passe par les fonctions
+  `create_room()` / `join_room()` (`SECURITY DEFINER`,
+  `supabase/migrations/0004_room_rpcs.sql`) plutôt que par une écriture
+  RLS directe sur `players` — une session anonyme tout juste créée
+  pouvait sinon se voir refuser l'écriture (RLS) alors que `auth.uid()`
+  se résolvait pourtant correctement juste avant, y compris en
+  réessayant plusieurs fois.
 - **Storage** : bucket privé `party-proofs` pour les preuves photo du
   palier Léger — chaque fichier est scopé au salon (`storage.foldername()`)
   et lisible uniquement par ses membres via URL signée.

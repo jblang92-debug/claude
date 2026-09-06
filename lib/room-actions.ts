@@ -13,41 +13,22 @@ function generateRoomCode(): string {
   return code;
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
-
-/**
- * Juste après une connexion anonyme toute fraîche, Supabase met parfois une
- * poignée de secondes à propager la session pour les écritures protégées
- * par RLS (les lectures et `auth.uid()` sont déjà corrects entre-temps).
- * On retente donc l'upsert quelques fois avant d'abandonner.
- */
-async function upsertPlayerWithRetry(
-  supabase: SupabaseClient,
-  row: { room_id: string; user_id: string; name: string },
-) {
-  const delaysMs = [500, 1000, 2000];
-  let lastError: { message: string } | null = null;
-  for (let attempt = 0; attempt <= delaysMs.length; attempt++) {
-    const { error } = await supabase
-      .from("players")
-      .upsert(row, { onConflict: "room_id,user_id" });
-    if (!error) return null;
-    lastError = error;
-    if (!error.message.includes("row-level security")) return error;
-    if (attempt < delaysMs.length) await sleep(delaysMs[attempt]);
-  }
-  return lastError;
-}
-
 export interface CreateRoomState {
   error?: string;
 }
 
-/** Crée un salon (mode Soirée à distance) et y ajoute son créateur comme premier joueur. */
+/**
+ * Crée un salon et y ajoute son créateur comme premier joueur.
+ *
+ * Passe par la fonction SQL `create_room` (SECURITY DEFINER) plutôt que par
+ * deux écritures RLS séparées depuis le client : en diagnostic, les
+ * insertions directes échouaient de façon persistante pour une session
+ * anonyme tout juste créée (auth.uid() était pourtant correctement résolu
+ * juste avant, y compris via des tentatives répétées) alors qu'une fonction
+ * RPC résolvant auth.uid() dans son propre corps fonctionnait de façon
+ * fiable — on écrit donc désormais dans la même transaction que cette
+ * résolution.
+ */
 export async function createRoom(
   _prevState: CreateRoomState,
   formData: FormData,
@@ -57,34 +38,32 @@ export async function createRoom(
   if (name.length > 40) return { error: "Choisis un prénom un peu plus court." };
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Session introuvable, recharge la page et réessaie." };
 
-  let code = "";
+  let lastError: string | null = null;
   for (let attempt = 0; attempt < 5; attempt++) {
-    code = generateRoomCode();
-    const { data: room, error: roomError } = await supabase
-      .from("rooms")
-      .insert({ code, host_user_id: user.id })
-      .select("id")
-      .single();
-    if (!roomError && room) {
-      const playerError = await upsertPlayerWithRetry(supabase, { room_id: room.id, user_id: user.id, name });
-      if (playerError) return { error: `Impossible de rejoindre ton propre salon : ${playerError.message}` };
+    const code = generateRoomCode();
+    const { data, error } = await supabase.rpc("create_room", {
+      room_code: code,
+      player_name: name,
+    });
+    if (!error && data) {
       redirect(`/salon/${code}`);
     }
-    // code déjà pris (collision très improbable) : on retente avec un autre.
+    lastError = error?.message ?? null;
+    // code déjà pris (collision très improbable) ou autre souci : on retente.
   }
-  return { error: "Impossible de créer le salon pour le moment. Réessaie dans un instant." };
+  return {
+    error: lastError
+      ? `Impossible de créer le salon pour le moment : ${lastError}`
+      : "Impossible de créer le salon pour le moment. Réessaie dans un instant.",
+  };
 }
 
 export interface JoinRoomState {
   error?: string;
 }
 
-/** Rejoint un salon existant à partir de son code. */
+/** Rejoint un salon existant à partir de son code (voir `createRoom` pour le choix du RPC). */
 export async function joinRoom(
   _prevState: JoinRoomState,
   formData: FormData,
@@ -96,16 +75,11 @@ export async function joinRoom(
   if (name.length > 40) return { error: "Choisis un prénom un peu plus court." };
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Session introuvable, recharge la page et réessaie." };
+  const { error } = await supabase.rpc("join_room", {
+    target_code: code,
+    player_name: name,
+  });
+  if (error) return { error: `Impossible de rejoindre le salon : ${error.message}` };
 
-  const { data: room } = await supabase.from("rooms").select("id, code").eq("code", code).maybeSingle();
-  if (!room) return { error: "Aucun salon ne correspond à ce code." };
-
-  const playerError = await upsertPlayerWithRetry(supabase, { room_id: room.id, user_id: user.id, name });
-  if (playerError) return { error: `Impossible de rejoindre le salon : ${playerError.message}` };
-
-  redirect(`/salon/${room.code}`);
+  redirect(`/salon/${code}`);
 }
