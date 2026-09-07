@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>CGP Pro — Outils d'aide au rendez-vous client</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --navy:#122b46;
+    --navy-2:#1c3f63;
+    --ink:#1a2330;
+    --muted:#5b6b7c;
+    --bg:#f4f6f8;
+    --card:#ffffff;
+    --border:#e1e6ec;
+    --accent:#9c7a3c;
+    --accent-2:#0f7a72;
+    --danger:#b3422c;
+    --radius:10px;
+    --shadow:0 1px 3px rgba(20,30,50,0.08), 0 1px 2px rgba(20,30,50,0.06);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    line-height:1.4;
+  }
+  .container{max-width:960px;margin:0 auto;padding:28px 20px 60px;}
+  a{color:inherit;}
+
+  /* Topbar */
+  .topbar{background:var(--navy);color:#fff;}
+  .topbar-inner{max-width:960px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;}
+  .brand{font-size:1.15rem;font-weight:700;letter-spacing:.02em;text-decoration:none;color:#fff;}
+  .brand-sub{font-size:.7rem;opacity:.75;font-weight:400;display:block;margin-top:-2px;}
+  .topbar nav{display:flex;gap:18px;}
+  .nav-link{text-decoration:none;color:#dfe7ef;font-size:.9rem;font-weight:600;}
+  .nav-link:hover{color:#fff;}
+
+  /* Home */
+  .home-intro h1{font-size:1.5rem;margin:0 0 4px;}
+  .home-intro p{color:var(--muted);margin:0 0 24px;}
+  .category-section{margin-bottom:30px;}
+  .category-title{font-size:1.05rem;margin:0 0 12px;display:flex;align-items:center;gap:8px;color:var(--navy);border-bottom:1px solid var(--border);padding-bottom:8px;}
+  .cat-icon{font-size:1.2rem;}
+  .tool-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;}
+  .tool-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;transition:box-shadow .15s, transform .15s;position:relative;}
+  .tool-card:hover{box-shadow:var(--shadow);transform:translateY(-1px);border-color:#c7d1dc;}
+  .tool-card.soon{opacity:.6;cursor:default;}
+  .tool-card.soon:hover{box-shadow:none;transform:none;}
+  .tool-card .icon{font-size:1.5rem;margin-bottom:6px;}
+  .tool-name{font-weight:700;font-size:.95rem;margin-bottom:4px;}
+  .tool-desc-short{font-size:.8rem;color:var(--muted);}
+  .badge-soon{display:inline-block;margin-top:8px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:#eef1f5;color:var(--muted);padding:3px 8px;border-radius:20px;}
+
+  /* Calculator page */
+  .back-link{display:inline-block;margin-bottom:14px;font-size:.85rem;color:var(--navy-2);text-decoration:none;font-weight:600;}
+  .calc-page h1{font-size:1.4rem;margin:0 0 6px;}
+  .tool-desc{color:var(--muted);margin:0 0 20px;font-size:.92rem;}
+  .calc-form{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:6px 20px;}
+  .field{display:flex;flex-direction:column;gap:4px;margin-bottom:14px;}
+  .field label{font-size:.82rem;font-weight:600;color:var(--muted);}
+  .input-suffix{position:relative;display:flex;align-items:center;}
+  .input-suffix input{width:100%;}
+  .input-suffix .suffix{position:absolute;right:12px;font-size:.85rem;color:var(--muted);pointer-events:none;}
+  input[type=number], input[type=text], select{
+    width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;
+    font-size:.95rem;background:#fff;color:var(--ink);font-family:inherit;
+  }
+  input[type=number]{padding-right:44px;}
+  .help{font-size:.75rem;color:#8a97a6;}
+  .btn{border:none;border-radius:8px;padding:11px 18px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit;}
+  .btn-primary{background:var(--navy);color:#fff;}
+  .btn-primary:hover{background:var(--navy-2);}
+  .btn-outline{background:#fff;color:var(--navy);border:1px solid var(--border);}
+  .btn-outline:hover{border-color:var(--navy);}
+  .btn-danger{background:#fff;color:var(--danger);border:1px solid #edd3cd;}
+  .btn-sm{padding:6px 12px;font-size:.8rem;}
+
+  .sep{border:none;border-top:1px solid var(--border);margin:26px 0;}
+
+  /* Results */
+  .key-figures{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:22px;}
+  .key-figure{flex:1 1 200px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;}
+  .key-figure:first-child{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .key-figure .value{font-size:1.7rem;font-weight:800;}
+  .key-figure .label{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;margin-top:6px;opacity:.85;}
+  .chart-wrap{max-width:520px;margin:10px auto 28px;}
+  .details-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+  .details-table tr td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:.87rem;}
+  .details-table tr:last-child td{border-bottom:none;}
+  .details-table td:last-child{text-align:right;font-weight:700;color:var(--navy);}
+  .warnings{margin-top:16px;}
+  .warning{background:#fbf3e7;border:1px solid #eadfc7;color:#7a5b1c;padding:10px 14px;border-radius:8px;font-size:.8rem;margin-bottom:8px;}
+
+  .actions-bar{margin-top:26px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
+  .client-field{max-width:320px;}
+  .actions-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;}
+  .save-msg{font-size:.82rem;color:var(--accent-2);font-weight:700;margin-top:8px;min-height:1.2em;}
+
+  /* Historique */
+  .sim-row{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;flex-wrap:wrap;}
+  .sim-client{font-weight:700;}
+  .sim-tool{font-size:.8rem;color:var(--muted);margin-top:2px;}
+  .sim-kf{font-size:.8rem;margin-top:6px;color:var(--ink);}
+  .sim-actions{display:flex;gap:8px;}
+  .empty{color:var(--muted);font-size:.9rem;}
+
+  /* Presentation mode */
+  #presentBar{position:fixed;top:14px;right:14px;z-index:1000;}
+  body.presenting .topbar,
+  body.presenting .back-link,
+  body.presenting .calc-form,
+  body.presenting .tech-detail,
+  body.presenting .actions-bar,
+  body.presenting .tool-desc,
+  body.presenting .sep{display:none !important;}
+  body.presenting{background:#fff;}
+  body.presenting .container{max-width:100%;padding:40px 24px;}
+  body.presenting .key-figures{flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:26px;}
+  body.presenting .key-figure{width:100%;max-width:520px;padding:34px;}
+  body.presenting .key-figure .value{font-size:4rem;}
+  body.presenting .key-figure .label{font-size:1.05rem;}
+  body.presenting .calc-page h1{text-align:center;font-size:2rem;}
+
+  /* Print */
+  .print-report{display:none;}
+  @media print{
+    body > *:not(.print-report){display:none !important;}
+    .print-report{display:block !important;}
+    .print-header h1{margin:0;font-size:1.3rem;}
+    .print-sub{color:#555;font-size:1.05rem;margin-bottom:14px;}
+    .print-meta{font-size:.9rem;margin-bottom:16px;}
+    .print-keyfigures{display:flex;gap:16px;margin-bottom:18px;}
+    .print-kf{border:1px solid #ccc;border-radius:8px;padding:12px;flex:1;text-align:center;}
+    .print-kf-value{font-size:1.3rem;font-weight:800;}
+    .print-kf-label{font-size:.72rem;text-transform:uppercase;color:#555;margin-top:4px;}
+    .print-chart{max-width:480px;display:block;margin:0 auto 18px;}
+    .print-details table, .print-inputs table{width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:18px;}
+    .print-details td, .print-inputs td{padding:6px 8px;border-bottom:1px solid #ddd;}
+    .print-footer{font-size:.72rem;color:#777;margin-top:20px;border-top:1px solid #ddd;padding-top:10px;}
+  }
+
+  @media (max-width:600px){
+    .key-figure .value{font-size:1.4rem;}
+    .actions-buttons{flex-direction:column;}
+    .actions-buttons .btn{width:100%;}
+  }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="#/" class="brand">CGP Pro<span class="brand-sub">Outils d'aide au rendez-vous client</span></a>
+      <nav>
+        <a href="#/" class="nav-link">Accueil</a>
+        <a href="#/historique" class="nav-link">Historique clients</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main"></main>
+
+  <div id="presentBar" hidden>
+    <button id="exitPresentBtn" class="btn btn-outline">✕ Quitter le mode présentation</button>
+  </div>
+
+  <div id="printReport" class="print-report"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============================ Utilities ============================ */
+  var euro = new Intl.NumberFormat("fr-FR", {style:"currency", currency:"EUR", maximumFractionDigits:0});
+  var euro2 = new Intl.NumberFormat("fr-FR", {style:"currency", currency:"EUR", maximumFractionDigits:2});
+  function pct(v, d){ d = (d===undefined?2:d); return v.toLocaleString("fr-FR", {minimumFractionDigits:d, maximumFractionDigits:d}) + " %"; }
+  function escapeHTML(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  /* ============================ Local storage ============================ */
+  var STORAGE_KEY = "cgppro_simulations_v1";
+  function getSimulations(){
+    try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+    catch(e){ return []; }
+  }
+  function saveSimulation(entry){
+    var all = getSimulations();
+    all.unshift(entry);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  }
+  function deleteSimulation(id){
+    var all = getSimulations().filter(function(s){ return s.id !== id; });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  }
+
+  /* ============================ Categories ============================ */
+  var CATEGORIES = [
+    {id:"financement", name:"Financement & crédit", icon:"🏦"},
+    {id:"immobilier", name:"Immobilier locatif", icon:"🏠"},
+    {id:"epargne", name:"Épargne & fiscalité", icon:"💶"},
+    {id:"retraite", name:"Retraite", icon:"👴"},
+    {id:"transmission", name:"Transmission & patrimoine", icon:"📜"}
+  ];
+
+  /* ============================ Calculators ============================ */
+  // Chaque outil "ready" fournit : fields (formulaire générique) + compute(inputs) -> résultats.
+  // Les outils "soon" ne sont que des tuiles d'architecture pour les versions suivantes.
+  var TOOLS = [
+
+    /* ---------- 1. Capacité d'emprunt ---------- */
+    {
+      id:"capacite-emprunt", category:"financement", status:"ready", icon:"🏦",
+      name:"Capacité d'emprunt",
+      desc:"Calcule la mensualité maximale et le montant empruntable à partir des revenus, charges, taux et durée saisis (taux d'endettement 35% par défaut).",
+      fields:[
+        {id:"revenuNet", label:"Revenus nets mensuels du foyer", type:"number", suffix:"€", default:3000, step:50},
+        {id:"revenusLocatifs", label:"Revenus locatifs perçus (optionnel)", type:"number", suffix:"€", default:0, step:50, help:"Pondérés à 70% dans le calcul, comme le font la plupart des banques."},
+        {id:"chargesExistantes", label:"Mensualités de crédits en cours", type:"number", suffix:"€", default:0, step:10},
+        {id:"tauxEndettement", label:"Taux d'endettement maximum", type:"number", suffix:"%", default:35, step:0.5},
+        {id:"tauxInteret", label:"Taux d'intérêt annuel du prêt", type:"number", suffix:"%", default:3.8, step:0.01},
+        {id:"tauxAssurance", label:"Taux d'assurance emprunteur annuel", type:"number", suffix:"%", default:0.34, step:0.01},
+        {id:"dureeAnnees", label:"Durée du prêt", type:"number", suffix:"ans", default:25, step:1},
+        {id:"apport", label:"Apport personnel (optionnel)", type:"number", suffix:"€", default:0, step:1000}
+      ],
+      compute:function(inputs){
+        var revenuPondere = inputs.revenuNet + inputs.revenusLocatifs*0.7;
+        var mensualiteMax = revenuPondere*(inputs.tauxEndettement/100) - inputs.chargesExistantes;
+
+        if(mensualiteMax <= 0){
+          return {
+            keyFigures:[
+              {label:"Mensualité maximale", value: euro.format(0)},
+              {label:"Montant empruntable", value: euro.format(0)},
+              {label:"Budget total d'achat possible", value: euro.format(Math.max(0, inputs.apport))}
+            ],
+            details:[
+              {label:"Revenu pondéré retenu", value: euro.format(revenuPondere)},
+              {label:"Charges déjà présentes", value: euro.format(inputs.chargesExistantes)}
+            ],
+            chart:null,
+            warnings:["Le taux d'endettement maximum est déjà atteint ou dépassé par les charges existantes : aucune capacité d'emprunt supplémentaire avec ces paramètres."]
+          };
+        }
+
+        var r = inputs.tauxInteret/100/12;
+        var n = inputs.dureeAnnees*12;
+        var ta = inputs.tauxAssurance/100/12;
+        var facteurCredit = r>0 ? r/(1-Math.pow(1+r,-n)) : 1/n;
+        var denom = facteurCredit + ta;
+        var capital = mensualiteMax/denom;
+        var mensualiteAssurance = capital*ta;
+        var mensualiteCredit = mensualiteMax - mensualiteAssurance;
+        var coutTotalCredit = mensualiteMax*n - capital;
+        var budgetTotal = capital + (inputs.apport||0);
+
+        return {
+          keyFigures:[
+            {label:"Mensualité maximale", value: euro.format(mensualiteMax)},
+            {label:"Montant empruntable", value: euro.format(capital)},
+            {label:"Budget total d'achat possible", value: euro.format(budgetTotal)}
+          ],
+          details:[
+            {label:"Mensualité crédit (hors assurance)", value: euro2.format(mensualiteCredit)},
+            {label:"Mensualité assurance emprunteur", value: euro2.format(mensualiteAssurance)},
+            {label:"Coût total du crédit (intérêts + assurance)", value: euro.format(coutTotalCredit)},
+            {label:"Durée retenue", value: inputs.dureeAnnees + " ans (" + n + " mensualités)"},
+            {label:"Revenu pondéré retenu", value: euro.format(revenuPondere)}
+          ],
+          chart:{
+            type:"doughnut",
+            labels:["Crédit (hors assurance)","Assurance emprunteur"],
+            datasets:[{data:[mensualiteCredit, mensualiteAssurance], backgroundColor:["#122b46","#9c7a3c"]}]
+          },
+          warnings:[]
+        };
+      }
+    },
+
+    {id:"pret-amortissement", category:"financement", status:"soon", icon:"📅", name:"Prêt immobilier — tableau d'amortissement", desc:"Échéancier mensuel détaillé capital / intérêts sur toute la durée du prêt."},
+    {id:"taux-fixe-variable", category:"financement", status:"soon", icon:"⚖️", name:"Comparateur taux fixe vs variable", desc:"Compare le coût total et le risque entre un prêt à taux fixe et à taux variable."},
+    {id:"rachat-credit", category:"financement", status:"soon", icon:"🔄", name:"Calculateur de rachat de crédit", desc:"Évalue le gain d'un regroupement ou rachat de crédits en cours."},
+    {id:"apport-optimal", category:"financement", status:"soon", icon:"💰", name:"Simulateur d'apport optimal", desc:"Détermine l'apport idéal selon l'objectif de mensualité ou de taux."},
+    {id:"frais-notaire", category:"financement", status:"soon", icon:"🧾", name:"Frais de notaire (ancien vs neuf)", desc:"Estime les frais d'acquisition selon le type de bien."},
+
+    /* ---------- 2. Rentabilité locative ---------- */
+    {
+      id:"rentabilite-locative", category:"immobilier", status:"ready", icon:"🏠",
+      name:"Rentabilité locative",
+      desc:"Calcule le rendement brut et le rendement net d'un investissement locatif à partir du loyer, du prix d'achat, des charges, de la taxe foncière et du taux de vacance.",
+      fields:[
+        {id:"prixAchat", label:"Prix d'achat du bien", type:"number", suffix:"€", default:200000, step:1000},
+        {id:"fraisAcquisition", label:"Frais d'acquisition (notaire, travaux...)", type:"number", suffix:"€", default:15000, step:500},
+        {id:"loyerMensuel", label:"Loyer mensuel hors charges", type:"number", suffix:"€", default:800, step:10},
+        {id:"chargesAnnuelles", label:"Charges annuelles (copropriété, entretien, gestion...)", type:"number", suffix:"€", default:1200, step:50},
+        {id:"taxeFonciere", label:"Taxe foncière annuelle", type:"number", suffix:"€", default:900, step:50},
+        {id:"tauxVacance", label:"Taux de vacance locative", type:"number", suffix:"%", default:5, step:0.5}
+      ],
+      compute:function(inputs){
+        var investTotal = inputs.prixAchat + inputs.fraisAcquisition;
+        var loyerAnnuelBrut = inputs.loyerMensuel*12;
+        var loyerAnnuelEffectif = loyerAnnuelBrut*(1-inputs.tauxVacance/100);
+        var chargesTotales = inputs.chargesAnnuelles + inputs.taxeFonciere;
+        var revenuNetAnnuel = loyerAnnuelEffectif - chargesTotales;
+        var rendementBrut = investTotal>0 ? loyerAnnuelBrut/investTotal*100 : 0;
+        var rendementNet = investTotal>0 ? revenuNetAnnuel/investTotal*100 : 0;
+        var cashflowMensuel = revenuNetAnnuel/12;
+
+        return {
+          keyFigures:[
+            {label:"Rendement net", value: pct(rendementNet)},
+            {label:"Rendement brut", value: pct(rendementBrut)},
+            {label:"Cashflow mensuel net", value: euro2.format(cashflowMensuel)}
+          ],
+          details:[
+            {label:"Investissement total (prix + frais)", value: euro.format(investTotal)},
+            {label:"Loyer annuel brut", value: euro.format(loyerAnnuelBrut)},
+            {label:"Loyer annuel effectif (avec vacance)", value: euro.format(loyerAnnuelEffectif)},
+            {label:"Charges + taxe foncière annuelles", value: euro.format(chargesTotales)},
+            {label:"Revenu net annuel", value: euro.format(revenuNetAnnuel)}
+          ],
+          chart:{
+            type:"bar",
+            labels:["Loyer annuel brut","Charges + taxe foncière","Revenu net annuel"],
+            datasets:[{label:"€ / an", data:[loyerAnnuelBrut, chargesTotales, revenuNetAnnuel], backgroundColor:["#122b46","#b3422c","#0f7a72"]}]
+          },
+          warnings:[]
+        };
+      }
+    },
+
+    {id:"scpi", category:"immobilier", status:"soon", icon:"🏢", name:"Simulateur SCPI", desc:"Rendement estimé et fiscalité selon le mode de détention (direct, assurance-vie, à crédit)."},
+    {id:"lmnp-vs-nue", category:"immobilier", status:"soon", icon:"🛋️", name:"Comparateur LMNP vs location nue", desc:"Compare la fiscalité et la rentabilité nette des deux régimes."},
+    {id:"plus-value-immo", category:"immobilier", status:"soon", icon:"📈", name:"Plus-value immobilière", desc:"Calcule la plus-value taxable avec abattements pour durée de détention."},
+
+    /* ---------- 3. Fiscalité assurance-vie ---------- */
+    {
+      id:"fiscalite-assurance-vie", category:"epargne", status:"ready", icon:"🛡️",
+      name:"Comparateur fiscalité assurance-vie",
+      desc:"Calcule la fiscalité applicable à un rachat (prélèvements sociaux + IR ou PFU), en distinguant avant et après 8 ans, avec abattement annuel après 8 ans.",
+      fields:[
+        {id:"montantRachat", label:"Montant total du rachat", type:"number", suffix:"€", default:20000, step:500},
+        {id:"montantGains", label:"Dont montant des gains (plus-value)", type:"number", suffix:"€", default:5000, step:100},
+        {id:"anciennete", label:"Ancienneté du contrat", type:"number", suffix:"ans", default:10, step:1},
+        {id:"situationFamiliale", label:"Situation familiale (abattement après 8 ans)", type:"select", default:"seul", options:[
+          {value:"seul", label:"Célibataire (abattement 4 600 €)"},
+          {value:"couple", label:"Couple imposé en commun (abattement 9 200 €)"}
+        ]},
+        {id:"totalVersements", label:"Total des versements sur vos contrats (tous assureurs)", type:"number", suffix:"€", default:100000, step:1000, help:"Détermine le taux réduit de 7,5% après 8 ans (seuil de 150 000 €)."},
+        {id:"regimeChoisi", label:"Régime d'imposition", type:"select", default:"pfu", options:[
+          {value:"pfu", label:"Prélèvement forfaitaire (flat tax / taux réduit après 8 ans)"},
+          {value:"bareme", label:"Barème progressif de l'impôt sur le revenu"}
+        ]},
+        {id:"tmi", label:"Tranche marginale d'imposition (si barème)", type:"number", suffix:"%", default:30, step:1}
+      ],
+      compute:function(inputs){
+        var gains = Math.max(0, Math.min(inputs.montantGains, inputs.montantRachat));
+        var ps = gains*0.172;
+        var ir = 0;
+        var detailsExtra = [];
+        var warnings = ["Calcul simplifié à visée pédagogique (régime des versements post-2017), hors cas particuliers (licenciement, invalidité, retraite anticipée, contrats DSK/NSK...). À valider avec un professionnel avant toute décision."];
+
+        if(inputs.anciennete < 8){
+          if(inputs.regimeChoisi === "pfu"){ ir = gains*0.128; }
+          else { ir = gains*(inputs.tmi/100); }
+        } else {
+          var abattement = inputs.situationFamiliale === "couple" ? 9200 : 4600;
+          var gainsApresAbat = Math.max(0, gains-abattement);
+          if(inputs.regimeChoisi === "bareme"){
+            ir = gainsApresAbat*(inputs.tmi/100);
+          } else {
+            var propReduit = inputs.totalVersements>0 ? Math.min(1, 150000/inputs.totalVersements) : 1;
+            var gainsReduit = gainsApresAbat*propReduit;
+            var gainsNormal = gainsApresAbat-gainsReduit;
+            ir = gainsReduit*0.075 + gainsNormal*0.128;
+          }
+          detailsExtra.push({label:"Abattement annuel appliqué", value: euro.format(Math.min(abattement, gains))});
+        }
+
+        var totalImpot = ps+ir;
+        var net = inputs.montantRachat - totalImpot;
+
+        var details = [
+          {label:"Montant du rachat", value: euro.format(inputs.montantRachat)},
+          {label:"Dont gains taxables", value: euro.format(gains)},
+          {label:"Ancienneté du contrat", value: inputs.anciennete + " ans (" + (inputs.anciennete<8 ? "moins de 8 ans" : "8 ans ou plus") + ")"}
+        ].concat(detailsExtra).concat([
+          {label:"Total prélèvements (PS + IR)", value: euro.format(totalImpot)}
+        ]);
+
+        return {
+          keyFigures:[
+            {label:"Net perçu après fiscalité", value: euro.format(net)},
+            {label:"Prélèvements sociaux (17,2%)", value: euro.format(ps)},
+            {label:"Impôt sur le revenu", value: euro.format(ir)}
+          ],
+          details: details,
+          chart:{
+            type:"doughnut",
+            labels:["Net perçu","Prélèvements sociaux","Impôt sur le revenu"],
+            datasets:[{data:[net, ps, ir], backgroundColor:["#0f7a72","#9c7a3c","#b3422c"]}]
+          },
+          warnings: warnings
+        };
+      }
+    },
+
+    /* ---------- 4. Impact des frais cumulés ---------- */
+    {
+      id:"impact-frais", category:"epargne", status:"ready", icon:"📉",
+      name:"Impact des frais cumulés",
+      desc:"Compare sur 10, 20 et 30 ans le capital final d'un placement avec et sans frais de gestion, à partir d'un capital initial et d'un rendement annuel.",
+      fields:[
+        {id:"capitalInitial", label:"Capital initial investi", type:"number", suffix:"€", default:50000, step:1000},
+        {id:"versementMensuel", label:"Versement mensuel (optionnel)", type:"number", suffix:"€", default:0, step:50},
+        {id:"rendementAnnuel", label:"Taux de rendement annuel brut", type:"number", suffix:"%", default:5, step:0.1},
+        {id:"fraisGestion", label:"Taux de frais de gestion annuel", type:"number", suffix:"%", default:1.5, step:0.1}
+      ],
+      compute:function(inputs){
+        var years = 30;
+        var sans = [inputs.capitalInitial];
+        var avec = [inputs.capitalInitial];
+        for(var y=1; y<=years; y++){
+          sans.push(sans[y-1]*(1+inputs.rendementAnnuel/100) + inputs.versementMensuel*12);
+          avec.push(avec[y-1]*(1+(inputs.rendementAnnuel-inputs.fraisGestion)/100) + inputs.versementMensuel*12);
+        }
+        function milestone(y){ return {sans:sans[y], avec:avec[y], ecart: sans[y]-avec[y]}; }
+        var m10 = milestone(10), m20 = milestone(20), m30 = milestone(30);
+
+        return {
+          keyFigures:[
+            {label:"Capital à 30 ans sans frais", value: euro.format(m30.sans)},
+            {label:"Capital à 30 ans avec frais", value: euro.format(m30.avec)},
+            {label:"Coût cumulé des frais à 30 ans", value: euro.format(m30.ecart)}
+          ],
+          details:[
+            {label:"Capital à 10 ans (sans frais / avec frais)", value: euro.format(m10.sans) + " / " + euro.format(m10.avec)},
+            {label:"Capital à 20 ans (sans frais / avec frais)", value: euro.format(m20.sans) + " / " + euro.format(m20.avec)},
+            {label:"Écart à 10 ans", value: euro.format(m10.ecart)},
+            {label:"Écart à 20 ans", value: euro.format(m20.ecart)},
+            {label:"Écart à 30 ans", value: euro.format(m30.ecart)}
+          ],
+          chart:{
+            type:"line",
+            labels: Array.from({length: years+1}, function(_, i){ return String(i); }),
+            datasets:[
+              {label:"Sans frais", data:sans, borderColor:"#0f7a72", backgroundColor:"rgba(15,122,114,0.1)", tension:0.15},
+              {label:"Avec frais de gestion", data:avec, borderColor:"#b3422c", backgroundColor:"rgba(179,66,44,0.1)", tension:0.15}
+            ]
+          },
+          warnings:[]
+        };
+      }
+    },
+
+    {id:"av-per-cto", category:"epargne", status:"soon", icon:"🔀", name:"Comparateur assurance-vie vs PER vs CTO", desc:"Compare la fiscalité à la sortie selon l'enveloppe et la durée de détention."},
+    {id:"dca-vs-unique", category:"epargne", status:"soon", icon:"📆", name:"Simulateur DCA vs versement unique", desc:"Compare l'investissement programmé et le versement en une fois."},
+
+    {id:"pension-retraite", category:"retraite", status:"soon", icon:"👴", name:"Pension retraite estimée", desc:"Projette le montant de la pension retraite selon la carrière."},
+    {id:"epargner-retraite", category:"retraite", status:"soon", icon:"🐖", name:"Combien épargner pour ma retraite", desc:"Calcule l'effort d'épargne mensuel nécessaire pour un objectif retraite."},
+
+    {id:"ifi", category:"transmission", status:"soon", icon:"🏛️", name:"Simulateur d'IFI", desc:"Estime l'impôt sur la fortune immobilière selon le patrimoine net taxable."},
+    {id:"succession", category:"transmission", status:"soon", icon:"📜", name:"Droits de succession", desc:"Estime les droits dus selon le lien de parenté et les abattements."},
+    {id:"demembrement", category:"transmission", status:"soon", icon:"✂️", name:"Démembrement de propriété", desc:"Répartit la valeur usufruit / nue-propriété selon l'âge de l'usufruitier (barème fiscal)."}
+  ];
+
+  var TOOLS_BY_ID = {};
+  TOOLS.forEach(function(t){ TOOLS_BY_ID[t.id] = t; });
+
+  /* ============================ Generic form rendering ============================ */
+  function fieldHTML(f, value){
+    var val = value !== undefined && value !== null ? value : f.default;
+    if(f.type === "select"){
+      var opts = f.options.map(function(o){
+        return '<option value="' + escapeHTML(o.value) + '" ' + (String(o.value)===String(val)?"selected":"") + '>' + escapeHTML(o.label) + '</option>';
+      }).join("");
+      return '<div class="field"><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
+        '<select id="f_' + f.id + '">' + opts + '</select>' +
+        (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
+    }
+    return '<div class="field"><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
+      '<div class="input-suffix"><input type="number" id="f_' + f.id + '" value="' + escapeHTML(val) + '" step="' + (f.step||"any") + '">' +
+      '<span class="suffix">' + escapeHTML(f.suffix||"") + '</span></div>' +
+      (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
+  }
+
+  function readInputs(fields){
+    var out = {};
+    fields.forEach(function(f){
+      var elm = document.getElementById("f_" + f.id);
+      if(f.type === "select"){ out[f.id] = elm.value; }
+      else { out[f.id] = parseFloat(elm.value) || 0; }
+    });
+    return out;
+  }
+
+  function formatInputForPrint(f, v){
+    if(f.type === "select"){
+      var opt = f.options.filter(function(o){ return String(o.value)===String(v); })[0];
+      return opt ? opt.label : v;
+    }
+    return v + (f.suffix ? (" " + f.suffix) : "");
+  }
+
+  /* ============================ Chart rendering ============================ */
+  var chartInstance = null;
+  function renderChart(chartDef){
+    var wrap = document.getElementById("chartWrap");
+    if(!chartDef || typeof Chart === "undefined"){
+      wrap.style.display = "none";
+      if(chartInstance){ chartInstance.destroy(); chartInstance = null; }
+      return;
+    }
+    wrap.style.display = "";
+    var ctx = document.getElementById("resultChart").getContext("2d");
+    if(chartInstance){ chartInstance.destroy(); }
+    chartInstance = new Chart(ctx, {
+      type: chartDef.type,
+      data: {labels: chartDef.labels, datasets: chartDef.datasets},
+      options: Object.assign({
+        responsive:true,
+        plugins:{legend:{position:"bottom", labels:{boxWidth:14, font:{size:11}}}}
+      }, chartDef.options||{})
+    });
+  }
+
+  /* ============================ Presentation mode ============================ */
+  function enterPresentationMode(){
+    document.body.classList.add("presenting");
+    document.getElementById("presentBar").hidden = false;
+    var elDoc = document.documentElement;
+    if(elDoc.requestFullscreen){ elDoc.requestFullscreen().catch(function(){}); }
+  }
+  function exitPresentationMode(){
+    document.body.classList.remove("presenting");
+    document.getElementById("presentBar").hidden = true;
+    if(document.fullscreenElement && document.exitFullscreen){ document.exitFullscreen().catch(function(){}); }
+  }
+
+  /* ============================ PDF export (print) ============================ */
+  function exportPDF(tool, inputs, result, clientName){
+    if(!result) return;
+    var reportEl = document.getElementById("printReport");
+    var dateStr = new Date().toLocaleDateString("fr-FR", {year:"numeric", month:"long", day:"numeric"});
+    var chartImg = "";
+    var canvas = document.getElementById("resultChart");
+    if(canvas && result.chart){
+      try{ chartImg = '<img src="' + canvas.toDataURL("image/png", 1.0) + '" class="print-chart">'; }
+      catch(e){ chartImg = ""; }
+    }
+    reportEl.innerHTML =
+      '<div class="print-header"><h1>CGP Pro</h1><div class="print-sub">' + escapeHTML(tool.name) + '</div></div>' +
+      '<div class="print-meta">' +
+        (clientName ? '<div><strong>Client :</strong> ' + escapeHTML(clientName) + '</div>' : '') +
+        '<div><strong>Date :</strong> ' + dateStr + '</div>' +
+      '</div>' +
+      '<div class="print-keyfigures">' +
+        result.keyFigures.map(function(k){
+          return '<div class="print-kf"><div class="print-kf-value">' + escapeHTML(k.value) + '</div><div class="print-kf-label">' + escapeHTML(k.label) + '</div></div>';
+        }).join("") +
+      '</div>' +
+      chartImg +
+      '<div class="print-details"><h3>Détail du calcul</h3><table>' +
+        (result.details||[]).map(function(d){ return '<tr><td>' + escapeHTML(d.label) + '</td><td>' + escapeHTML(d.value) + '</td></tr>'; }).join("") +
+      '</table></div>' +
+      '<div class="print-inputs"><h3>Paramètres saisis</h3><table>' +
+        tool.fields.map(function(f){ return '<tr><td>' + escapeHTML(f.label) + '</td><td>' + escapeHTML(formatInputForPrint(f, inputs[f.id])) + '</td></tr>'; }).join("") +
+      '</table></div>' +
+      '<div class="print-footer">Simulation indicative réalisée avec CGP Pro — document à valider avec un conseiller avant toute décision.</div>';
+    window.print();
+  }
+
+  /* ============================ Calculator page ============================ */
+  function mountCalculator(tool, opts){
+    var main = document.getElementById("main");
+    var prefill = opts.prefill || null;
+
+    main.innerHTML =
+      '<div class="container calc-page">' +
+        '<a href="#/" class="back-link">← Retour aux outils</a>' +
+        '<h1>' + escapeHTML(tool.name) + '</h1>' +
+        '<p class="tool-desc">' + escapeHTML(tool.desc) + '</p>' +
+        '<form id="calcForm" class="calc-form"><div class="form-grid">' +
+          tool.fields.map(function(f){ return fieldHTML(f, prefill ? prefill[f.id] : undefined); }).join("") +
+        '</div><button type="submit" class="btn btn-primary">Calculer</button></form>' +
+        '<div id="resultsArea" hidden>' +
+          '<hr class="sep">' +
+          '<div class="key-figures" id="keyFigures"></div>' +
+          '<div class="chart-wrap tech-detail" id="chartWrap"><canvas id="resultChart"></canvas></div>' +
+          '<div class="tech-detail" id="detailsArea"></div>' +
+          '<div class="warnings" id="warningsArea"></div>' +
+          '<div class="actions-bar">' +
+            '<div class="field client-field"><label for="clientName">Nom du client (optionnel)</label>' +
+            '<input type="text" id="clientName" placeholder="ex. M. Dupont"></div>' +
+            '<div class="actions-buttons">' +
+              '<button class="btn btn-outline" id="presentBtn" type="button">🖥 Mode présentation</button>' +
+              '<button class="btn btn-outline" id="pdfBtn" type="button">⤓ Exporter en PDF</button>' +
+              '<button class="btn btn-primary" id="saveBtn" type="button">💾 Enregistrer pour ce client</button>' +
+            '</div>' +
+            '<div class="save-msg" id="saveMsg"></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    var lastInputs = null, lastResult = null;
+
+    function runCompute(){
+      lastInputs = readInputs(tool.fields);
+      lastResult = tool.compute(lastInputs);
+      renderResults(lastResult);
+    }
+
+    function renderResults(result){
+      document.getElementById("resultsArea").hidden = false;
+      document.getElementById("keyFigures").innerHTML = result.keyFigures.map(function(k){
+        return '<div class="key-figure"><div class="value">' + escapeHTML(k.value) + '</div><div class="label">' + escapeHTML(k.label) + '</div></div>';
+      }).join("");
+      var details = result.details || [];
+      document.getElementById("detailsArea").innerHTML = details.length ?
+        '<table class="details-table">' + details.map(function(d){ return '<tr><td>' + escapeHTML(d.label) + '</td><td>' + escapeHTML(d.value) + '</td></tr>'; }).join("") + '</table>' : '';
+      document.getElementById("warningsArea").innerHTML = (result.warnings||[]).map(function(w){ return '<div class="warning">' + escapeHTML(w) + '</div>'; }).join("");
+      renderChart(result.chart);
+    }
+
+    document.getElementById("calcForm").addEventListener("submit", function(e){ e.preventDefault(); runCompute(); });
+    document.getElementById("presentBtn").addEventListener("click", enterPresentationMode);
+    document.getElementById("pdfBtn").addEventListener("click", function(){
+      exportPDF(tool, lastInputs, lastResult, document.getElementById("clientName").value.trim());
+    });
+    document.getElementById("saveBtn").addEventListener("click", function(){
+      if(!lastResult) return;
+      var clientName = document.getElementById("clientName").value.trim();
+      var entry = {
+        id: "sim_" + Date.now() + "_" + Math.random().toString(36).slice(2,7),
+        toolId: tool.id,
+        toolName: tool.name,
+        clientName: clientName || "(sans nom)",
+        timestamp: new Date().toISOString(),
+        inputs: lastInputs,
+        keyFigures: lastResult.keyFigures
+      };
+      saveSimulation(entry);
+      var msg = document.getElementById("saveMsg");
+      msg.textContent = "Simulation enregistrée ✓";
+      setTimeout(function(){ msg.textContent = ""; }, 2500);
+    });
+
+    if(prefill && opts.autoCompute){ runCompute(); }
+  }
+
+  /* ============================ Home view ============================ */
+  function renderHome(){
+    var main = document.getElementById("main");
+    main.innerHTML = '<div class="container home">' +
+      '<div class="home-intro"><h1>Boîte à outils CGP</h1><p>Sélectionnez un simulateur pour préparer ou animer votre rendez-vous client.</p></div>' +
+      CATEGORIES.map(function(cat){
+        var tools = TOOLS.filter(function(t){ return t.category === cat.id; });
+        if(!tools.length) return "";
+        return '<section class="category-section">' +
+          '<h2 class="category-title"><span class="cat-icon">' + cat.icon + '</span>' + escapeHTML(cat.name) + '</h2>' +
+          '<div class="tool-grid">' +
+            tools.map(function(t){
+              return '<div class="tool-card ' + (t.status==="soon"?"soon":"") + '" data-tool="' + t.id + '">' +
+                '<div class="icon">' + t.icon + '</div>' +
+                '<div class="tool-name">' + escapeHTML(t.name) + '</div>' +
+                '<div class="tool-desc-short">' + escapeHTML(t.desc) + '</div>' +
+                (t.status==="soon" ? '<span class="badge-soon">Bientôt disponible</span>' : '') +
+              '</div>';
+            }).join("") +
+          '</div></section>';
+      }).join("") +
+    '</div>';
+
+    main.querySelectorAll(".tool-card:not(.soon)").forEach(function(card){
+      card.addEventListener("click", function(){ location.hash = "#/calc/" + card.dataset.tool; });
+    });
+  }
+
+  /* ============================ History view ============================ */
+  function renderHistorique(){
+    var main = document.getElementById("main");
+    main.innerHTML = '<div class="container historique">' +
+      '<a href="#/" class="back-link">← Retour aux outils</a>' +
+      '<h1>Historique des simulations</h1>' +
+      '<div class="field"><label for="searchClient">Filtrer par client</label><input type="text" id="searchClient" placeholder="Nom du client..."></div>' +
+      '<div id="simList"></div>' +
+    '</div>';
+
+    var sims = getSimulations();
+
+    function draw(filter){
+      var list = document.getElementById("simList");
+      var filtered = filter ? sims.filter(function(s){ return s.clientName.toLowerCase().indexOf(filter.toLowerCase()) !== -1; }) : sims;
+      if(!filtered.length){ list.innerHTML = '<p class="empty">Aucune simulation enregistrée.</p>'; return; }
+      list.innerHTML = filtered.map(function(s){
+        var kf = (s.keyFigures||[]).map(function(k){ return escapeHTML(k.label) + ' : <strong>' + escapeHTML(k.value) + '</strong>'; }).join(" · ");
+        return '<div class="sim-row">' +
+          '<div class="sim-main">' +
+            '<div class="sim-client">' + escapeHTML(s.clientName) + '</div>' +
+            '<div class="sim-tool">' + escapeHTML(s.toolName) + ' — ' + new Date(s.timestamp).toLocaleString("fr-FR") + '</div>' +
+            '<div class="sim-kf">' + kf + '</div>' +
+          '</div>' +
+          '<div class="sim-actions">' +
+            '<button class="btn btn-outline btn-sm" data-open="' + s.id + '">Ouvrir</button>' +
+            '<button class="btn btn-danger btn-sm" data-del="' + s.id + '">Supprimer</button>' +
+          '</div>' +
+        '</div>';
+      }).join("");
+
+      list.querySelectorAll("[data-open]").forEach(function(b){
+        b.addEventListener("click", function(){
+          var sim = sims.filter(function(s){ return s.id === b.dataset.open; })[0];
+          if(sim) location.hash = "#/calc/" + sim.toolId + "/" + sim.id;
+        });
+      });
+      list.querySelectorAll("[data-del]").forEach(function(b){
+        b.addEventListener("click", function(){
+          if(confirm("Supprimer cette simulation ?")){
+            deleteSimulation(b.dataset.del);
+            renderHistorique();
+          }
+        });
+      });
+    }
+
+    draw("");
+    document.getElementById("searchClient").addEventListener("input", function(e){ draw(e.target.value); });
+  }
+
+  /* ============================ Router ============================ */
+  function parseHash(){
+    var h = location.hash.replace(/^#\/?/, "");
+    var parts = h.split("/").filter(Boolean);
+    if(parts[0] === "calc" && parts[1]) return {name:"calc", toolId:parts[1], simId:parts[2]};
+    if(parts[0] === "historique") return {name:"historique"};
+    return {name:"home"};
+  }
+
+  function render(){
+    exitPresentationMode();
+    var v = parseHash();
+    if(v.name === "calc"){
+      var tool = TOOLS_BY_ID[v.toolId];
+      if(!tool || tool.status === "soon"){ location.hash = ""; return; }
+      var prefill = null;
+      if(v.simId){
+        var sim = getSimulations().filter(function(s){ return s.id === v.simId; })[0];
+        if(sim) prefill = sim.inputs;
+      }
+      mountCalculator(tool, {prefill: prefill, autoCompute: !!prefill});
+    } else if(v.name === "historique"){
+      renderHistorique();
+    } else {
+      renderHome();
+    }
+  }
+
+  window.addEventListener("hashchange", render);
+  document.addEventListener("DOMContentLoaded", function(){
+    render();
+    document.getElementById("exitPresentBtn").addEventListener("click", exitPresentationMode);
+    document.addEventListener("fullscreenchange", function(){
+      if(!document.fullscreenElement && document.body.classList.contains("presenting")){
+        exitPresentationMode();
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>
