@@ -436,36 +436,43 @@
         var versementAnnuelNet = versementAnnuelBrut*(1-inputs.fraisVersement/100);
         var capitalInitialNet = inputs.capitalInitial*(1-inputs.fraisVersement/100);
 
+        // 3 trajectoires : sans aucun frais / avec frais de gestion seuls / avec frais de gestion + frais sur versement
         var sans = [inputs.capitalInitial];
-        var avec = [capitalInitialNet];
+        var avecGestionSeule = [inputs.capitalInitial];
+        var avecTousFrais = [capitalInitialNet];
         for(var y=1; y<=years; y++){
           sans.push(sans[y-1]*(1+inputs.rendementAnnuel/100) + versementAnnuelBrut);
-          avec.push(avec[y-1]*(1+(inputs.rendementAnnuel-inputs.fraisGestion)/100) + versementAnnuelNet);
+          avecGestionSeule.push(avecGestionSeule[y-1]*(1+(inputs.rendementAnnuel-inputs.fraisGestion)/100) + versementAnnuelBrut);
+          avecTousFrais.push(avecTousFrais[y-1]*(1+(inputs.rendementAnnuel-inputs.fraisGestion)/100) + versementAnnuelNet);
         }
-        function milestone(y){ return {sans:sans[y], avec:avec[y], ecart: sans[y]-avec[y]}; }
+        function milestone(y){ return {sans:sans[y], gestion:avecGestionSeule[y], tous:avecTousFrais[y], ecart: sans[y]-avecTousFrais[y]}; }
         var m10 = milestone(10), m20 = milestone(20), m30 = milestone(30);
         var fraisEntreeTotal = (inputs.capitalInitial-capitalInitialNet) + (versementAnnuelBrut-versementAnnuelNet)*years;
+        var coutGestionSeule30 = m30.sans - m30.gestion;
+        var coutVersementSeul30 = m30.gestion - m30.tous;
 
         return {
           keyFigures:[
             {label:"Capital à 30 ans sans frais", value: euro.format(m30.sans)},
-            {label:"Capital à 30 ans avec frais", value: euro.format(m30.avec)},
-            {label:"Coût cumulé des frais à 30 ans", value: euro.format(m30.ecart)}
+            {label:"Capital à 30 ans avec tous les frais", value: euro.format(m30.tous)},
+            {label:"Coût cumulé total des frais à 30 ans", value: euro.format(m30.ecart)}
           ],
           details:[
-            {label:"Capital à 10 ans (sans frais / avec frais)", value: euro.format(m10.sans) + " / " + euro.format(m10.avec)},
-            {label:"Capital à 20 ans (sans frais / avec frais)", value: euro.format(m20.sans) + " / " + euro.format(m20.avec)},
-            {label:"Écart à 10 ans", value: euro.format(m10.ecart)},
-            {label:"Écart à 20 ans", value: euro.format(m20.ecart)},
-            {label:"Écart à 30 ans", value: euro.format(m30.ecart)},
-            {label:"Dont frais sur versement prélevés (30 ans)", value: euro.format(fraisEntreeTotal)}
+            {label:"Capital à 10 ans (sans frais / gestion seule / tous frais)", value: euro.format(m10.sans) + " / " + euro.format(m10.gestion) + " / " + euro.format(m10.tous)},
+            {label:"Capital à 20 ans (sans frais / gestion seule / tous frais)", value: euro.format(m20.sans) + " / " + euro.format(m20.gestion) + " / " + euro.format(m20.tous)},
+            {label:"Capital à 30 ans (sans frais / gestion seule / tous frais)", value: euro.format(m30.sans) + " / " + euro.format(m30.gestion) + " / " + euro.format(m30.tous)},
+            {label:"Écart total à 10 ans / 20 ans / 30 ans", value: euro.format(m10.ecart) + " / " + euro.format(m20.ecart) + " / " + euro.format(m30.ecart)},
+            {label:"Dont coût des frais de gestion seuls (30 ans)", value: euro.format(coutGestionSeule30)},
+            {label:"Dont coût des frais sur versement seuls (30 ans)", value: euro.format(coutVersementSeul30)},
+            {label:"Frais sur versement prélevés en euros (30 ans)", value: euro.format(fraisEntreeTotal)}
           ],
           chart:{
             type:"line",
             labels: Array.from({length: years+1}, function(_, i){ return String(i); }),
             datasets:[
               {label:"Sans frais", data:sans, borderColor:"#0f7a72", backgroundColor:"rgba(15,122,114,0.1)", tension:0.15},
-              {label:"Avec frais de gestion", data:avec, borderColor:"#b3422c", backgroundColor:"rgba(179,66,44,0.1)", tension:0.15}
+              {label:"Avec frais de gestion seuls", data:avecGestionSeule, borderColor:"#9c7a3c", backgroundColor:"rgba(156,122,60,0.1)", tension:0.15},
+              {label:"Avec frais de gestion + frais sur versement", data:avecTousFrais, borderColor:"#b3422c", backgroundColor:"rgba(179,66,44,0.1)", tension:0.15}
             ]
           },
           warnings:[]
