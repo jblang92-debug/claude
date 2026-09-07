@@ -201,6 +201,21 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
   }
 
+  /* ============================ Shared fiscal helpers ============================ */
+  // Calcule un impôt par tranches marginales. brackets = [{upTo:N, rate:r}, ..., {upTo:Infinity, rate:r}]
+  // upTo est la borne haute (exclusive du haut de tranche suivant), cumulative depuis 0.
+  function computeBaremeProgressif(base, brackets){
+    var impot = 0, precedent = 0;
+    for(var i=0; i<brackets.length; i++){
+      var b = brackets[i];
+      if(base <= precedent) break;
+      var trancheHaute = Math.min(base, b.upTo);
+      impot += Math.max(0, trancheHaute - precedent) * b.rate;
+      precedent = b.upTo;
+    }
+    return impot;
+  }
+
   /* ============================ Categories ============================ */
   var CATEGORIES = [
     {id:"financement", name:"Financement & crédit", icon:"🏦"},
@@ -284,11 +299,130 @@
       }
     },
 
-    {id:"pret-amortissement", category:"financement", status:"soon", icon:"📅", name:"Prêt immobilier — tableau d'amortissement", desc:"Échéancier mensuel détaillé capital / intérêts sur toute la durée du prêt."},
+    /* ---------- 5. Prêt immobilier — tableau d'amortissement ---------- */
+    {
+      id:"pret-amortissement", category:"financement", status:"ready", icon:"📅",
+      name:"Prêt immobilier — tableau d'amortissement",
+      desc:"Calcule la mensualité et l'échéancier annuel complet (capital remboursé / intérêts payés / capital restant dû) d'un prêt à taux fixe et échéances constantes.",
+      fields:[
+        {id:"capitalEmprunte", label:"Capital emprunté", type:"number", suffix:"€", default:200000, step:1000},
+        {id:"tauxInteret", label:"Taux d'intérêt annuel (hors assurance)", type:"number", suffix:"%", default:3.8, step:0.01},
+        {id:"tauxAssurance", label:"Taux d'assurance emprunteur annuel", type:"number", suffix:"%", default:0.34, step:0.01, help:"Calculé ici sur le capital initial constant (convention la plus répandue)."},
+        {id:"dureeAnnees", label:"Durée du prêt", type:"number", suffix:"ans", default:25, step:1}
+      ],
+      compute:function(inputs){
+        var r = inputs.tauxInteret/100/12;
+        var n = inputs.dureeAnnees*12;
+        var mensualiteAssurance = inputs.capitalEmprunte*(inputs.tauxAssurance/100/12);
+        var mensualiteCredit = r>0 ? inputs.capitalEmprunte*r/(1-Math.pow(1+r,-n)) : inputs.capitalEmprunte/n;
+        var mensualiteTotale = mensualiteCredit + mensualiteAssurance;
+
+        // Échéancier mensuel complet, agrégé ensuite par année pour l'affichage.
+        var solde = inputs.capitalEmprunte;
+        var annees = [];
+        var capitalAnnee = 0, interetsAnnee = 0;
+        for(var m=1; m<=n; m++){
+          var interetMois = solde*r;
+          var capitalMois = mensualiteCredit - interetMois;
+          solde = Math.max(0, solde - capitalMois);
+          capitalAnnee += capitalMois;
+          interetsAnnee += interetMois;
+          if(m % 12 === 0 || m === n){
+            annees.push({annee: Math.ceil(m/12), capitalRembourse: capitalAnnee, interetsPayes: interetsAnnee, resteDu: solde});
+            capitalAnnee = 0; interetsAnnee = 0;
+          }
+        }
+        var totalInterets = annees.reduce(function(s,a){ return s+a.interetsPayes; }, 0);
+        var totalAssurance = mensualiteAssurance*n;
+        var coutTotalCredit = totalInterets + totalAssurance;
+
+        var details = annees.filter(function(a){ return a.annee % 5 === 0 || a.annee === annees.length; }).map(function(a){
+          return {label:"Reste dû fin d'année " + a.annee, value: euro.format(a.resteDu)};
+        });
+        details.push({label:"Total intérêts payés", value: euro.format(totalInterets)});
+        details.push({label:"Total assurance payée", value: euro.format(totalAssurance)});
+
+        return {
+          keyFigures:[
+            {label:"Mensualité totale (crédit + assurance)", value: euro2.format(mensualiteTotale)},
+            {label:"Coût total du crédit (intérêts + assurance)", value: euro.format(coutTotalCredit)},
+            {label:"Coût total du prêt (capital + coût du crédit)", value: euro.format(inputs.capitalEmprunte + coutTotalCredit)}
+          ],
+          details: details,
+          chart:{
+            type:"bar",
+            labels: annees.map(function(a){ return "An " + a.annee; }),
+            datasets:[
+              {label:"Capital remboursé", data: annees.map(function(a){ return Math.round(a.capitalRembourse); }), backgroundColor:"#122b46", stack:"s"},
+              {label:"Intérêts payés", data: annees.map(function(a){ return Math.round(a.interetsPayes); }), backgroundColor:"#b3422c", stack:"s"}
+            ],
+            options:{scales:{x:{stacked:true}, y:{stacked:true}}}
+          },
+          warnings:["Échéancier à mensualité et taux constants (hors modulation, remboursement anticipé ou taux variable). Assurance calculée sur le capital initial : certains contrats la calculent sur le capital restant dû, ce qui réduit son coût total."]
+        };
+      }
+    },
+
     {id:"taux-fixe-variable", category:"financement", status:"soon", icon:"⚖️", name:"Comparateur taux fixe vs variable", desc:"Compare le coût total et le risque entre un prêt à taux fixe et à taux variable."},
     {id:"rachat-credit", category:"financement", status:"soon", icon:"🔄", name:"Calculateur de rachat de crédit", desc:"Évalue le gain d'un regroupement ou rachat de crédits en cours."},
     {id:"apport-optimal", category:"financement", status:"soon", icon:"💰", name:"Simulateur d'apport optimal", desc:"Détermine l'apport idéal selon l'objectif de mensualité ou de taux."},
-    {id:"frais-notaire", category:"financement", status:"soon", icon:"🧾", name:"Frais de notaire (ancien vs neuf)", desc:"Estime les frais d'acquisition selon le type de bien."},
+
+    /* ---------- 6. Frais de notaire (ancien vs neuf) ---------- */
+    {
+      id:"frais-notaire", category:"financement", status:"ready", icon:"🧾",
+      name:"Frais de notaire (ancien vs neuf)",
+      desc:"Estime et compare les frais d'acquisition (droits d'enregistrement, émoluments du notaire, contribution de sécurité immobilière, débours) entre un bien ancien et un bien neuf.",
+      fields:[
+        {id:"prixBien", label:"Prix du bien (hors frais)", type:"number", suffix:"€", default:250000, step:1000},
+        {id:"tauxDepartemental", label:"Taux des droits départementaux (ancien)", type:"select", default:"5.80665", options:[
+          {value:"5.80665", label:"5,80665 % — taux standard (majorité des départements)"},
+          {value:"5.09006", label:"5,09006 % — taux réduit (Indre, Isère, Morbihan, Mayotte)"}
+        ]},
+        {id:"forfaitDebours", label:"Frais et débours divers (formalités, état hypothécaire...)", type:"number", suffix:"€", default:1200, step:50}
+      ],
+      compute:function(inputs){
+        // Émoluments du notaire : barème dégressif par tranche (HT), identique ancien/neuf, + TVA 20%.
+        var tranches = [
+          {upTo:6500, rate:0.03870},
+          {upTo:17000, rate:0.01596},
+          {upTo:60000, rate:0.01064},
+          {upTo:Infinity, rate:0.00799}
+        ];
+        var emolumentsHT = computeBaremeProgressif(inputs.prixBien, tranches);
+        var emolumentsTTC = emolumentsHT*1.20;
+        var csi = Math.max(15, inputs.prixBien*0.001); // Contribution de sécurité immobilière : 0,10%, plancher 15€
+
+        var droitsAncien = inputs.prixBien*(parseFloat(inputs.tauxDepartemental)/100);
+        var totalAncien = droitsAncien + emolumentsTTC + csi + inputs.forfaitDebours;
+
+        var droitsNeuf = inputs.prixBien*0.0071498; // taxe de publicité foncière réduite (bien neuf / VEFA)
+        var totalNeuf = droitsNeuf + emolumentsTTC + csi + inputs.forfaitDebours;
+
+        return {
+          keyFigures:[
+            {label:"Frais de notaire — ancien", value: euro.format(totalAncien)},
+            {label:"Frais de notaire — neuf", value: euro.format(totalNeuf)},
+            {label:"Écart ancien / neuf", value: euro.format(totalAncien-totalNeuf)}
+          ],
+          details:[
+            {label:"Ancien — taux appliqué", value: pct(parseFloat(inputs.tauxDepartemental)) + " du prix"},
+            {label:"Ancien — droits d'enregistrement", value: euro.format(droitsAncien)},
+            {label:"Neuf — droits d'enregistrement (taux réduit 0,715 %)", value: euro.format(droitsNeuf)},
+            {label:"Émoluments du notaire (TTC, identiques ancien/neuf)", value: euro.format(emolumentsTTC)},
+            {label:"Contribution de sécurité immobilière (0,10 %)", value: euro.format(csi)},
+            {label:"Frais et débours", value: euro.format(inputs.forfaitDebours)},
+            {label:"Frais de notaire ancien en % du prix", value: pct(totalAncien/inputs.prixBien*100)},
+            {label:"Frais de notaire neuf en % du prix", value: pct(totalNeuf/inputs.prixBien*100)}
+          ],
+          chart:{
+            type:"bar",
+            labels:["Ancien","Neuf"],
+            datasets:[{label:"Frais de notaire (€)", data:[Math.round(totalAncien), Math.round(totalNeuf)], backgroundColor:["#122b46","#0f7a72"]}]
+          },
+          warnings:["Estimation basée sur le barème dégressif des émoluments de notaire et les droits de mutation en vigueur ; ces taux sont révisés périodiquement par arrêté. Hors TVA sur le prix (déjà incluse dans le prix d'un bien neuf), hors frais annexes (garantie, courtage). À confirmer avec le notaire avant tout engagement."]
+        };
+      }
+    },
 
     /* ---------- 2. Rentabilité locative ---------- */
     {
@@ -338,7 +472,99 @@
 
     {id:"scpi", category:"immobilier", status:"soon", icon:"🏢", name:"Simulateur SCPI", desc:"Rendement estimé et fiscalité selon le mode de détention (direct, assurance-vie, à crédit)."},
     {id:"lmnp-vs-nue", category:"immobilier", status:"soon", icon:"🛋️", name:"Comparateur LMNP vs location nue", desc:"Compare la fiscalité et la rentabilité nette des deux régimes."},
-    {id:"plus-value-immo", category:"immobilier", status:"soon", icon:"📈", name:"Plus-value immobilière", desc:"Calcule la plus-value taxable avec abattements pour durée de détention."},
+    /* ---------- 7. Plus-value immobilière ---------- */
+    {
+      id:"plus-value-immo", category:"immobilier", status:"ready", icon:"📈",
+      name:"Plus-value immobilière",
+      desc:"Calcule l'impôt sur la plus-value de cession (IR 19% + prélèvements sociaux 17,2% + surtaxe éventuelle), avec abattements pour durée de détention (exonération IR à 22 ans, PS à 30 ans).",
+      fields:[
+        {id:"prixVente", label:"Prix de vente", type:"number", suffix:"€", default:350000, step:1000},
+        {id:"prixAchat", label:"Prix d'acquisition initial", type:"number", suffix:"€", default:200000, step:1000},
+        {id:"fraisAcquisitionPct", label:"Frais d'acquisition (forfait, % du prix d'achat)", type:"number", suffix:"%", default:7.5, step:0.5, help:"7,5% forfaitaire usuel si les frais réels sont inconnus/inférieurs."},
+        {id:"montantTravaux", label:"Travaux (montant réel, optionnel)", type:"number", suffix:"€", default:0, step:1000, help:"Ou forfait de 15% du prix d'achat si détention > 5 ans et sans factures : à saisir manuellement."},
+        {id:"dureeDetention", label:"Durée de détention", type:"number", suffix:"ans", default:15, step:1},
+        {id:"residencePrincipale", label:"Résidence principale du vendeur", type:"select", default:"non", options:[
+          {value:"non", label:"Non (exonération non applicable)"},
+          {value:"oui", label:"Oui (exonération totale)"}
+        ]}
+      ],
+      compute:function(inputs){
+        var warnings = ["Calcul simplifié (régime des particuliers, Art. 150 U à 150 VH et 1609 nonies G du CGI). Ne couvre pas les autres cas d'exonération (1re cession hors RP sous condition, retraités/invalides de condition modeste, terrains à bâtir spécifiques...). À valider avec un notaire avant toute décision."];
+
+        if(inputs.residencePrincipale === "oui"){
+          var plusValueIndicative = Math.max(0, inputs.prixVente - (inputs.prixAchat*(1+inputs.fraisAcquisitionPct/100) + inputs.montantTravaux));
+          return {
+            keyFigures:[
+              {label:"Impôt total sur la plus-value", value: euro.format(0)},
+              {label:"Plus-value brute", value: euro.format(plusValueIndicative)},
+              {label:"Montant net après impôt", value: euro.format(inputs.prixVente)}
+            ],
+            details:[{label:"Motif", value:"Résidence principale : exonération totale (Art. 150 U II-1° CGI)"}],
+            chart:null,
+            warnings: warnings
+          };
+        }
+
+        var prixAcquisitionMajore = inputs.prixAchat*(1+inputs.fraisAcquisitionPct/100) + inputs.montantTravaux;
+        var plusValueBrute = Math.max(0, inputs.prixVente - prixAcquisitionMajore);
+
+        function abattementIR(n){ if(n<6) return 0; if(n<22) return (n-5)*6; return 100; }
+        function abattementPS(n){
+          if(n<6) return 0;
+          if(n<=21) return (n-5)*1.65;
+          if(n===22) return 28;
+          if(n<30) return 28 + (n-22)*9;
+          return 100;
+        }
+        var n = inputs.dureeDetention;
+        var gainsIR = plusValueBrute*(1-abattementIR(n)/100);
+        var gainsPS = plusValueBrute*(1-abattementPS(n)/100);
+        var impotIR = gainsIR*0.19;
+        var prelevSociaux = gainsPS*0.172;
+
+        // Surtaxe sur les plus-values élevées (Art. 1609 nonies G CGI), assise sur la plus-value imposable à l'IR.
+        function computeSurtaxe(pv){
+          if(pv<=50000) return 0;
+          if(pv<=60000) return 0.02*pv - (60000-pv)*1/20;
+          if(pv<=100000) return 0.02*pv;
+          if(pv<=110000) return 0.03*pv - (110000-pv)*1/10;
+          if(pv<=150000) return 0.03*pv;
+          if(pv<=160000) return 0.04*pv - (160000-pv)*15/100;
+          if(pv<=200000) return 0.04*pv;
+          if(pv<=210000) return 0.05*pv - (210000-pv)*20/100;
+          if(pv<=250000) return 0.05*pv;
+          if(pv<=260000) return 0.06*pv - (260000-pv)*25/100;
+          return 0.06*pv;
+        }
+        var surtaxe = computeSurtaxe(gainsIR);
+        var totalImpot = impotIR + prelevSociaux + surtaxe;
+        var net = inputs.prixVente - totalImpot;
+
+        return {
+          keyFigures:[
+            {label:"Impôt total sur la plus-value", value: euro.format(totalImpot)},
+            {label:"Plus-value brute", value: euro.format(plusValueBrute)},
+            {label:"Montant net après impôt", value: euro.format(net)}
+          ],
+          details:[
+            {label:"Prix d'acquisition majoré (frais + travaux)", value: euro.format(prixAcquisitionMajore)},
+            {label:"Abattement pour durée de détention (IR)", value: pct(Math.min(100,abattementIR(n)), 1)},
+            {label:"Abattement pour durée de détention (PS)", value: pct(Math.min(100,abattementPS(n)), 1)},
+            {label:"Plus-value imposable à l'IR (19%)", value: euro.format(gainsIR)},
+            {label:"Plus-value imposable aux PS (17,2%)", value: euro.format(gainsPS)},
+            {label:"Impôt sur le revenu (19%)", value: euro.format(impotIR)},
+            {label:"Prélèvements sociaux (17,2%)", value: euro.format(prelevSociaux)},
+            {label:"Surtaxe plus-values élevées", value: euro.format(surtaxe)}
+          ],
+          chart:{
+            type:"doughnut",
+            labels:["Net perçu","Impôt sur le revenu","Prélèvements sociaux","Surtaxe"],
+            datasets:[{data:[net, impotIR, prelevSociaux, surtaxe], backgroundColor:["#0f7a72","#b3422c","#9c7a3c","#5b6b7c"]}]
+          },
+          warnings: warnings
+        };
+      }
+    },
 
     /* ---------- 3. Fiscalité assurance-vie ---------- */
     {
@@ -487,8 +713,115 @@
     {id:"epargner-retraite", category:"retraite", status:"soon", icon:"🐖", name:"Combien épargner pour ma retraite", desc:"Calcule l'effort d'épargne mensuel nécessaire pour un objectif retraite."},
 
     {id:"ifi", category:"transmission", status:"soon", icon:"🏛️", name:"Simulateur d'IFI", desc:"Estime l'impôt sur la fortune immobilière selon le patrimoine net taxable."},
-    {id:"succession", category:"transmission", status:"soon", icon:"📜", name:"Droits de succession", desc:"Estime les droits dus selon le lien de parenté et les abattements."},
-    {id:"demembrement", category:"transmission", status:"soon", icon:"✂️", name:"Démembrement de propriété", desc:"Répartit la valeur usufruit / nue-propriété selon l'âge de l'usufruitier (barème fiscal)."}
+    /* ---------- 8. Droits de succession ---------- */
+    {
+      id:"succession", category:"transmission", status:"ready", icon:"📜",
+      name:"Droits de succession",
+      desc:"Estime les droits de succession dus sur une part nette taxable, selon le lien de parenté avec le défunt (abattement + barème progressif, Art. 777 et suivants du CGI).",
+      fields:[
+        {id:"montantTransmis", label:"Part nette taxable revenant à l'héritier", type:"number", suffix:"€", default:250000, step:1000},
+        {id:"lienParente", label:"Lien de parenté avec le défunt", type:"select", default:"enfant", options:[
+          {value:"enfant", label:"Enfant / ascendant en ligne directe (abattement 100 000 €)"},
+          {value:"epoux", label:"Époux ou partenaire de PACS (exonération totale)"},
+          {value:"frere_soeur", label:"Frère / sœur (abattement 15 932 €)"},
+          {value:"neveu_niece", label:"Neveu / nièce (abattement 7 967 €)"},
+          {value:"parent_4e_degre", label:"Autre parent jusqu'au 4e degré (abattement 1 594 €)"},
+          {value:"tiers", label:"Non-parent / tiers (abattement 1 594 €)"}
+        ]}
+      ],
+      compute:function(inputs){
+        var warnings = ["Calcul simplifié à partir de la part nette taxable déjà déterminée (hors calcul de l'actif successoral, du passif et des exonérations spécifiques). Abattements et barèmes Art. 779 et 777 du CGI, indexés périodiquement : à vérifier avant toute décision."];
+
+        if(inputs.lienParente === "epoux"){
+          return {
+            keyFigures:[
+              {label:"Droits de succession", value: euro.format(0)},
+              {label:"Montant net transmis", value: euro.format(inputs.montantTransmis)},
+              {label:"Abattement / exonération", value:"Totale"}
+            ],
+            details:[{label:"Motif", value:"Exonération totale entre époux et partenaires liés par un PACS (Art. 796-0 bis CGI)"}],
+            chart:null,
+            warnings: warnings
+          };
+        }
+
+        var config = {
+          enfant:{abattement:100000, bareme:[
+            {upTo:8072, rate:0.05},{upTo:12109, rate:0.10},{upTo:15932, rate:0.15},
+            {upTo:552324, rate:0.20},{upTo:902838, rate:0.30},{upTo:1805677, rate:0.40},{upTo:Infinity, rate:0.45}
+          ]},
+          frere_soeur:{abattement:15932, bareme:[{upTo:24430, rate:0.35},{upTo:Infinity, rate:0.45}]},
+          neveu_niece:{abattement:7967, bareme:[{upTo:Infinity, rate:0.55}]},
+          parent_4e_degre:{abattement:1594, bareme:[{upTo:Infinity, rate:0.55}]},
+          tiers:{abattement:1594, bareme:[{upTo:Infinity, rate:0.60}]}
+        }[inputs.lienParente];
+
+        var baseTaxable = Math.max(0, inputs.montantTransmis - config.abattement);
+        var droits = computeBaremeProgressif(baseTaxable, config.bareme);
+        var net = inputs.montantTransmis - droits;
+
+        return {
+          keyFigures:[
+            {label:"Droits de succession", value: euro.format(droits)},
+            {label:"Montant net transmis", value: euro.format(net)},
+            {label:"Taux moyen d'imposition", value: pct(inputs.montantTransmis>0 ? droits/inputs.montantTransmis*100 : 0, 1)}
+          ],
+          details:[
+            {label:"Part nette taxable reçue", value: euro.format(inputs.montantTransmis)},
+            {label:"Abattement applicable", value: euro.format(Math.min(config.abattement, inputs.montantTransmis))},
+            {label:"Base taxable après abattement", value: euro.format(baseTaxable)}
+          ],
+          chart:{
+            type:"doughnut",
+            labels:["Net transmis","Droits de succession"],
+            datasets:[{data:[net, droits], backgroundColor:["#0f7a72","#b3422c"]}]
+          },
+          warnings: warnings
+        };
+      }
+    },
+    {
+      id:"demembrement", category:"transmission", status:"ready", icon:"✂️",
+      name:"Démembrement de propriété",
+      desc:"Répartit la valeur d'un bien entre usufruit et nue-propriété selon l'âge de l'usufruitier, d'après le barème fiscal légal (Art. 669 CGI).",
+      fields:[
+        {id:"valeurPleinePropriete", label:"Valeur en pleine propriété du bien", type:"number", suffix:"€", default:400000, step:5000},
+        {id:"ageUsufruitier", label:"Âge de l'usufruitier", type:"number", suffix:"ans", default:65, step:1}
+      ],
+      compute:function(inputs){
+        var bareme = [
+          {max:20, usufruit:90}, {max:30, usufruit:80}, {max:40, usufruit:70}, {max:50, usufruit:60},
+          {max:60, usufruit:50}, {max:70, usufruit:40}, {max:80, usufruit:30}, {max:90, usufruit:20},
+          {max:Infinity, usufruit:10}
+        ];
+        var age = inputs.ageUsufruitier;
+        var tranche = bareme.filter(function(b){ return age<=b.max; })[0];
+        var pctUsufruit = tranche.usufruit;
+        var pctNuePropriete = 100-pctUsufruit;
+        var valeurUsufruit = inputs.valeurPleinePropriete*pctUsufruit/100;
+        var valeurNuePropriete = inputs.valeurPleinePropriete*pctNuePropriete/100;
+
+        return {
+          keyFigures:[
+            {label:"Valeur de l'usufruit", value: euro.format(valeurUsufruit)},
+            {label:"Valeur de la nue-propriété", value: euro.format(valeurNuePropriete)},
+            {label:"Répartition appliquée", value: pctUsufruit + " % / " + pctNuePropriete + " %"}
+          ],
+          details:[
+            {label:"Âge de l'usufruitier", value: age + " ans"},
+            {label:"Valeur en pleine propriété", value: euro.format(inputs.valeurPleinePropriete)},
+            {label:"Part usufruit (barème fiscal)", value: pct(pctUsufruit, 0)},
+            {label:"Part nue-propriété (barème fiscal)", value: pct(pctNuePropriete, 0)}
+          ],
+          chart:{
+            type:"doughnut",
+            labels:["Usufruit","Nue-propriété"],
+            datasets:[{data:[valeurUsufruit, valeurNuePropriete], backgroundColor:["#9c7a3c","#122b46"]}]
+          },
+          warnings:["Barème fiscal forfaitaire (Art. 669 CGI), utilisé pour les droits d'enregistrement et l'IFI — ne reflète pas la valeur économique réelle de l'usufruit (espérance de vie, rendement du bien), qui peut être évaluée différemment pour d'autres besoins (vente, partage)."]
+        };
+      }
+    }
   ];
 
   var TOOLS_BY_ID = {};
