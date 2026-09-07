@@ -181,6 +181,8 @@
     body > *:not(.print-report){display:none !important;}
     .print-report{display:block !important;}
     .print-header h1{margin:0;font-size:1.3rem;}
+    .print-logo{max-height:50px;display:block;margin-bottom:6px;}
+    .print-coord{font-size:.78rem;color:#777;margin-bottom:10px;}
     .print-sub{color:#555;font-size:1.05rem;margin-bottom:14px;}
     .print-meta{font-size:.9rem;margin-bottom:16px;}
     .print-keyfigures{display:flex;gap:16px;margin-bottom:18px;}
@@ -209,6 +211,7 @@
         <a href="#/clients" class="nav-link">Clients</a>
         <a href="#/bilan" class="nav-link">Bilan patrimonial</a>
         <a href="#/historique" class="nav-link">Historique</a>
+        <a href="#/parametres" class="nav-link">Paramètres</a>
       </nav>
     </div>
   </header>
@@ -313,6 +316,40 @@
     projetPreparerRetraite: ["pension-retraite","epargner-retraite","av-per-cto"],
     projetTransmission: ["succession","demembrement","ifi"]
   };
+
+  /* ============================ Cabinet (marque blanche) ============================ */
+  var CABINET_KEY = "cgppro_cabinet_v1";
+  function getCabinetProfile(){
+    try{ return JSON.parse(localStorage.getItem(CABINET_KEY)) || {}; }
+    catch(e){ return {}; }
+  }
+  function saveCabinetProfile(profile){ localStorage.setItem(CABINET_KEY, JSON.stringify(profile)); }
+
+  var CABINET_FIELDS = [
+    {id:"nomCabinet", label:"Nom du cabinet", type:"text", default:""},
+    {id:"telephone", label:"Téléphone", type:"text", default:""},
+    {id:"email", label:"Email", type:"text", default:""},
+    {id:"adresse", label:"Adresse", type:"text", default:""},
+    {id:"couleurAccent", label:"Couleur d'accent (optionnel)", type:"color", default:"#9c7a3c"}
+  ];
+
+  // Applique le nom/logo/couleur du cabinet à la barre de navigation (présente sur tout l'écran, pas
+  // seulement l'accueil) ; à rappeler après toute modification des paramètres.
+  function applyCabinetBranding(){
+    var profile = getCabinetProfile();
+    if(profile.couleurAccent){
+      document.documentElement.style.setProperty("--accent", profile.couleurAccent);
+    }
+    var brandEl = document.querySelector(".topbar .brand");
+    if(!brandEl) return;
+    if(profile.nomCabinet || profile.logo){
+      brandEl.innerHTML = (profile.logo ? '<img src="' + profile.logo + '" class="brand-logo" alt="Logo du cabinet"> ' : '') +
+        escapeHTML(profile.nomCabinet || "CGP Pro") +
+        '<span class="brand-sub">Propulsé par CGP Pro</span>';
+    } else {
+      brandEl.innerHTML = 'CGP Pro<span class="brand-sub">Outils d\'aide au rendez-vous client</span>';
+    }
+  }
 
   /* ============================ Shared fiscal helpers ============================ */
   // Calcule un impôt par tranches marginales. brackets = [{upTo:N, rate:r}, ..., {upTo:Infinity, rate:r}]
@@ -1624,6 +1661,11 @@
         '<input type="text" id="f_' + f.id + '" value="' + escapeHTML(val||"") + '">' +
         (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
     }
+    if(f.type === "color"){
+      return '<div ' + wrapAttrs + '><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
+        '<input type="color" id="f_' + f.id + '" value="' + escapeHTML(val||"#9c7a3c") + '" style="height:42px;padding:4px;width:100%;">' +
+        (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
+    }
     return '<div ' + wrapAttrs + '><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
       '<div class="input-suffix"><input type="number" id="f_' + f.id + '" value="' + escapeHTML(val) + '" step="' + (f.step||"any") + '">' +
       '<span class="suffix">' + escapeHTML(f.suffix||"") + '</span></div>' +
@@ -1696,7 +1738,7 @@
       var elm = document.getElementById("f_" + f.id);
       if(f.type === "select"){ out[f.id] = elm.value; }
       else if(f.type === "checkbox"){ out[f.id] = elm.checked; }
-      else if(f.type === "text"){ out[f.id] = elm.value; }
+      else if(f.type === "text" || f.type === "color"){ out[f.id] = elm.value; }
       else { out[f.id] = parseFloat(elm.value) || 0; }
     });
     return out;
@@ -1748,6 +1790,18 @@
   }
 
   /* ============================ PDF export (print) ============================ */
+  // En-tête d'impression commune (logo + nom + coordonnées du cabinet si renseignés dans les Paramètres).
+  function printHeaderHTML(subtitle){
+    var profile = getCabinetProfile();
+    var coordParts = [profile.telephone, profile.email, profile.adresse].filter(Boolean);
+    return '<div class="print-header">' +
+      (profile.logo ? '<img src="' + profile.logo + '" class="print-logo" alt="Logo">' : '') +
+      '<h1>' + escapeHTML(profile.nomCabinet || "CGP Pro") + '</h1>' +
+      '<div class="print-sub">' + escapeHTML(subtitle) + '</div>' +
+      (coordParts.length ? '<div class="print-coord">' + escapeHTML(coordParts.join(" · ")) + '</div>' : '') +
+    '</div>';
+  }
+
   function exportPDF(tool, inputs, result, clientName){
     if(!result) return;
     var reportEl = document.getElementById("printReport");
@@ -1759,7 +1813,7 @@
       catch(e){ chartImg = ""; }
     }
     reportEl.innerHTML =
-      '<div class="print-header"><h1>CGP Pro</h1><div class="print-sub">' + escapeHTML(tool.name) + '</div></div>' +
+      printHeaderHTML(tool.name) +
       '<div class="print-meta">' +
         (clientName ? '<div><strong>Client :</strong> ' + escapeHTML(clientName) + '</div>' : '') +
         '<div><strong>Date :</strong> ' + dateStr + '</div>' +
@@ -1785,7 +1839,7 @@
     var reportEl = document.getElementById("printReport");
     var dateStr = new Date().toLocaleDateString("fr-FR", {year:"numeric", month:"long", day:"numeric"});
     reportEl.innerHTML =
-      '<div class="print-header"><h1>CGP Pro</h1><div class="print-sub">Bilan patrimonial — ' + escapeHTML(clientFullName(client)) + '</div></div>' +
+      printHeaderHTML("Bilan patrimonial — " + clientFullName(client)) +
       '<div class="print-meta"><div><strong>Date :</strong> ' + dateStr + '</div></div>' +
       sections.map(function(s){
         return '<div class="print-details"><h3>' + escapeHTML(s.tool.name) + '</h3>' +
@@ -1907,8 +1961,9 @@
   /* ============================ Home view ============================ */
   function renderHome(){
     var main = document.getElementById("main");
+    var cabinet = getCabinetProfile();
     main.innerHTML = '<div class="container home">' +
-      '<div class="home-intro"><h1>Boîte à outils CGP</h1><p>Sélectionnez un simulateur pour préparer ou animer votre rendez-vous client.</p></div>' +
+      '<div class="home-intro"><h1>Boîte à outils CGP' + (cabinet.nomCabinet ? ' — ' + escapeHTML(cabinet.nomCabinet) : '') + '</h1><p>Sélectionnez un simulateur pour préparer ou animer votre rendez-vous client.</p></div>' +
       CATEGORIES.map(function(cat){
         var tools = TOOLS.filter(function(t){ return t.category === cat.id; });
         if(!tools.length) return "";
@@ -2190,6 +2245,53 @@
     renderStep();
   }
 
+  /* ============================ Paramètres (cabinet) ============================ */
+  function renderParametres(){
+    var main = document.getElementById("main");
+    var profile = getCabinetProfile();
+
+    main.innerHTML = '<div class="container parametres-page">' +
+      '<a href="#/" class="back-link">← Retour aux outils</a>' +
+      '<h1>Paramètres du cabinet</h1>' +
+      '<p class="tool-desc">Personnalisez l\'application à l\'image de votre cabinet : ces informations apparaissent sur l\'écran d\'accueil et sur tous les documents PDF exportés.</p>' +
+      '<form id="cabinetForm" class="calc-form"><div class="form-grid">' +
+        '<div class="field">' +
+          '<label for="logoInput">Logo du cabinet</label>' +
+          (profile.logo ? '<img src="' + profile.logo + '" class="logo-preview" id="logoPreview">' : '<img class="logo-preview" id="logoPreview" hidden>') +
+          '<input type="file" id="logoInput" accept="image/*">' +
+          '<div class="help">Image conservée localement (localStorage), jamais envoyée en ligne.</div>' +
+        '</div>' +
+        CABINET_FIELDS.map(function(f){ return fieldHTML(f, profile[f.id]); }).join("") +
+      '</div><button type="submit" class="btn btn-primary">Enregistrer</button></form>' +
+      '<div class="save-msg" id="cabinetSaveMsg"></div>' +
+    '</div>';
+
+    var logoDataUrl = profile.logo || null;
+    document.getElementById("logoInput").addEventListener("change", function(e){
+      var file = e.target.files[0];
+      if(!file) return;
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        logoDataUrl = ev.target.result;
+        var preview = document.getElementById("logoPreview");
+        preview.src = logoDataUrl;
+        preview.hidden = false;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById("cabinetForm").addEventListener("submit", function(e){
+      e.preventDefault();
+      var values = readInputs(CABINET_FIELDS);
+      var newProfile = Object.assign({}, profile, values, {logo: logoDataUrl});
+      saveCabinetProfile(newProfile);
+      applyCabinetBranding();
+      var msg = document.getElementById("cabinetSaveMsg");
+      msg.textContent = "Paramètres enregistrés ✓";
+      setTimeout(function(){ msg.textContent = ""; }, 2500);
+    });
+  }
+
   /* ============================ Router ============================ */
   function parseHash(){
     var raw = location.hash.replace(/^#\/?/, "");
@@ -2209,6 +2311,7 @@
     else if(parts[0] === "clients") result = {name:"clients"};
     else if(parts[0] === "bilan" && parts[1]) result = {name:"bilan", clientId:parts[1]};
     else if(parts[0] === "bilan") result = {name:"bilan-picker"};
+    else if(parts[0] === "parametres") result = {name:"parametres"};
     else result = {name:"home"};
     result.clientIdParam = clientIdParam;
     return result;
@@ -2236,6 +2339,8 @@
       renderBilanPicker();
     } else if(v.name === "bilan"){
       renderBilan(v.clientId);
+    } else if(v.name === "parametres"){
+      renderParametres();
     } else {
       renderHome();
     }
@@ -2243,6 +2348,7 @@
 
   window.addEventListener("hashchange", render);
   document.addEventListener("DOMContentLoaded", function(){
+    applyCabinetBranding();
     render();
     document.getElementById("exitPresentBtn").addEventListener("click", exitPresentationMode);
     document.addEventListener("fullscreenchange", function(){
