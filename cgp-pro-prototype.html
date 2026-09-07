@@ -218,6 +218,10 @@
 
   <main id="main"></main>
 
+  <footer class="legal-footer">
+    <span id="legalFooterText"></span> — <a href="#/mentions-legales">Mentions légales</a>
+  </footer>
+
   <div id="presentBar" hidden>
     <button id="exitPresentBtn" class="btn btn-outline">✕ Quitter le mode présentation</button>
   </div>
@@ -238,7 +242,7 @@
     });
   }
   function getLegalMention(){
-    return "Simulation indicative réalisée avec CGP Pro à but informatif — ne constitue pas un conseil personnalisé et ne remplace pas l'avis d'un professionnel.";
+    return "CGP Pro est un outil de simulation à but informatif : il ne remplace pas un conseil personnalisé et les résultats présentés sont indicatifs.";
   }
 
   /* ============================ Local storage ============================ */
@@ -2292,6 +2296,26 @@
     });
   }
 
+  /* ============================ Mentions légales ============================ */
+  function renderMentionsLegales(){
+    var main = document.getElementById("main");
+    var cabinet = getCabinetProfile();
+    main.innerHTML = '<div class="container mentions-page">' +
+      '<a href="#/" class="back-link">← Retour aux outils</a>' +
+      '<h1>Mentions légales</h1>' +
+      '<div class="calc-form">' +
+        '<h3 style="margin-top:0;">Objet de l\'application</h3>' +
+        '<p>CGP Pro est un outil de simulation à but informatif, destiné à accompagner un conseiller en gestion de patrimoine dans la préparation et l\'animation de ses rendez-vous clients. Les calculateurs proposés (capacité d\'emprunt, fiscalité, retraite, transmission...) appliquent des formules et barèmes en vigueur au moment de leur conception.</p>' +
+        '<h3>Portée des résultats</h3>' +
+        '<p>Les résultats affichés sont indicatifs et simplifiés : ils ne constituent en aucun cas un conseil personnalisé, un engagement contractuel ou une simulation officielle. Les taux, seuils et barèmes fiscaux ou sociaux sont susceptibles d\'évoluer (lois de finances, revalorisations annuelles) et doivent être vérifiés auprès des sources officielles avant toute décision. Cet outil ne remplace pas l\'avis d\'un professionnel qualifié (conseiller en gestion de patrimoine, notaire, expert-comptable, avocat fiscaliste) tenant compte de la situation complète et actualisée du client.</p>' +
+        '<h3>Confidentialité des données</h3>' +
+        '<p>Toutes les données saisies (fiches clients, simulations, paramètres du cabinet) sont stockées exclusivement dans le navigateur de l\'utilisateur (localStorage) et ne sont transmises à aucun serveur. La suppression des données du navigateur entraîne la perte définitive de ces informations ; aucune sauvegarde externe n\'est réalisée par l\'application.</p>' +
+        (cabinet.nomCabinet || cabinet.email || cabinet.telephone ?
+          '<h3>Éditeur</h3><p>' + [cabinet.nomCabinet, cabinet.adresse, cabinet.telephone, cabinet.email].filter(Boolean).map(escapeHTML).join('<br>') + '</p>' : '') +
+      '</div>' +
+    '</div>';
+  }
+
   /* ============================ Router ============================ */
   function parseHash(){
     var raw = location.hash.replace(/^#\/?/, "");
@@ -2312,6 +2336,7 @@
     else if(parts[0] === "bilan" && parts[1]) result = {name:"bilan", clientId:parts[1]};
     else if(parts[0] === "bilan") result = {name:"bilan-picker"};
     else if(parts[0] === "parametres") result = {name:"parametres"};
+    else if(parts[0] === "mentions-legales") result = {name:"mentions"};
     else result = {name:"home"};
     result.clientIdParam = clientIdParam;
     return result;
@@ -2341,6 +2366,8 @@
       renderBilan(v.clientId);
     } else if(v.name === "parametres"){
       renderParametres();
+    } else if(v.name === "mentions"){
+      renderMentionsLegales();
     } else {
       renderHome();
     }
@@ -2349,6 +2376,7 @@
   window.addEventListener("hashchange", render);
   document.addEventListener("DOMContentLoaded", function(){
     applyCabinetBranding();
+    document.getElementById("legalFooterText").textContent = getLegalMention();
     render();
     document.getElementById("exitPresentBtn").addEventListener("click", exitPresentationMode);
     document.addEventListener("fullscreenchange", function(){
