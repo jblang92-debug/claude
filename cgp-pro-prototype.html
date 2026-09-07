@@ -63,6 +63,13 @@
   .calc-form{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
   .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:6px 20px;}
   .field{display:flex;flex-direction:column;gap:4px;margin-bottom:14px;}
+  .field[hidden]{display:none !important;}
+  .reference-panel{background:#fbf3e7;border:1px solid #eadfc7;border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;font-size:.85rem;color:#5b4a26;}
+  .reference-panel h3{margin:0 0 8px;font-size:.9rem;color:#7a5b1c;}
+  .reference-panel table{width:100%;border-collapse:collapse;margin-top:8px;}
+  .reference-panel td{padding:5px 8px;border-bottom:1px solid #eadfc7;}
+  .reference-panel td:last-child{text-align:right;font-weight:700;white-space:nowrap;}
+  .reference-panel .ref-note{margin-top:10px;font-size:.78rem;font-style:italic;}
   .field label{font-size:.82rem;font-weight:600;color:var(--muted);}
   .input-suffix{position:relative;display:flex;align-items:center;}
   .input-suffix input{width:100%;}
@@ -1160,42 +1167,104 @@
     {
       id:"pension-retraite", category:"retraite", status:"ready", icon:"👴",
       name:"Pension retraite estimée",
-      desc:"Estimation simplifiée de la pension retraite (régime général + complémentaire Agirc-Arrco) à partir du salaire annuel moyen et des trimestres/points déjà connus (relevé de carrière).",
+      desc:"Estimation simplifiée de la pension retraite selon le régime (salarié privé, fonction publique, indépendant, profession libérale, agricole), à partir de données de carrière déjà connues (relevé de carrière).",
       fields:[
-        {id:"salaireAnnuelMoyen", label:"Salaire annuel moyen des 25 meilleures années (SAM)", type:"number", suffix:"€", default:36000, step:500, help:"Disponible sur le relevé de carrière (info-retraite.fr)."},
-        {id:"trimestresValidesPrevus", label:"Trimestres validés prévus au départ", type:"number", suffix:"trim.", default:168, step:1},
-        {id:"trimestresRequis", label:"Trimestres requis pour le taux plein (selon génération)", type:"number", suffix:"trim.", default:172, step:1},
-        {id:"pointsAgircArrco", label:"Points Agirc-Arrco estimés au départ", type:"number", suffix:"pts", default:8000, step:100, help:"Indiqué sur le relevé de carrière Agirc-Arrco."},
-        {id:"valeurPoint", label:"Valeur de service du point Agirc-Arrco", type:"number", suffix:"€", default:1.4159, step:0.001, help:"Révisée chaque 1er novembre : vérifier la valeur en vigueur sur agirc-arrco.fr."}
+        {id:"regimeRetraite", label:"Régime de retraite", type:"select", default:"salarie_prive", options:[
+          {value:"salarie_prive", label:"Salarié du privé (régime général + Agirc-Arrco)"},
+          {value:"fonction_publique", label:"Fonction publique (régime spécial + RAFP)"},
+          {value:"independant", label:"Indépendant / TNS (régime aligné + RCI)"},
+          {value:"liberale", label:"Profession libérale réglementée (CNAVPL + caisse pro)"},
+          {value:"agricole", label:"Exploitant agricole (MSA)"}
+        ]},
+        {id:"assietteAnnuelle", label:"Revenu annuel moyen des 25 meilleures années (SAM)", type:"number", suffix:"€", default:36000, step:500, help:"Salaire (salarié) ou revenu professionnel (indépendant/libéral) moyen des 25 meilleures années — relevé de carrière sur info-retraite.fr.", visibleWhen:{field:"regimeRetraite", values:["salarie_prive","independant","liberale"]}},
+        {id:"traitementIndiciaireBrut", label:"Traitement indiciaire brut annuel (6 derniers mois)", type:"number", suffix:"€", default:33000, step:500, help:"Base de calcul de la pension civile, hors primes (non incluses dans ce calcul, voir RAFP ci-dessous).", visibleWhen:{field:"regimeRetraite", values:["fonction_publique"]}},
+        {id:"trimestresValidesPrevus", label:"Trimestres validés prévus au départ", type:"number", suffix:"trim.", default:168, step:1, visibleWhen:{field:"regimeRetraite", values:["salarie_prive","fonction_publique","independant","liberale"]}},
+        {id:"trimestresRequis", label:"Trimestres requis pour le taux plein (selon génération)", type:"number", suffix:"trim.", default:172, step:1, visibleWhen:{field:"regimeRetraite", values:["salarie_prive","fonction_publique","independant","liberale"]}},
+        {id:"pointsAgircArrco", label:"Points Agirc-Arrco estimés au départ", type:"number", suffix:"pts", default:8000, step:100, help:"Indiqué sur le relevé de carrière Agirc-Arrco.", visibleWhen:{field:"regimeRetraite", values:["salarie_prive"]}},
+        {id:"valeurPoint", label:"Valeur de service du point Agirc-Arrco", type:"number", suffix:"€", default:1.4159, step:0.001, help:"Révisée chaque 1er novembre : vérifier la valeur en vigueur sur agirc-arrco.fr.", visibleWhen:{field:"regimeRetraite", values:["salarie_prive"]}},
+        {id:"pensionComplementaireDirecte", label:"Pension complémentaire annuelle estimée (relevé de carrière)", type:"number", suffix:"€", default:6000, step:250, help:"RAFP (fonction publique), RCI (indépendants) ou caisse professionnelle (CARMF, CIPAV...) : montant indiqué par votre caisse — trop hétérogène d'une caisse à l'autre pour être recalculé ici.", visibleWhen:{field:"regimeRetraite", values:["fonction_publique","independant","liberale"]}},
+        {id:"pensionBaseMSADirecte", label:"Pension de base MSA annuelle estimée", type:"number", suffix:"€", default:9000, step:250, help:"Le régime agricole (forfait + proportionnel) est trop spécifique pour être recalculé ici : indiquez le montant de votre relevé de carrière MSA.", visibleWhen:{field:"regimeRetraite", values:["agricole"]}},
+        {id:"pensionComplementaireRCODirecte", label:"Pension complémentaire RCO annuelle estimée", type:"number", suffix:"€", default:3000, step:250, visibleWhen:{field:"regimeRetraite", values:["agricole"]}}
       ],
+      referenceHTML:
+        '<h3>Repères indicatifs par catégorie (hors calcul)</h3>' +
+        '<table>' +
+        '<tr><td>Ouvriers / employés (secteur privé)</td><td>1 000 – 1 500 € net/mois</td></tr>' +
+        '<tr><td>Professions intermédiaires</td><td>1 400 – 1 900 € net/mois</td></tr>' +
+        '<tr><td>Cadres (secteur privé)</td><td>2 200 – 3 500 € net/mois</td></tr>' +
+        '<tr><td>Fonction publique catégorie C</td><td>1 300 – 1 700 € net/mois</td></tr>' +
+        '<tr><td>Fonction publique catégorie B</td><td>1 700 – 2 200 € net/mois</td></tr>' +
+        '<tr><td>Fonction publique catégorie A</td><td>2 200 – 3 200 € net/mois</td></tr>' +
+        '<tr><td>Indépendants / commerçants / artisans</td><td>1 000 – 1 800 € net/mois</td></tr>' +
+        '<tr><td>Professions libérales réglementées</td><td>2 000 – 5 000+ € net/mois</td></tr>' +
+        '<tr><td>Exploitants agricoles</td><td>800 – 1 300 € net/mois</td></tr>' +
+        '</table>' +
+        '<div class="ref-note">Ordres de grandeur approximatifs par grande catégorie socio-professionnelle (base + complémentaire, tous statuts confondus), à partir de statistiques générales publiques (type DREES) reconstituées de mémoire — non vérifiés contre une source à jour, non recalculés, et sans lien avec les paramètres saisis ci-dessus. À utiliser uniquement comme point de départ de conversation en RDV, jamais comme chiffre remis à un client : l\'écart type au sein de chaque catégorie est considérable selon la durée de carrière et le niveau de revenu. Le calcul détaillé ci-dessus, basé sur les données réelles du client, reste la seule référence chiffrable.</div>',
       compute:function(inputs){
         var trimestresManquants = Math.max(0, inputs.trimestresRequis - inputs.trimestresValidesPrevus);
-        var decotePoints = Math.min(trimestresManquants, 20)*0.625; // décote plafonnée à 20 trimestres (12,5 points), taux plancher 37,5%
-        var tauxRetenu = inputs.trimestresValidesPrevus >= inputs.trimestresRequis ? 50 : Math.max(37.5, 50 - decotePoints);
+        var decotePoints = Math.min(trimestresManquants, 20)*1.25; // décote 1,25%/trimestre manquant, plafonnée à 20 trimestres (25 points) — Art. R351-27 CSS
         var prorata = Math.min(1, inputs.trimestresValidesPrevus/inputs.trimestresRequis);
-        var pensionBaseAnnuelle = inputs.salaireAnnuelMoyen*(tauxRetenu/100)*prorata;
-        var pensionComplementaireAnnuelle = inputs.pointsAgircArrco*inputs.valeurPoint;
+        var tauxDecoteLabel = trimestresManquants>0 && inputs.trimestresValidesPrevus<inputs.trimestresRequis
+          ? " (décote pour " + trimestresManquants + " trimestre(s) manquant(s), plafonnée à 20)" : " (taux plein)";
+
+        var pensionBaseAnnuelle, pensionComplementaireAnnuelle, labelBase, labelComplementaire, tauxRetenu, assiette;
+        var warnings = ["Estimation simplifiée à partir des données de carrière que vous fournissez : ne recalcule pas la carrière elle-même, ne modélise ni le minimum contributif, ni les majorations pour enfants, ni la surcote, ni les carrières longues, ni les dispositifs spécifiques à chaque régime. Pour un chiffrage officiel, utilisez le relevé de carrière et le simulateur officiel info-retraite.fr."];
+
+        if(inputs.regimeRetraite === "fonction_publique"){
+          tauxRetenu = inputs.trimestresValidesPrevus >= inputs.trimestresRequis ? 75 : Math.max(50, 75 - decotePoints);
+          assiette = inputs.traitementIndiciaireBrut;
+          pensionBaseAnnuelle = assiette*(tauxRetenu/100)*prorata;
+          pensionComplementaireAnnuelle = inputs.pensionComplementaireDirecte;
+          labelBase = "Pension civile (fonction publique)";
+          labelComplementaire = "RAFP (indiqué par vos soins)";
+          warnings.push("Ne tient pas compte des primes (hors assiette de la pension civile, seule la RAFP les intègre partiellement) ni des catégories actives (âges d'ouverture des droits anticipés).");
+        } else if(inputs.regimeRetraite === "agricole"){
+          pensionBaseAnnuelle = inputs.pensionBaseMSADirecte;
+          pensionComplementaireAnnuelle = inputs.pensionComplementaireRCODirecte;
+          assiette = pensionBaseAnnuelle + pensionComplementaireAnnuelle; // pas d'assiette de calcul, juste pour le taux de remplacement (non pertinent ici)
+          tauxRetenu = null;
+          labelBase = "Pension de base MSA (indiquée par vos soins)";
+          labelComplementaire = "RCO (indiquée par vos soins)";
+          warnings.push("Régime agricole non recalculé (formule base forfaitaire + proportionnelle trop spécifique) : montants directement repris de votre relevé de carrière MSA.");
+        } else {
+          // Salarié du privé, indépendant et profession libérale : régime de base aligné sur les mêmes règles depuis les réformes 2004/2018 (Art. L351-1 et s. CSS).
+          tauxRetenu = inputs.trimestresValidesPrevus >= inputs.trimestresRequis ? 50 : Math.max(25, 50 - decotePoints);
+          assiette = inputs.assietteAnnuelle;
+          pensionBaseAnnuelle = assiette*(tauxRetenu/100)*prorata;
+          if(inputs.regimeRetraite === "salarie_prive"){
+            pensionComplementaireAnnuelle = inputs.pointsAgircArrco*inputs.valeurPoint;
+            labelBase = "Régime général";
+            labelComplementaire = "Complémentaire Agirc-Arrco";
+          } else {
+            pensionComplementaireAnnuelle = inputs.pensionComplementaireDirecte;
+            labelBase = inputs.regimeRetraite === "independant" ? "Régime de base aligné (indépendants)" : "Régime de base CNAVPL";
+            labelComplementaire = inputs.regimeRetraite === "independant" ? "RCI (indiqué par vos soins)" : "Caisse professionnelle (indiquée par vos soins)";
+            warnings.push("La complémentaire des indépendants et professions libérales dépend d'une caisse propre (RCI, CARMF, CIPAV, CARPIMKO...) aux règles très hétérogènes : reprenez le montant estimé transmis par votre caisse plutôt qu'un calcul générique.");
+          }
+        }
+
         var pensionTotaleAnnuelle = pensionBaseAnnuelle + pensionComplementaireAnnuelle;
-        var tauxRemplacement = inputs.salaireAnnuelMoyen>0 ? pensionTotaleAnnuelle/inputs.salaireAnnuelMoyen*100 : 0;
+        var tauxRemplacement = (assiette>0 && tauxRetenu!==null) ? pensionTotaleAnnuelle/assiette*100 : null;
+
+        var details = [];
+        if(tauxRetenu!==null){ details.push({label:"Taux retenu (régime de base)", value: pct(tauxRetenu, 3) + tauxDecoteLabel}); }
+        if(tauxRetenu!==null){ details.push({label:"Prorata trimestres validés / requis", value: pct(prorata*100, 1)}); }
+        if(tauxRemplacement!==null){ details.push({label:"Taux de remplacement (régime de base + complémentaire)", value: pct(tauxRemplacement, 0)}); }
+        details.push({label:"Pension totale annuelle", value: euro.format(pensionTotaleAnnuelle)});
 
         return {
           keyFigures:[
             {label:"Pension mensuelle totale estimée", value: euro2.format(pensionTotaleAnnuelle/12)},
-            {label:"Dont régime général", value: euro2.format(pensionBaseAnnuelle/12)},
-            {label:"Dont complémentaire Agirc-Arrco", value: euro2.format(pensionComplementaireAnnuelle/12)}
+            {label:"Dont " + labelBase.toLowerCase(), value: euro2.format(pensionBaseAnnuelle/12)},
+            {label:"Dont " + labelComplementaire.toLowerCase(), value: euro2.format(pensionComplementaireAnnuelle/12)}
           ],
-          details:[
-            {label:"Taux retenu (régime général)", value: pct(tauxRetenu, 3) + (trimestresManquants>0 && inputs.trimestresValidesPrevus<inputs.trimestresRequis ? " (décote pour " + trimestresManquants + " trimestre(s) manquant(s))" : " (taux plein)")},
-            {label:"Prorata trimestres validés / requis", value: pct(prorata*100, 1)},
-            {label:"Taux de remplacement global", value: pct(tauxRemplacement, 0)},
-            {label:"Pension totale annuelle", value: euro.format(pensionTotaleAnnuelle)}
-          ],
+          details: details,
           chart:{
             type:"doughnut",
-            labels:["Régime général","Complémentaire Agirc-Arrco"],
+            labels:[labelBase, labelComplementaire],
             datasets:[{data:[pensionBaseAnnuelle, pensionComplementaireAnnuelle], backgroundColor:["#122b46","#9c7a3c"]}]
           },
-          warnings:["Estimation simplifiée à partir de données que vous fournissez (SAM, trimestres, points) : ne recalcule pas la carrière elle-même, ne modélise ni le minimum contributif, ni les majorations pour enfants, ni la surcote, ni les carrières longues, ni les régimes spéciaux ou indépendants. Pour un chiffrage officiel, utilisez le relevé de carrière et le simulateur officiel info-retraite.fr."]
+          warnings: warnings
         };
       }
     },
@@ -1428,18 +1497,31 @@
   /* ============================ Generic form rendering ============================ */
   function fieldHTML(f, value){
     var val = value !== undefined && value !== null ? value : f.default;
+    var wrapAttrs = 'class="field" data-field-wrap="' + f.id + '"' +
+      (f.visibleWhen ? ' data-visible-when-field="' + f.visibleWhen.field + '" data-visible-when-values="' + f.visibleWhen.values.join(",") + '"' : '');
     if(f.type === "select"){
       var opts = f.options.map(function(o){
         return '<option value="' + escapeHTML(o.value) + '" ' + (String(o.value)===String(val)?"selected":"") + '>' + escapeHTML(o.label) + '</option>';
       }).join("");
-      return '<div class="field"><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
+      return '<div ' + wrapAttrs + '><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
         '<select id="f_' + f.id + '">' + opts + '</select>' +
         (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
     }
-    return '<div class="field"><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
+    return '<div ' + wrapAttrs + '><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
       '<div class="input-suffix"><input type="number" id="f_' + f.id + '" value="' + escapeHTML(val) + '" step="' + (f.step||"any") + '">' +
       '<span class="suffix">' + escapeHTML(f.suffix||"") + '</span></div>' +
       (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
+  }
+
+  // Affiche/masque les champs conditionnels (f.visibleWhen = {field, values}) selon la valeur actuelle du champ contrôleur.
+  function applyFieldVisibility(formEl){
+    formEl.querySelectorAll("[data-visible-when-field]").forEach(function(wrap){
+      var controllerId = wrap.getAttribute("data-visible-when-field");
+      var allowedValues = wrap.getAttribute("data-visible-when-values").split(",");
+      var controllerEl = document.getElementById("f_" + controllerId);
+      var currentValue = controllerEl ? controllerEl.value : null;
+      wrap.hidden = allowedValues.indexOf(currentValue) === -1;
+    });
   }
 
   function readInputs(fields){
@@ -1541,6 +1623,7 @@
         '<form id="calcForm" class="calc-form"><div class="form-grid">' +
           tool.fields.map(function(f){ return fieldHTML(f, prefill ? prefill[f.id] : undefined); }).join("") +
         '</div><button type="submit" class="btn btn-primary">Calculer</button></form>' +
+        (tool.referenceHTML ? '<div class="reference-panel tech-detail">' + tool.referenceHTML + '</div>' : '') +
         '<div id="resultsArea" hidden>' +
           '<hr class="sep">' +
           '<div class="key-figures" id="keyFigures"></div>' +
@@ -1580,7 +1663,15 @@
       renderChart(result.chart);
     }
 
-    document.getElementById("calcForm").addEventListener("submit", function(e){ e.preventDefault(); runCompute(); });
+    var calcFormEl = document.getElementById("calcForm");
+    applyFieldVisibility(calcFormEl);
+    calcFormEl.querySelectorAll("[data-visible-when-field]").forEach(function(wrap){
+      var controllerId = wrap.getAttribute("data-visible-when-field");
+      var controllerEl = document.getElementById("f_" + controllerId);
+      if(controllerEl){ controllerEl.addEventListener("change", function(){ applyFieldVisibility(calcFormEl); }); }
+    });
+
+    calcFormEl.addEventListener("submit", function(e){ e.preventDefault(); runCompute(); });
     document.getElementById("presentBtn").addEventListener("click", enterPresentationMode);
     document.getElementById("pdfBtn").addEventListener("click", function(){
       exportPDF(tool, lastInputs, lastResult, document.getElementById("clientName").value.trim());
