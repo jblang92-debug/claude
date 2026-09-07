@@ -68,7 +68,8 @@
   .reference-panel h3{margin:0 0 8px;font-size:.9rem;color:#7a5b1c;}
   .reference-panel table{width:100%;border-collapse:collapse;margin-top:8px;}
   .reference-panel td{padding:5px 8px;border-bottom:1px solid #eadfc7;}
-  .reference-panel td:last-child{text-align:right;font-weight:700;white-space:nowrap;}
+  .reference-panel td:nth-child(2){text-align:right;font-weight:700;white-space:nowrap;}
+  .reference-panel td:last-child{text-align:right;font-size:.75rem;color:#8a7038;white-space:nowrap;font-weight:400;}
   .reference-panel .ref-note{margin-top:10px;font-size:.78rem;font-style:italic;}
   .field label{font-size:.82rem;font-weight:600;color:var(--muted);}
   .input-suffix{position:relative;display:flex;align-items:center;}
@@ -1189,17 +1190,18 @@
       referenceHTML:
         '<h3>Repères indicatifs par catégorie (hors calcul)</h3>' +
         '<table>' +
-        '<tr><td>Ouvriers / employés (secteur privé)</td><td>1 000 – 1 500 € net/mois</td></tr>' +
-        '<tr><td>Professions intermédiaires</td><td>1 400 – 1 900 € net/mois</td></tr>' +
-        '<tr><td>Cadres (secteur privé)</td><td>2 200 – 3 500 € net/mois</td></tr>' +
-        '<tr><td>Fonction publique catégorie C</td><td>1 300 – 1 700 € net/mois</td></tr>' +
-        '<tr><td>Fonction publique catégorie B</td><td>1 700 – 2 200 € net/mois</td></tr>' +
-        '<tr><td>Fonction publique catégorie A</td><td>2 200 – 3 200 € net/mois</td></tr>' +
-        '<tr><td>Indépendants / commerçants / artisans</td><td>1 000 – 1 800 € net/mois</td></tr>' +
-        '<tr><td>Professions libérales réglementées</td><td>2 000 – 5 000+ € net/mois</td></tr>' +
-        '<tr><td>Exploitants agricoles</td><td>800 – 1 300 € net/mois</td></tr>' +
+        '<tr><td>Ouvriers / employés (secteur privé)</td><td>1 000 – 1 500 € /mois</td><td>Estimation non vérifiée</td></tr>' +
+        '<tr><td>Professions intermédiaires</td><td>1 400 – 1 900 € /mois</td><td>Estimation non vérifiée</td></tr>' +
+        '<tr><td>Cadres (secteur privé)</td><td>2 200 – 3 500 € /mois</td><td>Estimation non vérifiée</td></tr>' +
+        '<tr><td>Fonction publique catégorie C</td><td>1 300 – 1 700 € /mois</td><td>Estimation non vérifiée</td></tr>' +
+        '<tr><td>Fonction publique catégorie B</td><td>1 700 – 2 200 € /mois</td><td>Estimation non vérifiée</td></tr>' +
+        '<tr><td>Fonction publique catégorie A</td><td>2 200 – 3 200 € /mois</td><td>Estimation non vérifiée</td></tr>' +
+        '<tr><td>Indépendants (tous régimes, moyenne)</td><td>≈ 1 180 € /mois</td><td>✓ DREES, éd. 2025</td></tr>' +
+        '<tr><td>Professions libérales (CNAVPL, moyenne)</td><td>≈ 2 570 € /mois</td><td>✓ DREES, éd. 2025</td></tr>' +
+        '<tr><td>Dont médecins (CARMF, moyenne)</td><td>≈ 2 925 € /mois</td><td>✓ CARMF, juin 2024</td></tr>' +
+        '<tr><td>Exploitants agricoles</td><td>800 – 1 300 € /mois</td><td>Estimation non vérifiée</td></tr>' +
         '</table>' +
-        '<div class="ref-note">Ordres de grandeur approximatifs par grande catégorie socio-professionnelle (base + complémentaire, tous statuts confondus), à partir de statistiques générales publiques (type DREES) reconstituées de mémoire — non vérifiés contre une source à jour, non recalculés, et sans lien avec les paramètres saisis ci-dessus. À utiliser uniquement comme point de départ de conversation en RDV, jamais comme chiffre remis à un client : l\'écart type au sein de chaque catégorie est considérable selon la durée de carrière et le niveau de revenu. Le calcul détaillé ci-dessus, basé sur les données réelles du client, reste la seule référence chiffrable.</div>',
+        '<div class="ref-note">Lignes marquées ✓ : chiffres officiels retrouvés par recherche web et cités à leur source (moyenne tous profils confondus, carrière complète ou non — donc un cas individuel s\'écarte souvent fortement de la moyenne). Lignes "estimation non vérifiée" : ordres de grandeur reconstitués de mémoire, non confirmés contre une source à jour — y compris pour d\'autres professions libérales que les médecins (ex. kinésithérapeutes/CARPIMKO), où les sources trouvées se contredisaient d\'un facteur presque 2 selon l\'année et la méthodologie, sans accès possible à la source primaire depuis cet environnement pour trancher. Dans tous les cas : usage en conversation de RDV uniquement, jamais comme chiffre remis à un client — le calcul détaillé ci-dessus, basé sur les données réelles du client, reste la seule référence chiffrable.</div>',
       compute:function(inputs){
         var trimestresManquants = Math.max(0, inputs.trimestresRequis - inputs.trimestresValidesPrevus);
         var decotePoints = Math.min(trimestresManquants, 20)*1.25; // décote 1,25%/trimestre manquant, plafonnée à 20 trimestres (25 points) — Art. R351-27 CSS
