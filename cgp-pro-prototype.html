@@ -216,6 +216,35 @@
     return impot;
   }
 
+  // Fiscalité d'un rachat d'assurance-vie (PS + IR/PFU), régime des versements post-2017 (Art. 125-0 A CGI).
+  // Partagée entre le calculateur "Fiscalité assurance-vie" et le comparateur "AV vs PER vs CTO".
+  function computeFiscaliteAV(gains, anciennete, situationFamiliale, totalVersements, regimeChoisi, tmi){
+    var ps = gains*0.172;
+    var ir = 0, abattementApplique = 0, tauxAppliqueLabel = "";
+
+    if(anciennete < 8){
+      if(regimeChoisi === "pfu"){ ir = gains*0.128; tauxAppliqueLabel = "PFU 12,8 % sur la totalité des gains"; }
+      else { ir = gains*(tmi/100); tauxAppliqueLabel = "Barème progressif à " + tmi + " % sur la totalité des gains"; }
+    } else {
+      var abattement = situationFamiliale === "couple" ? 9200 : 4600;
+      abattementApplique = Math.min(abattement, gains);
+      var gainsApresAbat = Math.max(0, gains-abattement);
+      if(regimeChoisi === "bareme"){
+        ir = gainsApresAbat*(tmi/100);
+        tauxAppliqueLabel = "Barème progressif à " + tmi + " % sur les gains après abattement";
+      } else {
+        var propReduit = totalVersements>0 ? Math.min(1, 150000/totalVersements) : 1;
+        var gainsReduit = gainsApresAbat*propReduit;
+        var gainsNormal = gainsApresAbat-gainsReduit;
+        ir = gainsReduit*0.075 + gainsNormal*0.128;
+        tauxAppliqueLabel = gainsNormal>0
+          ? "PFU 7,5 % jusqu'à 150 000 € de versements, 12,8 % au-delà, sur les gains après abattement"
+          : "PFU taux réduit 7,5 % sur les gains après abattement (versements sous le seuil de 150 000 €)";
+      }
+    }
+    return {ps:ps, ir:ir, total:ps+ir, abattementApplique:abattementApplique, tauxAppliqueLabel:tauxAppliqueLabel};
+  }
+
   /* ============================ Categories ============================ */
   var CATEGORIES = [
     {id:"financement", name:"Financement & crédit", icon:"🏦"},
@@ -363,9 +392,161 @@
       }
     },
 
-    {id:"taux-fixe-variable", category:"financement", status:"soon", icon:"⚖️", name:"Comparateur taux fixe vs variable", desc:"Compare le coût total et le risque entre un prêt à taux fixe et à taux variable."},
-    {id:"rachat-credit", category:"financement", status:"soon", icon:"🔄", name:"Calculateur de rachat de crédit", desc:"Évalue le gain d'un regroupement ou rachat de crédits en cours."},
-    {id:"apport-optimal", category:"financement", status:"soon", icon:"💰", name:"Simulateur d'apport optimal", desc:"Détermine l'apport idéal selon l'objectif de mensualité ou de taux."},
+    /* ---------- 9. Comparateur taux fixe vs variable ---------- */
+    {
+      id:"taux-fixe-variable", category:"financement", status:"ready", icon:"⚖️",
+      name:"Comparateur taux fixe vs variable",
+      desc:"Compare le coût total d'un prêt à taux fixe et d'un prêt à taux variable capé, selon une hypothèse d'évolution annuelle du taux (durée conservée, mensualité recalculée chaque année).",
+      fields:[
+        {id:"capitalEmprunte", label:"Capital emprunté", type:"number", suffix:"€", default:200000, step:1000},
+        {id:"dureeAnnees", label:"Durée du prêt", type:"number", suffix:"ans", default:20, step:1},
+        {id:"tauxFixe", label:"Taux fixe proposé", type:"number", suffix:"%", default:3.9, step:0.01},
+        {id:"tauxVariableInitial", label:"Taux variable initial", type:"number", suffix:"%", default:3.3, step:0.01},
+        {id:"variationAnnuelle", label:"Hypothèse de variation annuelle du taux variable", type:"number", suffix:"pt/an", default:0.3, step:0.05, help:"Hypothèse de votre choix (le marché peut aussi bien baisser) : le taux variable réel dépend de l'indice de référence (ex. Euribor), imprévisible."},
+        {id:"tauxPlafondCap", label:"Taux plafond (cap)", type:"number", suffix:"%", default:5.3, step:0.1, help:"Plafond contractuel du taux variable (prêt \"capé\")."}
+      ],
+      compute:function(inputs){
+        var n = inputs.dureeAnnees*12;
+        var rFixe = inputs.tauxFixe/100/12;
+        var mensualiteFixe = rFixe>0 ? inputs.capitalEmprunte*rFixe/(1-Math.pow(1+rFixe,-n)) : inputs.capitalEmprunte/n;
+        var totalFixe = mensualiteFixe*n;
+
+        // Prêt variable capé, révisé annuellement : mensualité recalculée chaque année sur le capital restant dû et la durée restante.
+        var solde = inputs.capitalEmprunte;
+        var totalVariable = 0;
+        var mensualitesParAnnee = [];
+        var tauxParAnnee = [];
+        for(var annee=0; annee<inputs.dureeAnnees; annee++){
+          var tauxAnnuel = Math.min(inputs.tauxPlafondCap, inputs.tauxVariableInitial + inputs.variationAnnuelle*annee);
+          var rAnnee = tauxAnnuel/100/12;
+          var moisRestants = n - annee*12;
+          var mensualiteAnnee = rAnnee>0 ? solde*rAnnee/(1-Math.pow(1+rAnnee,-moisRestants)) : solde/moisRestants;
+          mensualitesParAnnee.push(mensualiteAnnee);
+          tauxParAnnee.push(tauxAnnuel);
+          for(var m=0; m<12 && solde>0.01; m++){
+            var interet = solde*rAnnee;
+            var capitalRembourse = mensualiteAnnee - interet;
+            solde = Math.max(0, solde - capitalRembourse);
+            totalVariable += mensualiteAnnee;
+          }
+        }
+
+        var ecart = totalVariable - totalFixe;
+
+        return {
+          keyFigures:[
+            {label:"Coût total — taux fixe", value: euro.format(totalFixe)},
+            {label:"Coût total — taux variable (hypothèse)", value: euro.format(totalVariable)},
+            {label:"Écart (variable − fixe)", value: (ecart>=0?"+":"") + euro.format(ecart)}
+          ],
+          details:[
+            {label:"Mensualité fixe (constante)", value: euro2.format(mensualiteFixe)},
+            {label:"Mensualité variable — 1ère année", value: euro2.format(mensualitesParAnnee[0])},
+            {label:"Mensualité variable — dernière année", value: euro2.format(mensualitesParAnnee[mensualitesParAnnee.length-1])},
+            {label:"Taux variable atteint le plafond après", value: (tauxParAnnee.filter(function(t){return t<inputs.tauxPlafondCap;}).length) + " an(s)"}
+          ],
+          chart:{
+            type:"line",
+            labels: Array.from({length: inputs.dureeAnnees}, function(_,i){ return "An " + (i+1); }),
+            datasets:[
+              {label:"Mensualité taux fixe", data: mensualitesParAnnee.map(function(){ return Math.round(mensualiteFixe); }), borderColor:"#122b46", backgroundColor:"rgba(18,43,70,0.1)", tension:0},
+              {label:"Mensualité taux variable (hypothèse)", data: mensualitesParAnnee.map(function(m){ return Math.round(m); }), borderColor:"#b3422c", backgroundColor:"rgba(179,66,44,0.1)", tension:0}
+            ]
+          },
+          warnings:["Le taux variable réel dépend de l'évolution d'un indice de marché (ex. Euribor), qui ne peut pas être prédit : ceci est une simulation sous hypothèse, pas une prévision. Le taux fixe élimine ce risque mais part généralement d'un niveau plus élevé que le taux variable initial."]
+        };
+      }
+    },
+
+    /* ---------- 10. Calculateur de rachat de crédit ---------- */
+    {
+      id:"rachat-credit", category:"financement", status:"ready", icon:"🔄",
+      name:"Calculateur de rachat de crédit",
+      desc:"Compare le coût de poursuivre les crédits actuels au coût d'un rachat/regroupement à un nouveau taux et une nouvelle durée.",
+      fields:[
+        {id:"mensualitesActuelles", label:"Total des mensualités actuelles", type:"number", suffix:"€", default:1400, step:50},
+        {id:"capitalRestantDu", label:"Capital restant dû total (tous crédits)", type:"number", suffix:"€", default:180000, step:1000},
+        {id:"dureeRestanteAnnees", label:"Durée restante actuelle (si non rachetés)", type:"number", suffix:"ans", default:15, step:1},
+        {id:"nouveauTaux", label:"Taux proposé pour le rachat", type:"number", suffix:"%", default:3.9, step:0.01},
+        {id:"nouvelleDureeAnnees", label:"Nouvelle durée après rachat", type:"number", suffix:"ans", default:20, step:1},
+        {id:"fraisRachat", label:"Frais de dossier et indemnités de remboursement anticipé", type:"number", suffix:"€", default:3000, step:100}
+      ],
+      compute:function(inputs){
+        var r = inputs.nouveauTaux/100/12;
+        var n = inputs.nouvelleDureeAnnees*12;
+        var nouvelleMensualite = r>0 ? inputs.capitalRestantDu*r/(1-Math.pow(1+r,-n)) : inputs.capitalRestantDu/n;
+        var gainMensuel = inputs.mensualitesActuelles - nouvelleMensualite;
+
+        var coutActuelSiPoursuite = inputs.mensualitesActuelles*inputs.dureeRestanteAnnees*12;
+        var coutNouveau = nouvelleMensualite*n + inputs.fraisRachat;
+        var gainTotal = coutActuelSiPoursuite - coutNouveau;
+
+        return {
+          keyFigures:[
+            {label:"Nouvelle mensualité", value: euro2.format(nouvelleMensualite)},
+            {label:"Gain mensuel de trésorerie", value: (gainMensuel>=0?"+":"") + euro2.format(gainMensuel)},
+            {label:"Gain total sur la durée (frais déduits)", value: (gainTotal>=0?"+":"") + euro.format(gainTotal)}
+          ],
+          details:[
+            {label:"Coût total si poursuite des crédits actuels", value: euro.format(coutActuelSiPoursuite)},
+            {label:"Coût total du rachat (mensualités + frais)", value: euro.format(coutNouveau)},
+            {label:"Durée actuelle restante vs nouvelle durée", value: inputs.dureeRestanteAnnees + " ans → " + inputs.nouvelleDureeAnnees + " ans"}
+          ],
+          chart:{
+            type:"bar",
+            labels:["Poursuite des crédits actuels","Rachat de crédit"],
+            datasets:[{label:"Coût total (€)", data:[Math.round(coutActuelSiPoursuite), Math.round(coutNouveau)], backgroundColor:["#5b6b7c","#0f7a72"]}]
+          },
+          warnings:["Un rachat qui allonge la durée totale d'endettement réduit la mensualité mais peut augmenter le coût total du crédit malgré un taux plus bas : comparez toujours le coût total, pas seulement la mensualité."]
+        };
+      }
+    },
+
+    /* ---------- 11. Simulateur d'apport optimal ---------- */
+    {
+      id:"apport-optimal", category:"financement", status:"ready", icon:"💰",
+      name:"Simulateur d'apport optimal",
+      desc:"Détermine l'apport personnel nécessaire pour financer un projet immobilier compte tenu d'une mensualité maximale, d'un taux et d'une durée.",
+      fields:[
+        {id:"prixBien", label:"Prix du bien (frais inclus)", type:"number", suffix:"€", default:280000, step:1000},
+        {id:"fraisAcquisitionPct", label:"Frais d'acquisition additionnels (notaire, garantie...)", type:"number", suffix:"%", default:8, step:0.5},
+        {id:"mensualiteMax", label:"Mensualité maximale souhaitée", type:"number", suffix:"€", default:1100, step:50},
+        {id:"tauxInteret", label:"Taux d'intérêt annuel du prêt", type:"number", suffix:"%", default:3.8, step:0.01},
+        {id:"tauxAssurance", label:"Taux d'assurance emprunteur annuel", type:"number", suffix:"%", default:0.34, step:0.01},
+        {id:"dureeAnnees", label:"Durée du prêt", type:"number", suffix:"ans", default:25, step:1}
+      ],
+      compute:function(inputs){
+        var r = inputs.tauxInteret/100/12;
+        var n = inputs.dureeAnnees*12;
+        var ta = inputs.tauxAssurance/100/12;
+        var facteurCredit = r>0 ? r/(1-Math.pow(1+r,-n)) : 1/n;
+        var montantEmpruntableMax = inputs.mensualiteMax/(facteurCredit+ta);
+
+        var montantTotalNecessaire = inputs.prixBien*(1+inputs.fraisAcquisitionPct/100);
+        var apportNecessaire = Math.max(0, montantTotalNecessaire - montantEmpruntableMax);
+        var montantEmprunte = Math.min(montantEmpruntableMax, montantTotalNecessaire);
+        var tauxApport = montantTotalNecessaire>0 ? apportNecessaire/montantTotalNecessaire*100 : 0;
+
+        return {
+          keyFigures:[
+            {label:"Apport personnel nécessaire", value: euro.format(apportNecessaire)},
+            {label:"Montant total du projet (frais inclus)", value: euro.format(montantTotalNecessaire)},
+            {label:"Taux d'apport", value: pct(tauxApport)}
+          ],
+          details:[
+            {label:"Montant maximal empruntable (avec cette mensualité)", value: euro.format(montantEmpruntableMax)},
+            {label:"Montant qui serait effectivement emprunté", value: euro.format(montantEmprunte)},
+            {label:"Mensualité retenue", value: euro2.format(inputs.mensualiteMax)}
+          ],
+          chart:{
+            type:"doughnut",
+            labels:["Financé par emprunt","Apport personnel"],
+            datasets:[{data:[montantEmprunte, apportNecessaire], backgroundColor:["#122b46","#9c7a3c"]}]
+          },
+          warnings:["Ne tient pas compte du taux d'endettement maximum (35%) ni des revenus de l'emprunteur : à croiser avec le calculateur \"Capacité d'emprunt\" pour vérifier que la mensualité retenue est finançable."]
+        };
+      }
+    },
 
     /* ---------- 6. Frais de notaire (ancien vs neuf) ---------- */
     {
@@ -470,8 +651,157 @@
       }
     },
 
-    {id:"scpi", category:"immobilier", status:"soon", icon:"🏢", name:"Simulateur SCPI", desc:"Rendement estimé et fiscalité selon le mode de détention (direct, assurance-vie, à crédit)."},
-    {id:"lmnp-vs-nue", category:"immobilier", status:"soon", icon:"🛋️", name:"Comparateur LMNP vs location nue", desc:"Compare la fiscalité et la rentabilité nette des deux régimes."},
+    /* ---------- 12. Simulateur SCPI ---------- */
+    {
+      id:"scpi", category:"immobilier", status:"ready", icon:"🏢",
+      name:"Simulateur SCPI",
+      desc:"Projette le revenu (net de fiscalité en détention directe) d'un investissement en SCPI selon le mode de détention, à partir d'une hypothèse de taux de distribution.",
+      fields:[
+        {id:"montantInvesti", label:"Montant investi", type:"number", suffix:"€", default:100000, step:1000},
+        {id:"tauxDistribution", label:"Taux de distribution annuel (hypothèse)", type:"number", suffix:"%", default:4.5, step:0.1, help:"Taux cible/historique de la SCPI : ce n'est jamais une garantie, il varie chaque année."},
+        {id:"modeDetention", label:"Mode de détention", type:"select", default:"direct", options:[
+          {value:"direct", label:"Détention directe (revenus fonciers)"},
+          {value:"assurance-vie", label:"Via assurance-vie (unités de compte)"},
+          {value:"credit", label:"À crédit (détention directe)"}
+        ]},
+        {id:"tmi", label:"Tranche marginale d'imposition (détention directe)", type:"number", suffix:"%", default:30, step:1},
+        {id:"tauxCredit", label:"Taux du crédit (si achat à crédit)", type:"number", suffix:"%", default:3.9, step:0.01},
+        {id:"dureeAnnees", label:"Durée de projection", type:"number", suffix:"ans", default:10, step:1}
+      ],
+      compute:function(inputs){
+        var revenuAnnuelBrut = inputs.montantInvesti*inputs.tauxDistribution/100;
+        var warnings = ["Le taux de distribution est une hypothèse (historique ou cible de la SCPI), non garantie : le rendement réel peut être inférieur, y compris négatif en cas de baisse de la valeur des parts. SCPI = placement long terme, peu liquide, avec risque de perte en capital."];
+
+        if(inputs.modeDetention === "assurance-vie"){
+          var cumulBrut = revenuAnnuelBrut*inputs.dureeAnnees;
+          warnings.push("Au sein d'une assurance-vie, les revenus de SCPI ne sont pas fiscalisés annuellement : la fiscalité (PFU ou barème + prélèvements sociaux) ne s'applique qu'au rachat, sur les gains — voir le calculateur \"Fiscalité assurance-vie\".");
+          return {
+            keyFigures:[
+              {label:"Revenu annuel brut estimé", value: euro.format(revenuAnnuelBrut)},
+              {label:"Revenus cumulés sur " + inputs.dureeAnnees + " ans (non fiscalisés en détention)", value: euro.format(cumulBrut)},
+              {label:"Revenu mensuel brut moyen", value: euro2.format(revenuAnnuelBrut/12)}
+            ],
+            details:[{label:"Montant investi", value: euro.format(inputs.montantInvesti)}],
+            chart:null,
+            warnings: warnings
+          };
+        }
+
+        var revenuNetFiscal = revenuAnnuelBrut*(1-inputs.tmi/100-0.172);
+        var cumulNet = revenuNetFiscal*inputs.dureeAnnees;
+
+        if(inputs.modeDetention === "credit"){
+          var r = inputs.tauxCredit/100/12;
+          var n = inputs.dureeAnnees*12;
+          var mensualiteCredit = r>0 ? inputs.montantInvesti*r/(1-Math.pow(1+r,-n)) : inputs.montantInvesti/n;
+          var mensualiteCreditAnnuelle = mensualiteCredit*12;
+          var cashflowAnnuelAvantImpot = revenuAnnuelBrut - mensualiteCreditAnnuelle;
+          var cashflowAnnuelApresImpot = revenuNetFiscal - mensualiteCreditAnnuelle;
+          warnings.push("Les intérêts d'emprunt sont en réalité déductibles des revenus fonciers (effet de levier fiscal), ce qui réduit l'impôt réel : non modélisé ici par simplification (impôt calculé comme en détention directe sans effet de levier).");
+          return {
+            keyFigures:[
+              {label:"Cashflow mensuel avant impôt", value: euro2.format(cashflowAnnuelAvantImpot/12)},
+              {label:"Cashflow mensuel après impôt (hors levier fiscal)", value: euro2.format(cashflowAnnuelApresImpot/12)},
+              {label:"Mensualité de crédit", value: euro2.format(mensualiteCredit)}
+            ],
+            details:[
+              {label:"Revenu annuel brut estimé", value: euro.format(revenuAnnuelBrut)},
+              {label:"Revenu net de fiscalité (avant crédit)", value: euro.format(revenuNetFiscal)},
+              {label:"Coût annuel du crédit", value: euro.format(mensualiteCreditAnnuelle)}
+            ],
+            chart:{
+              type:"bar",
+              labels:["Revenu annuel brut","Coût annuel du crédit","Cashflow net (hors levier fiscal)"],
+              datasets:[{label:"€ / an", data:[Math.round(revenuAnnuelBrut), Math.round(mensualiteCreditAnnuelle), Math.round(cashflowAnnuelApresImpot)], backgroundColor:["#122b46","#b3422c","#0f7a72"]}]
+            },
+            warnings: warnings
+          };
+        }
+
+        return {
+          keyFigures:[
+            {label:"Revenu net annuel estimé", value: euro.format(revenuNetFiscal)},
+            {label:"Revenus nets cumulés sur " + inputs.dureeAnnees + " ans", value: euro.format(cumulNet)},
+            {label:"Revenu net mensuel moyen", value: euro2.format(revenuNetFiscal/12)}
+          ],
+          details:[
+            {label:"Revenu annuel brut estimé", value: euro.format(revenuAnnuelBrut)},
+            {label:"Fiscalité appliquée (TMI + prélèvements sociaux 17,2%)", value: pct(inputs.tmi+17.2)},
+            {label:"Montant investi", value: euro.format(inputs.montantInvesti)}
+          ],
+          chart:{
+            type:"doughnut",
+            labels:["Revenu net","Impôt et prélèvements sociaux"],
+            datasets:[{data:[revenuNetFiscal, revenuAnnuelBrut-revenuNetFiscal], backgroundColor:["#0f7a72","#b3422c"]}]
+          },
+          warnings: warnings
+        };
+      }
+    },
+
+    /* ---------- 13. Comparateur LMNP vs location nue ---------- */
+    {
+      id:"lmnp-vs-nue", category:"immobilier", status:"ready", icon:"🛋️",
+      name:"Comparateur LMNP vs location nue",
+      desc:"Compare le revenu net décaissé entre location meublée (LMNP, micro-BIC ou réel avec amortissement) et location nue (micro-foncier ou réel), en retenant le régime le plus favorable pour chacune.",
+      fields:[
+        {id:"loyerAnnuelBrut", label:"Loyer annuel brut (hors charges)", type:"number", suffix:"€", default:12000, step:200},
+        {id:"chargesAnnuelles", label:"Charges annuelles réelles (copro, entretien, assurance, gestion...)", type:"number", suffix:"€", default:2000, step:100},
+        {id:"prixBienAmortissable", label:"Valeur amortissable du bien (hors terrain, LMNP réel)", type:"number", suffix:"€", default:170000, step:1000, help:"Environ 80-85% du prix d'achat (le terrain n'est pas amortissable)."},
+        {id:"dureeAmortissementAns", label:"Durée d'amortissement retenue", type:"number", suffix:"ans", default:25, step:1},
+        {id:"tmi", label:"Tranche marginale d'imposition", type:"number", suffix:"%", default:30, step:1}
+      ],
+      compute:function(inputs){
+        var tauxGlobal = inputs.tmi/100 + 0.172;
+        var amortissementAnnuel = inputs.prixBienAmortissable/inputs.dureeAmortissementAns;
+
+        // LMNP micro-BIC : abattement forfaitaire de 50% (plafond de recettes non vérifié ici)
+        var baseLmnpMicro = inputs.loyerAnnuelBrut*0.5;
+        var impotLmnpMicro = baseLmnpMicro*tauxGlobal;
+        var netLmnpMicro = inputs.loyerAnnuelBrut - inputs.chargesAnnuelles - impotLmnpMicro;
+
+        // LMNP réel : charges réelles + amortissement déductibles (non reportable en déficit au-delà du résultat, simplifié ici)
+        var baseLmnpReel = Math.max(0, inputs.loyerAnnuelBrut - inputs.chargesAnnuelles - amortissementAnnuel);
+        var impotLmnpReel = baseLmnpReel*tauxGlobal;
+        var netLmnpReel = inputs.loyerAnnuelBrut - inputs.chargesAnnuelles - impotLmnpReel;
+
+        // Nue micro-foncier : abattement forfaitaire de 30%
+        var baseNueMicro = inputs.loyerAnnuelBrut*0.7;
+        var impotNueMicro = baseNueMicro*tauxGlobal;
+        var netNueMicro = inputs.loyerAnnuelBrut - inputs.chargesAnnuelles - impotNueMicro;
+
+        // Nue réel : charges réelles déductibles (pas d'amortissement en foncier)
+        var baseNueReel = Math.max(0, inputs.loyerAnnuelBrut - inputs.chargesAnnuelles);
+        var impotNueReel = baseNueReel*tauxGlobal;
+        var netNueReel = inputs.loyerAnnuelBrut - inputs.chargesAnnuelles - impotNueReel;
+
+        var meilleurLmnp = netLmnpReel >= netLmnpMicro ? {net:netLmnpReel, regime:"réel (amortissement)", impot:impotLmnpReel} : {net:netLmnpMicro, regime:"micro-BIC (abattement 50%)", impot:impotLmnpMicro};
+        var meilleurNue = netNueReel >= netNueMicro ? {net:netNueReel, regime:"réel", impot:impotNueReel} : {net:netNueMicro, regime:"micro-foncier (abattement 30%)", impot:impotNueMicro};
+
+        return {
+          keyFigures:[
+            {label:"LMNP — net décaissé (meilleur régime)", value: euro.format(meilleurLmnp.net)},
+            {label:"Location nue — net décaissé (meilleur régime)", value: euro.format(meilleurNue.net)},
+            {label:"Écart en faveur du LMNP", value: (meilleurLmnp.net-meilleurNue.net>=0?"+":"") + euro.format(meilleurLmnp.net-meilleurNue.net)}
+          ],
+          details:[
+            {label:"LMNP — régime le plus favorable", value: meilleurLmnp.regime},
+            {label:"LMNP micro-BIC — net décaissé", value: euro.format(netLmnpMicro)},
+            {label:"LMNP réel — net décaissé", value: euro.format(netLmnpReel)},
+            {label:"Location nue — régime le plus favorable", value: meilleurNue.regime},
+            {label:"Nue micro-foncier — net décaissé", value: euro.format(netNueMicro)},
+            {label:"Nue réel — net décaissé", value: euro.format(netNueReel)},
+            {label:"Amortissement annuel retenu (LMNP réel)", value: euro.format(amortissementAnnuel)}
+          ],
+          chart:{
+            type:"bar",
+            labels:["LMNP micro-BIC","LMNP réel","Nue micro-foncier","Nue réel"],
+            datasets:[{label:"Net décaissé (€/an)", data:[netLmnpMicro,netLmnpReel,netNueMicro,netNueReel].map(Math.round), backgroundColor:["#9c7a3c","#122b46","#c9a87c","#0f7a72"]}]
+          },
+          warnings:["Comparaison simplifiée : ne modélise pas le report de déficit foncier/BIC sur les années suivantes, la CFE (LMNP), ni la reprise d'amortissement à la revente (le LMNP réel diffère l'impôt, il ne l'annule pas forcément à long terme). Amortissement en ligne droite simplifié (un seul taux, sans distinguer structure/mobilier/équipements)."]
+        };
+      }
+    },
     /* ---------- 7. Plus-value immobilière ---------- */
     {
       id:"plus-value-immo", category:"immobilier", status:"ready", icon:"📈",
@@ -588,56 +918,34 @@
       ],
       compute:function(inputs){
         var gains = Math.max(0, Math.min(inputs.montantGains, inputs.montantRachat));
-        var ps = gains*0.172;
-        var ir = 0;
-        var detailsExtra = [];
-        var tauxAppliqueLabel = "";
         var warnings = ["Le PFU (flat tax) n'est pas une exonération d'impôt sur le revenu : il applique un taux forfaitaire d'IR (12,8 %, ou 7,5 % après 8 ans sous le seuil de 150 000 €) en plus des 17,2 % de prélèvements sociaux. Calcul simplifié à visée pédagogique (régime des versements post-2017), hors cas particuliers (licenciement, invalidité, retraite anticipée, contrats DSK/NSK...). À valider avec un professionnel avant toute décision."];
 
-        if(inputs.anciennete < 8){
-          if(inputs.regimeChoisi === "pfu"){ ir = gains*0.128; tauxAppliqueLabel = "PFU 12,8 % sur la totalité des gains"; }
-          else { ir = gains*(inputs.tmi/100); tauxAppliqueLabel = "Barème progressif à " + inputs.tmi + " % sur la totalité des gains"; }
-        } else {
-          var abattement = inputs.situationFamiliale === "couple" ? 9200 : 4600;
-          var gainsApresAbat = Math.max(0, gains-abattement);
-          if(inputs.regimeChoisi === "bareme"){
-            ir = gainsApresAbat*(inputs.tmi/100);
-            tauxAppliqueLabel = "Barème progressif à " + inputs.tmi + " % sur les gains après abattement";
-          } else {
-            var propReduit = inputs.totalVersements>0 ? Math.min(1, 150000/inputs.totalVersements) : 1;
-            var gainsReduit = gainsApresAbat*propReduit;
-            var gainsNormal = gainsApresAbat-gainsReduit;
-            ir = gainsReduit*0.075 + gainsNormal*0.128;
-            tauxAppliqueLabel = gainsNormal>0
-              ? "PFU 7,5 % jusqu'à 150 000 € de versements, 12,8 % au-delà, sur les gains après abattement"
-              : "PFU taux réduit 7,5 % sur les gains après abattement (versements sous le seuil de 150 000 €)";
-          }
-          detailsExtra.push({label:"Abattement annuel appliqué", value: euro.format(Math.min(abattement, gains))});
-        }
-        detailsExtra.push({label:"Taux d'IR appliqué", value: tauxAppliqueLabel});
+        var f = computeFiscaliteAV(gains, inputs.anciennete, inputs.situationFamiliale, inputs.totalVersements, inputs.regimeChoisi, inputs.tmi);
+        var detailsExtra = [];
+        if(inputs.anciennete >= 8){ detailsExtra.push({label:"Abattement annuel appliqué", value: euro.format(f.abattementApplique)}); }
+        detailsExtra.push({label:"Taux d'IR appliqué", value: f.tauxAppliqueLabel});
 
-        var totalImpot = ps+ir;
-        var net = inputs.montantRachat - totalImpot;
+        var net = inputs.montantRachat - f.total;
 
         var details = [
           {label:"Montant du rachat", value: euro.format(inputs.montantRachat)},
           {label:"Dont gains taxables", value: euro.format(gains)},
           {label:"Ancienneté du contrat", value: inputs.anciennete + " ans (" + (inputs.anciennete<8 ? "moins de 8 ans" : "8 ans ou plus") + ")"}
         ].concat(detailsExtra).concat([
-          {label:"Total prélèvements (PS + IR)", value: euro.format(totalImpot)}
+          {label:"Total prélèvements (PS + IR)", value: euro.format(f.total)}
         ]);
 
         return {
           keyFigures:[
             {label:"Net perçu après fiscalité", value: euro.format(net)},
-            {label:"Prélèvements sociaux (17,2%)", value: euro.format(ps)},
-            {label:"Impôt sur le revenu", value: euro.format(ir)}
+            {label:"Prélèvements sociaux (17,2%)", value: euro.format(f.ps)},
+            {label:"Impôt sur le revenu", value: euro.format(f.ir)}
           ],
           details: details,
           chart:{
             type:"doughnut",
             labels:["Net perçu","Prélèvements sociaux","Impôt sur le revenu"],
-            datasets:[{data:[net, ps, ir], backgroundColor:["#0f7a72","#9c7a3c","#b3422c"]}]
+            datasets:[{data:[net, f.ps, f.ir], backgroundColor:["#0f7a72","#9c7a3c","#b3422c"]}]
           },
           warnings: warnings
         };
@@ -706,13 +1014,270 @@
       }
     },
 
-    {id:"av-per-cto", category:"epargne", status:"soon", icon:"🔀", name:"Comparateur assurance-vie vs PER vs CTO", desc:"Compare la fiscalité à la sortie selon l'enveloppe et la durée de détention."},
-    {id:"dca-vs-unique", category:"epargne", status:"soon", icon:"📆", name:"Simulateur DCA vs versement unique", desc:"Compare l'investissement programmé et le versement en une fois."},
+    /* ---------- 14. Comparateur assurance-vie vs PER vs CTO ---------- */
+    {
+      id:"av-per-cto", category:"epargne", status:"ready", icon:"🔀",
+      name:"Comparateur assurance-vie vs PER vs CTO",
+      desc:"Compare le montant net perçu à la sortie entre assurance-vie, PER (sortie en capital) et compte-titres ordinaire, pour un même capital versé et un même gain.",
+      fields:[
+        {id:"capitalVerse", label:"Capital versé (total des versements)", type:"number", suffix:"€", default:50000, step:1000},
+        {id:"gains", label:"Gains (plus-value) au moment de la sortie", type:"number", suffix:"€", default:20000, step:500},
+        {id:"dureeDetention", label:"Ancienneté du contrat (assurance-vie)", type:"number", suffix:"ans", default:10, step:1},
+        {id:"situationFamiliale", label:"Situation familiale (abattement AV après 8 ans)", type:"select", default:"seul", options:[
+          {value:"seul", label:"Célibataire (abattement 4 600 €)"},
+          {value:"couple", label:"Couple imposé en commun (abattement 9 200 €)"}
+        ]},
+        {id:"perVersementsDeduits", label:"PER : versements déduits du revenu imposable à l'entrée ?", type:"select", default:"oui", options:[
+          {value:"oui", label:"Oui (cas le plus fréquent)"},
+          {value:"non", label:"Non (versements non déduits)"}
+        ]},
+        {id:"regimeChoisi", label:"Régime d'imposition des gains (PFU ou barème)", type:"select", default:"pfu", options:[
+          {value:"pfu", label:"PFU / flat tax (12,8% + 17,2% PS, taux réduit AV après 8 ans)"},
+          {value:"bareme", label:"Barème progressif de l'IR + 17,2% PS"}
+        ]},
+        {id:"tmi", label:"Tranche marginale d'imposition", type:"number", suffix:"%", default:30, step:1}
+      ],
+      compute:function(inputs){
+        var montantTotal = inputs.capitalVerse + inputs.gains;
+        var warnings = ["Comparaison à hypothèses identiques (même capital versé, même gain) : en pratique les 3 enveloppes n'ont ni les mêmes règles de versement/déblocage (le PER est bloqué jusqu'à la retraite, sauf cas de déblocage anticipé), ni la même fiscalité à l'entrée. Ne modélise pas l'économie d'impôt à l'entrée du PER (versements déductibles), qui doit être comptée séparément dans la comparaison globale. À valider avec un professionnel."];
 
-    {id:"pension-retraite", category:"retraite", status:"soon", icon:"👴", name:"Pension retraite estimée", desc:"Projette le montant de la pension retraite selon la carrière."},
-    {id:"epargner-retraite", category:"retraite", status:"soon", icon:"🐖", name:"Combien épargner pour ma retraite", desc:"Calcule l'effort d'épargne mensuel nécessaire pour un objectif retraite."},
+        // Assurance-vie : réutilise la même logique que le calculateur dédié.
+        var av = computeFiscaliteAV(inputs.gains, inputs.dureeDetention, inputs.situationFamiliale, inputs.capitalVerse, inputs.regimeChoisi, inputs.tmi);
+        var netAV = montantTotal - av.total;
 
-    {id:"ifi", category:"transmission", status:"soon", icon:"🏛️", name:"Simulateur d'IFI", desc:"Estime l'impôt sur la fortune immobilière selon le patrimoine net taxable."},
+        // PER (sortie en capital) : part correspondant aux versements déductibles imposée au barème (sans PS) ; gains au PFU/barème + PS (Art. 158 CGI).
+        var impotCapitalPER = inputs.perVersementsDeduits === "oui" ? inputs.capitalVerse*(inputs.tmi/100) : 0;
+        var impotGainsPER = inputs.regimeChoisi === "pfu" ? inputs.gains*0.30 : inputs.gains*(inputs.tmi/100 + 0.172);
+        var totalImpotPER = impotCapitalPER + impotGainsPER;
+        var netPER = montantTotal - totalImpotPER;
+
+        // CTO : gains toujours au PFU/barème + PS, aucun abattement lié à la durée.
+        var impotGainsCTO = inputs.regimeChoisi === "pfu" ? inputs.gains*0.30 : inputs.gains*(inputs.tmi/100 + 0.172);
+        var netCTO = montantTotal - impotGainsCTO;
+
+        return {
+          keyFigures:[
+            {label:"Net perçu — Assurance-vie", value: euro.format(netAV)},
+            {label:"Net perçu — PER (capital)", value: euro.format(netPER)},
+            {label:"Net perçu — CTO", value: euro.format(netCTO)}
+          ],
+          details:[
+            {label:"Montant total avant fiscalité", value: euro.format(montantTotal)},
+            {label:"AV — prélèvements totaux (" + av.tauxAppliqueLabel + ")", value: euro.format(av.total)},
+            {label:"PER — impôt sur le capital (barème)", value: euro.format(impotCapitalPER)},
+            {label:"PER — impôt sur les gains", value: euro.format(impotGainsPER)},
+            {label:"CTO — impôt sur les gains", value: euro.format(impotGainsCTO)}
+          ],
+          chart:{
+            type:"bar",
+            labels:["Assurance-vie","PER (capital)","CTO"],
+            datasets:[{label:"Net perçu (€)", data:[Math.round(netAV), Math.round(netPER), Math.round(netCTO)], backgroundColor:["#0f7a72","#9c7a3c","#122b46"]}]
+          },
+          warnings: warnings
+        };
+      }
+    },
+
+    /* ---------- 15. Simulateur DCA vs versement unique ---------- */
+    {
+      id:"dca-vs-unique", category:"epargne", status:"ready", icon:"📆",
+      name:"Simulateur DCA vs versement unique",
+      desc:"Compare, sous une hypothèse de rendement annuel constant, la valeur finale d'un versement unique investi immédiatement et d'un investissement programmé (DCA) étalé dans le temps.",
+      fields:[
+        {id:"montantTotal", label:"Montant total à investir", type:"number", suffix:"€", default:60000, step:1000},
+        {id:"dureeDCA", label:"Durée d'investissement programmé (DCA)", type:"number", suffix:"mois", default:12, step:1},
+        {id:"rendementAnnuelMoyen", label:"Rendement annuel moyen (hypothèse)", type:"number", suffix:"%", default:6, step:0.5}
+      ],
+      compute:function(inputs){
+        var tauxMensuel = Math.pow(1+inputs.rendementAnnuelMoyen/100, 1/12)-1;
+        var n = inputs.dureeDCA;
+
+        var valeurUnique = inputs.montantTotal*Math.pow(1+tauxMensuel, n);
+
+        var versementMensuel = inputs.montantTotal/n;
+        var valeurDCA = 0;
+        for(var k=1; k<=n; k++){
+          valeurDCA += versementMensuel*Math.pow(1+tauxMensuel, n-k);
+        }
+
+        var ecart = valeurUnique - valeurDCA;
+
+        return {
+          keyFigures:[
+            {label:"Valeur finale — versement unique", value: euro.format(valeurUnique)},
+            {label:"Valeur finale — DCA (investissement programmé)", value: euro.format(valeurDCA)},
+            {label:"Écart (unique − DCA)", value: (ecart>=0?"+":"") + euro.format(ecart)}
+          ],
+          details:[
+            {label:"Versement mensuel en DCA", value: euro2.format(versementMensuel)},
+            {label:"Durée de la comparaison", value: n + " mois"},
+            {label:"Rendement mensuel équivalent retenu", value: pct(tauxMensuel*100, 3)}
+          ],
+          chart:{
+            type:"bar",
+            labels:["Versement unique","DCA (investissement programmé)"],
+            datasets:[{label:"Valeur finale (€)", data:[Math.round(valeurUnique), Math.round(valeurDCA)], backgroundColor:["#122b46","#0f7a72"]}]
+          },
+          warnings:["Sous hypothèse de rendement constant et positif, le versement unique est mathématiquement toujours au moins aussi favorable que le DCA (il reste investi plus longtemps) : ce n'est pas un argument contre le DCA. L'intérêt réel du DCA n'est pas un rendement supérieur, mais de lisser le prix d'entrée et de réduire le risque de investir un capital important juste avant une baisse des marchés — un bénéfice de gestion du risque que cette simulation à rendement constant ne représente pas."]
+        };
+      }
+    },
+
+    /* ---------- 16. Pension retraite estimée ---------- */
+    {
+      id:"pension-retraite", category:"retraite", status:"ready", icon:"👴",
+      name:"Pension retraite estimée",
+      desc:"Estimation simplifiée de la pension retraite (régime général + complémentaire Agirc-Arrco) à partir du salaire annuel moyen et des trimestres/points déjà connus (relevé de carrière).",
+      fields:[
+        {id:"salaireAnnuelMoyen", label:"Salaire annuel moyen des 25 meilleures années (SAM)", type:"number", suffix:"€", default:36000, step:500, help:"Disponible sur le relevé de carrière (info-retraite.fr)."},
+        {id:"trimestresValidesPrevus", label:"Trimestres validés prévus au départ", type:"number", suffix:"trim.", default:168, step:1},
+        {id:"trimestresRequis", label:"Trimestres requis pour le taux plein (selon génération)", type:"number", suffix:"trim.", default:172, step:1},
+        {id:"pointsAgircArrco", label:"Points Agirc-Arrco estimés au départ", type:"number", suffix:"pts", default:8000, step:100, help:"Indiqué sur le relevé de carrière Agirc-Arrco."},
+        {id:"valeurPoint", label:"Valeur de service du point Agirc-Arrco", type:"number", suffix:"€", default:1.4159, step:0.001, help:"Révisée chaque 1er novembre : vérifier la valeur en vigueur sur agirc-arrco.fr."}
+      ],
+      compute:function(inputs){
+        var trimestresManquants = Math.max(0, inputs.trimestresRequis - inputs.trimestresValidesPrevus);
+        var decotePoints = Math.min(trimestresManquants, 20)*0.625; // décote plafonnée à 20 trimestres (12,5 points), taux plancher 37,5%
+        var tauxRetenu = inputs.trimestresValidesPrevus >= inputs.trimestresRequis ? 50 : Math.max(37.5, 50 - decotePoints);
+        var prorata = Math.min(1, inputs.trimestresValidesPrevus/inputs.trimestresRequis);
+        var pensionBaseAnnuelle = inputs.salaireAnnuelMoyen*(tauxRetenu/100)*prorata;
+        var pensionComplementaireAnnuelle = inputs.pointsAgircArrco*inputs.valeurPoint;
+        var pensionTotaleAnnuelle = pensionBaseAnnuelle + pensionComplementaireAnnuelle;
+        var tauxRemplacement = inputs.salaireAnnuelMoyen>0 ? pensionTotaleAnnuelle/inputs.salaireAnnuelMoyen*100 : 0;
+
+        return {
+          keyFigures:[
+            {label:"Pension mensuelle totale estimée", value: euro2.format(pensionTotaleAnnuelle/12)},
+            {label:"Dont régime général", value: euro2.format(pensionBaseAnnuelle/12)},
+            {label:"Dont complémentaire Agirc-Arrco", value: euro2.format(pensionComplementaireAnnuelle/12)}
+          ],
+          details:[
+            {label:"Taux retenu (régime général)", value: pct(tauxRetenu, 3) + (trimestresManquants>0 && inputs.trimestresValidesPrevus<inputs.trimestresRequis ? " (décote pour " + trimestresManquants + " trimestre(s) manquant(s))" : " (taux plein)")},
+            {label:"Prorata trimestres validés / requis", value: pct(prorata*100, 1)},
+            {label:"Taux de remplacement global", value: pct(tauxRemplacement, 0)},
+            {label:"Pension totale annuelle", value: euro.format(pensionTotaleAnnuelle)}
+          ],
+          chart:{
+            type:"doughnut",
+            labels:["Régime général","Complémentaire Agirc-Arrco"],
+            datasets:[{data:[pensionBaseAnnuelle, pensionComplementaireAnnuelle], backgroundColor:["#122b46","#9c7a3c"]}]
+          },
+          warnings:["Estimation simplifiée à partir de données que vous fournissez (SAM, trimestres, points) : ne recalcule pas la carrière elle-même, ne modélise ni le minimum contributif, ni les majorations pour enfants, ni la surcote, ni les carrières longues, ni les régimes spéciaux ou indépendants. Pour un chiffrage officiel, utilisez le relevé de carrière et le simulateur officiel info-retraite.fr."]
+        };
+      }
+    },
+
+    /* ---------- 17. Combien épargner pour ma retraite ---------- */
+    {
+      id:"epargner-retraite", category:"retraite", status:"ready", icon:"🐖",
+      name:"Combien épargner pour ma retraite",
+      desc:"Calcule le versement mensuel nécessaire pour atteindre un capital cible à la retraite, compte tenu de l'épargne déjà constituée et d'une hypothèse de rendement.",
+      fields:[
+        {id:"capitalCible", label:"Capital cible à la retraite", type:"number", suffix:"€", default:300000, step:5000},
+        {id:"epargneExistante", label:"Épargne déjà constituée pour ce projet", type:"number", suffix:"€", default:30000, step:1000},
+        {id:"dureeAnnees", label:"Nombre d'années avant le départ à la retraite", type:"number", suffix:"ans", default:20, step:1},
+        {id:"rendementAnnuel", label:"Rendement annuel moyen espéré", type:"number", suffix:"%", default:4, step:0.5}
+      ],
+      compute:function(inputs){
+        var tauxMensuel = Math.pow(1+inputs.rendementAnnuel/100, 1/12)-1;
+        var n = inputs.dureeAnnees*12;
+        var valeurFutureExistante = inputs.epargneExistante*Math.pow(1+tauxMensuel, n);
+        var montantRestant = Math.max(0, inputs.capitalCible - valeurFutureExistante);
+
+        var versementMensuel = tauxMensuel>0
+          ? montantRestant*tauxMensuel/(Math.pow(1+tauxMensuel, n)-1)
+          : montantRestant/n;
+
+        var totalVerse = versementMensuel*n;
+        var interetsGeneres = inputs.capitalCible - inputs.epargneExistante - totalVerse;
+
+        return {
+          keyFigures:[
+            {label:"Versement mensuel nécessaire", value: euro2.format(versementMensuel)},
+            {label:"Capital cible", value: euro.format(inputs.capitalCible)},
+            {label:"Valeur future de l'épargne déjà constituée", value: euro.format(valeurFutureExistante)}
+          ],
+          details:[
+            {label:"Montant restant à constituer par versements", value: euro.format(montantRestant)},
+            {label:"Total des versements sur " + inputs.dureeAnnees + " ans", value: euro.format(totalVerse)},
+            {label:"Dont intérêts/plus-values générés", value: euro.format(Math.max(0,interetsGeneres))}
+          ],
+          chart:{
+            type:"doughnut",
+            labels:["Épargne existante (valorisée)","Versements futurs","Intérêts générés sur les versements"],
+            datasets:[{data:[valeurFutureExistante, totalVerse, Math.max(0,inputs.capitalCible-valeurFutureExistante-totalVerse)], backgroundColor:["#9c7a3c","#122b46","#0f7a72"]}]
+          },
+          warnings:["Hypothèse de rendement constant sur toute la durée (aucune volatilité modélisée) : un placement réel fluctue, notamment sur des supports actions. Hors fiscalité et frais du support d'épargne utilisé (voir le calculateur \"Impact des frais cumulés\")."]
+        };
+      }
+    },
+
+    /* ---------- 18. Simulateur d'IFI ---------- */
+    {
+      id:"ifi", category:"transmission", status:"ready", icon:"🏛️",
+      name:"Simulateur d'IFI",
+      desc:"Calcule l'impôt sur la fortune immobilière selon le barème progressif (Art. 977 CGI), avec l'abattement de 30% sur la résidence principale et la décote de lissage en entrée de barème.",
+      fields:[
+        {id:"patrimoineImmobilierBrut", label:"Valeur brute du patrimoine immobilier taxable", type:"number", suffix:"€", default:1600000, step:10000, help:"Résidence principale incluse, à sa valeur brute avant abattement."},
+        {id:"valeurResidencePrincipale", label:"Dont valeur brute de la résidence principale", type:"number", suffix:"€", default:800000, step:10000, help:"Bénéficie d'un abattement de 30% sur cette valeur."},
+        {id:"dettesDeductibles", label:"Dettes déductibles (emprunts en cours sur les biens taxables)", type:"number", suffix:"€", default:200000, step:10000}
+      ],
+      compute:function(inputs){
+        var abattementRP = inputs.valeurResidencePrincipale*0.30;
+        var patrimoineNetTaxable = Math.max(0, inputs.patrimoineImmobilierBrut - abattementRP - inputs.dettesDeductibles);
+
+        var warnings = ["Calcul simplifié à partir du patrimoine net taxable que vous fournissez (hors calcul détaillé de l'actif/passif, exonérations spécifiques comme les biens professionnels ou les bois et forêts). Barème et seuils Art. 964 à 983 CGI, stables depuis la création de l'IFI en 2018 mais à reconfirmer avant toute décision."];
+
+        if(patrimoineNetTaxable < 1300000){
+          return {
+            keyFigures:[
+              {label:"IFI dû", value: euro.format(0)},
+              {label:"Patrimoine net taxable", value: euro.format(patrimoineNetTaxable)},
+              {label:"Seuil d'assujettissement", value: euro.format(1300000)}
+            ],
+            details:[{label:"Motif", value:"Patrimoine net taxable inférieur au seuil d'assujettissement de 1 300 000 € : aucun IFI dû."}],
+            chart:null,
+            warnings: warnings
+          };
+        }
+
+        var brackets = [
+          {upTo:800000, rate:0},
+          {upTo:1300000, rate:0.005},
+          {upTo:2570000, rate:0.007},
+          {upTo:5000000, rate:0.01},
+          {upTo:10000000, rate:0.0125},
+          {upTo:Infinity, rate:0.015}
+        ];
+        var ifiBrut = computeBaremeProgressif(patrimoineNetTaxable, brackets);
+
+        var decote = 0;
+        if(patrimoineNetTaxable < 1400000){
+          decote = Math.max(0, 17500 - patrimoineNetTaxable*1.25/100);
+        }
+        var ifiNet = Math.max(0, ifiBrut - decote);
+
+        return {
+          keyFigures:[
+            {label:"IFI dû", value: euro.format(ifiNet)},
+            {label:"Patrimoine net taxable", value: euro.format(patrimoineNetTaxable)},
+            {label:"Taux moyen d'imposition", value: pct(patrimoineNetTaxable>0 ? ifiNet/patrimoineNetTaxable*100 : 0, 2)}
+          ],
+          details:[
+            {label:"Abattement résidence principale (30%)", value: euro.format(abattementRP)},
+            {label:"Dettes déduites", value: euro.format(inputs.dettesDeductibles)},
+            {label:"IFI avant décote", value: euro.format(ifiBrut)},
+            {label:"Décote de lissage (entre 1,3M€ et 1,4M€)", value: euro.format(decote)}
+          ],
+          chart:{
+            type:"doughnut",
+            labels:["Patrimoine net (hors IFI)","IFI dû"],
+            datasets:[{data:[patrimoineNetTaxable-ifiNet, ifiNet], backgroundColor:["#0f7a72","#b3422c"]}]
+          },
+          warnings: warnings
+        };
+      }
+    },
     /* ---------- 8. Droits de succession ---------- */
     {
       id:"succession", category:"transmission", status:"ready", icon:"📜",
