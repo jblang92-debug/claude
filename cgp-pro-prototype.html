@@ -207,6 +207,7 @@
       <nav>
         <a href="#/" class="nav-link">Accueil</a>
         <a href="#/clients" class="nav-link">Clients</a>
+        <a href="#/bilan" class="nav-link">Bilan patrimonial</a>
         <a href="#/historique" class="nav-link">Historique</a>
       </nav>
     </div>
@@ -232,6 +233,9 @@
     return String(s).replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
+  }
+  function getLegalMention(){
+    return "Simulation indicative réalisée avec CGP Pro à but informatif — ne constitue pas un conseil personnalisé et ne remplace pas l'avis d'un professionnel.";
   }
 
   /* ============================ Local storage ============================ */
@@ -1662,6 +1666,30 @@
     return out;
   }
 
+  // Variante complète pour le Bilan patrimonial : chaque champ reçoit la valeur de la fiche client si
+  // disponible, sinon la valeur par défaut de l'outil — afin de pouvoir lancer tool.compute() sans saisie manuelle.
+  function buildFullInputsFromClient(client, tool){
+    var out = {};
+    tool.fields.forEach(function(f){
+      var v = f.clientField ? client[f.clientField] : undefined;
+      out[f.id] = (v !== undefined && v !== null && v !== "") ? v : f.default;
+    });
+    return out;
+  }
+
+  // Détermine, à partir des projets cochés et de quelques seuils de patrimoine, quels calculateurs
+  // sont pertinents pour le Bilan patrimonial d'un client donné.
+  function getTriggeredToolIds(client){
+    var set = {};
+    Object.keys(PROJET_TOOL_MAP).forEach(function(projetKey){
+      if(client[projetKey]){ PROJET_TOOL_MAP[projetKey].forEach(function(id){ set[id] = true; }); }
+    });
+    var patrimoineImmoNet = (client.patrimoineImmobilierBrut||0) - (client.dettesImmobilieres||0);
+    if(patrimoineImmoNet >= 1000000){ set["ifi"] = true; }
+    if((client.chargesMensuellesCredits||0) > 0){ set["rachat-credit"] = true; }
+    return Object.keys(set).filter(function(id){ return TOOLS_BY_ID[id] && TOOLS_BY_ID[id].status === "ready"; });
+  }
+
   function readInputs(fields){
     var out = {};
     fields.forEach(function(f){
@@ -1748,7 +1776,26 @@
       '<div class="print-inputs"><h3>Paramètres saisis</h3><table>' +
         tool.fields.map(function(f){ return '<tr><td>' + escapeHTML(f.label) + '</td><td>' + escapeHTML(formatInputForPrint(f, inputs[f.id])) + '</td></tr>'; }).join("") +
       '</table></div>' +
-      '<div class="print-footer">Simulation indicative réalisée avec CGP Pro — document à valider avec un conseiller avant toute décision.</div>';
+      '<div class="print-footer">' + escapeHTML(getLegalMention()) + '</div>';
+    window.print();
+  }
+
+  // Export PDF du Bilan patrimonial complet : une section par outil déclenché, avec ses chiffres clés.
+  function exportBilanPDF(client, sections){
+    var reportEl = document.getElementById("printReport");
+    var dateStr = new Date().toLocaleDateString("fr-FR", {year:"numeric", month:"long", day:"numeric"});
+    reportEl.innerHTML =
+      '<div class="print-header"><h1>CGP Pro</h1><div class="print-sub">Bilan patrimonial — ' + escapeHTML(clientFullName(client)) + '</div></div>' +
+      '<div class="print-meta"><div><strong>Date :</strong> ' + dateStr + '</div></div>' +
+      sections.map(function(s){
+        return '<div class="print-details"><h3>' + escapeHTML(s.tool.name) + '</h3>' +
+          '<div class="print-keyfigures">' +
+            s.result.keyFigures.map(function(k){
+              return '<div class="print-kf"><div class="print-kf-value">' + escapeHTML(k.value) + '</div><div class="print-kf-label">' + escapeHTML(k.label) + '</div></div>';
+            }).join("") +
+          '</div></div>';
+      }).join("") +
+      '<div class="print-footer">' + escapeHTML(getLegalMention()) + '</div>';
     window.print();
   }
 
@@ -2023,6 +2070,126 @@
     });
   }
 
+  /* ============================ Bilan patrimonial ============================ */
+  var BILAN_STEPS = ["Identité","Revenus & charges","Patrimoine","Projets en cours","Synthèse"];
+
+  function renderBilanPicker(){
+    var main = document.getElementById("main");
+    var clients = getClients();
+    main.innerHTML = '<div class="container bilan-page">' +
+      '<a href="#/" class="back-link">← Retour aux outils</a>' +
+      '<h1>Bilan patrimonial complet</h1>' +
+      '<p class="tool-desc">Sélectionnez un client pour démarrer son bilan, ou créez-en un nouveau.</p>' +
+      (clients.length ?
+        '<div class="calc-form"><div class="field"><label for="bilanClientSelect">Client</label>' +
+        '<select id="bilanClientSelect"><option value="">— Choisir —</option>' +
+        clients.map(function(c){ return '<option value="' + c.id + '">' + escapeHTML(clientFullName(c)) + '</option>'; }).join("") +
+        '</select></div><button class="btn btn-primary" id="bilanStartBtn">Commencer le bilan</button></div>'
+        : '<p class="empty">Aucun client enregistré.</p>') +
+      '<p style="margin-top:16px;"><a href="#/clients/new" class="link-new-client">+ Créer un nouveau client</a></p>' +
+    '</div>';
+
+    if(clients.length){
+      document.getElementById("bilanStartBtn").addEventListener("click", function(){
+        var id = document.getElementById("bilanClientSelect").value;
+        if(id) location.hash = "#/bilan/" + id;
+      });
+    }
+  }
+
+  function renderBilan(clientId){
+    var client = getClientById(clientId);
+    if(!client){ renderBilanPicker(); return; }
+
+    var wip = Object.assign({}, client);
+    var currentStep = 0; // index dans BILAN_STEPS
+
+    function stepsIndicatorHTML(){
+      return '<div class="wizard-steps">' + BILAN_STEPS.map(function(s, i){
+        var cls = i===currentStep ? "active" : (i<currentStep ? "done" : "");
+        return '<div class="wizard-step ' + cls + '">' + (i+1) + '. ' + escapeHTML(s) + '</div>';
+      }).join("") + '</div>';
+    }
+
+    function renderStep(){
+      var main = document.getElementById("main");
+      var sectionName = BILAN_STEPS[currentStep];
+      var isSynthesis = sectionName === "Synthèse";
+      var bodyHTML;
+
+      if(isSynthesis){
+        var triggeredIds = getTriggeredToolIds(wip);
+        var sections = triggeredIds.map(function(id){
+          var tool = TOOLS_BY_ID[id];
+          var inputs = buildFullInputsFromClient(wip, tool);
+          var result = tool.compute(inputs);
+          return {tool:tool, inputs:inputs, result:result};
+        });
+
+        bodyHTML = !sections.length
+          ? '<p class="empty">Aucun projet coché à l\'étape précédente : cochez au moins un projet pour générer une synthèse, ou ouvrez directement un calculateur depuis l\'accueil.</p>'
+          : sections.map(function(s){
+              return '<div class="synthesis-card">' +
+                '<h3>' + s.tool.icon + ' ' + escapeHTML(s.tool.name) + '</h3>' +
+                '<div class="synthesis-kf">' + s.result.keyFigures.map(function(k){
+                  return '<div class="synthesis-kf-item"><div class="value">' + escapeHTML(k.value) + '</div><div class="label">' + escapeHTML(k.label) + '</div></div>';
+                }).join("") + '</div>' +
+                '<a class="synthesis-open-link" href="#/calc/' + s.tool.id + '?client=' + client.id + '">Ouvrir le calculateur complet et l\'affiner →</a>' +
+              '</div>';
+            }).join("");
+
+        main.innerHTML = '<div class="container bilan-page">' +
+          '<a href="#/clients" class="back-link">← Retour aux clients</a>' +
+          '<h1>Bilan patrimonial — ' + escapeHTML(clientFullName(wip)) + '</h1>' +
+          stepsIndicatorHTML() +
+          '<div id="bilanStepBody">' + bodyHTML + '</div>' +
+          '<div class="wizard-nav">' +
+            '<button class="btn btn-outline" id="bilanBackBtn">← Précédent</button>' +
+            (sections.length ? '<button class="btn btn-primary" id="bilanPdfBtn">⤓ Exporter la synthèse en PDF</button>' : '<span></span>') +
+          '</div>' +
+        '</div>';
+
+        document.getElementById("bilanBackBtn").addEventListener("click", function(){ currentStep--; renderStep(); });
+        if(sections.length){
+          document.getElementById("bilanPdfBtn").addEventListener("click", function(){ exportBilanPDF(wip, sections); });
+        }
+        return;
+      }
+
+      var stepFields = CLIENT_FIELDS.filter(function(f){ return f.section === sectionName; });
+      bodyHTML = '<div class="calc-form"><div class="form-grid">' +
+        stepFields.map(function(f){ return fieldHTML(f, wip[f.id]); }).join("") +
+      '</div></div>';
+
+      main.innerHTML = '<div class="container bilan-page">' +
+        '<a href="#/clients" class="back-link">← Retour aux clients</a>' +
+        '<h1>Bilan patrimonial — ' + escapeHTML(clientFullName(wip)) + '</h1>' +
+        stepsIndicatorHTML() +
+        '<div id="bilanStepBody">' + bodyHTML + '</div>' +
+        '<div class="wizard-nav">' +
+          (currentStep>0 ? '<button class="btn btn-outline" id="bilanBackBtn">← Précédent</button>' : '<span></span>') +
+          '<button class="btn btn-primary" id="bilanNextBtn">' + (currentStep===BILAN_STEPS.length-2 ? "Voir la synthèse →" : "Suivant →") + '</button>' +
+        '</div>' +
+      '</div>';
+
+      if(currentStep>0){
+        document.getElementById("bilanBackBtn").addEventListener("click", function(){
+          Object.assign(wip, readInputs(stepFields));
+          currentStep--;
+          renderStep();
+        });
+      }
+      document.getElementById("bilanNextBtn").addEventListener("click", function(){
+        Object.assign(wip, readInputs(stepFields));
+        saveClient(Object.assign({}, wip, {updatedAt:new Date().toISOString()}));
+        currentStep++;
+        renderStep();
+      });
+    }
+
+    renderStep();
+  }
+
   /* ============================ Router ============================ */
   function parseHash(){
     var raw = location.hash.replace(/^#\/?/, "");
@@ -2040,6 +2207,8 @@
     else if(parts[0] === "historique") result = {name:"historique"};
     else if(parts[0] === "clients" && parts[1]) result = {name:"client-edit", clientId:parts[1]};
     else if(parts[0] === "clients") result = {name:"clients"};
+    else if(parts[0] === "bilan" && parts[1]) result = {name:"bilan", clientId:parts[1]};
+    else if(parts[0] === "bilan") result = {name:"bilan-picker"};
     else result = {name:"home"};
     result.clientIdParam = clientIdParam;
     return result;
@@ -2063,6 +2232,10 @@
       renderClients();
     } else if(v.name === "client-edit"){
       renderClientForm(v.clientId);
+    } else if(v.name === "bilan-picker"){
+      renderBilanPicker();
+    } else if(v.name === "bilan"){
+      renderBilan(v.clientId);
     } else {
       renderHome();
     }
