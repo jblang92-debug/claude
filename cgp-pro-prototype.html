@@ -1018,7 +1018,7 @@
     {
       id:"av-per-cto", category:"epargne", status:"ready", icon:"🔀",
       name:"Comparateur assurance-vie vs PER vs CTO",
-      desc:"Compare le montant net perçu à la sortie entre assurance-vie, PER (sortie en capital) et compte-titres ordinaire, pour un même capital versé et un même gain.",
+      desc:"Compare le bilan net global entre assurance-vie, PER (sortie en capital) et compte-titres ordinaire, pour un même capital versé et un même gain — y compris l'économie d'impôt à l'entrée du PER si les versements sont déductibles.",
       fields:[
         {id:"capitalVerse", label:"Capital versé (total des versements)", type:"number", suffix:"€", default:50000, step:1000},
         {id:"gains", label:"Gains (plus-value) au moment de la sortie", type:"number", suffix:"€", default:20000, step:500},
@@ -1031,47 +1031,54 @@
           {value:"oui", label:"Oui (cas le plus fréquent)"},
           {value:"non", label:"Non (versements non déduits)"}
         ]},
+        {id:"tmiEntree", label:"TMI au moment du versement (déduction PER)", type:"number", suffix:"%", default:30, step:1, help:"Souvent plus élevée qu'à la retraite : c'est l'avantage recherché du PER (déduire à un TMI haut, sortir à un TMI plus bas)."},
         {id:"regimeChoisi", label:"Régime d'imposition des gains (PFU ou barème)", type:"select", default:"pfu", options:[
           {value:"pfu", label:"PFU / flat tax (12,8% + 17,2% PS, taux réduit AV après 8 ans)"},
           {value:"bareme", label:"Barème progressif de l'IR + 17,2% PS"}
         ]},
-        {id:"tmi", label:"Tranche marginale d'imposition", type:"number", suffix:"%", default:30, step:1}
+        {id:"tmiSortie", label:"TMI à la sortie", type:"number", suffix:"%", default:30, step:1}
       ],
       compute:function(inputs){
         var montantTotal = inputs.capitalVerse + inputs.gains;
-        var warnings = ["Comparaison à hypothèses identiques (même capital versé, même gain) : en pratique les 3 enveloppes n'ont ni les mêmes règles de versement/déblocage (le PER est bloqué jusqu'à la retraite, sauf cas de déblocage anticipé), ni la même fiscalité à l'entrée. Ne modélise pas l'économie d'impôt à l'entrée du PER (versements déductibles), qui doit être comptée séparément dans la comparaison globale. À valider avec un professionnel."];
+        var warnings = ["Comparaison à capital versé et gain identiques dans les 3 enveloppes : en pratique elles n'ont ni les mêmes règles de versement/déblocage (le PER est bloqué jusqu'à la retraite, sauf cas de déblocage anticipé), ni le même risque, ni les mêmes frais. L'économie d'impôt à l'entrée du PER est supposée constatée l'année du versement, au TMI saisi, sans tenir compte d'un éventuel plafond de déduction disponible ni d'une réinjection de cette économie dans un autre placement. À valider avec un professionnel."];
 
         // Assurance-vie : réutilise la même logique que le calculateur dédié.
-        var av = computeFiscaliteAV(inputs.gains, inputs.dureeDetention, inputs.situationFamiliale, inputs.capitalVerse, inputs.regimeChoisi, inputs.tmi);
+        var av = computeFiscaliteAV(inputs.gains, inputs.dureeDetention, inputs.situationFamiliale, inputs.capitalVerse, inputs.regimeChoisi, inputs.tmiSortie);
         var netAV = montantTotal - av.total;
 
         // PER (sortie en capital) : part correspondant aux versements déductibles imposée au barème (sans PS) ; gains au PFU/barème + PS (Art. 158 CGI).
-        var impotCapitalPER = inputs.perVersementsDeduits === "oui" ? inputs.capitalVerse*(inputs.tmi/100) : 0;
-        var impotGainsPER = inputs.regimeChoisi === "pfu" ? inputs.gains*0.30 : inputs.gains*(inputs.tmi/100 + 0.172);
+        var impotCapitalPER = inputs.perVersementsDeduits === "oui" ? inputs.capitalVerse*(inputs.tmiSortie/100) : 0;
+        var impotGainsPER = inputs.regimeChoisi === "pfu" ? inputs.gains*0.30 : inputs.gains*(inputs.tmiSortie/100 + 0.172);
         var totalImpotPER = impotCapitalPER + impotGainsPER;
-        var netPER = montantTotal - totalImpotPER;
+        var netPERSortie = montantTotal - totalImpotPER;
 
-        // CTO : gains toujours au PFU/barème + PS, aucun abattement lié à la durée.
-        var impotGainsCTO = inputs.regimeChoisi === "pfu" ? inputs.gains*0.30 : inputs.gains*(inputs.tmi/100 + 0.172);
+        // Économie d'impôt à l'entrée : le versement déductible réduit le revenu imposable l'année du versement.
+        var economieImpotEntree = inputs.perVersementsDeduits === "oui" ? inputs.capitalVerse*(inputs.tmiEntree/100) : 0;
+        var netPERGlobal = netPERSortie + economieImpotEntree;
+
+        // CTO : gains toujours au PFU/barème + PS, aucun abattement lié à la durée, aucune déduction à l'entrée.
+        var impotGainsCTO = inputs.regimeChoisi === "pfu" ? inputs.gains*0.30 : inputs.gains*(inputs.tmiSortie/100 + 0.172);
         var netCTO = montantTotal - impotGainsCTO;
 
         return {
           keyFigures:[
             {label:"Net perçu — Assurance-vie", value: euro.format(netAV)},
-            {label:"Net perçu — PER (capital)", value: euro.format(netPER)},
-            {label:"Net perçu — CTO", value: euro.format(netCTO)}
+            {label:"Net perçu — CTO", value: euro.format(netCTO)},
+            {label:"PER — bilan global (sortie + économie d'entrée)", value: euro.format(netPERGlobal)}
           ],
           details:[
             {label:"Montant total avant fiscalité", value: euro.format(montantTotal)},
             {label:"AV — prélèvements totaux (" + av.tauxAppliqueLabel + ")", value: euro.format(av.total)},
-            {label:"PER — impôt sur le capital (barème)", value: euro.format(impotCapitalPER)},
-            {label:"PER — impôt sur les gains", value: euro.format(impotGainsPER)},
-            {label:"CTO — impôt sur les gains", value: euro.format(impotGainsCTO)}
+            {label:"CTO — impôt sur les gains", value: euro.format(impotGainsCTO)},
+            {label:"PER — net perçu à la sortie (avant économie d'entrée)", value: euro.format(netPERSortie)},
+            {label:"PER — impôt sur le capital à la sortie (TMI sortie)", value: euro.format(impotCapitalPER)},
+            {label:"PER — impôt sur les gains à la sortie", value: euro.format(impotGainsPER)},
+            {label:"PER — économie d'impôt à l'entrée (TMI entrée)", value: euro.format(economieImpotEntree)}
           ],
           chart:{
             type:"bar",
-            labels:["Assurance-vie","PER (capital)","CTO"],
-            datasets:[{label:"Net perçu (€)", data:[Math.round(netAV), Math.round(netPER), Math.round(netCTO)], backgroundColor:["#0f7a72","#9c7a3c","#122b46"]}]
+            labels:["Assurance-vie","CTO","PER — sortie seule","PER — bilan global"],
+            datasets:[{label:"Net perçu (€)", data:[Math.round(netAV), Math.round(netCTO), Math.round(netPERSortie), Math.round(netPERGlobal)], backgroundColor:["#0f7a72","#122b46","#c9a87c","#9c7a3c"]}]
           },
           warnings: warnings
         };
