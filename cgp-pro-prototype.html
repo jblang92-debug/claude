@@ -354,9 +354,9 @@
           {value:"couple", label:"Couple imposé en commun (abattement 9 200 €)"}
         ]},
         {id:"totalVersements", label:"Total des versements sur vos contrats (tous assureurs)", type:"number", suffix:"€", default:100000, step:1000, help:"Détermine le taux réduit de 7,5% après 8 ans (seuil de 150 000 €)."},
-        {id:"regimeChoisi", label:"Régime d'imposition", type:"select", default:"pfu", options:[
-          {value:"pfu", label:"Prélèvement forfaitaire (flat tax / taux réduit après 8 ans)"},
-          {value:"bareme", label:"Barème progressif de l'impôt sur le revenu"}
+        {id:"regimeChoisi", label:"Régime d'imposition (sur la part IR)", type:"select", default:"pfu", options:[
+          {value:"pfu", label:"PFU / flat tax — 12,8 % (7,5 % après 8 ans sous 150 000 €)"},
+          {value:"bareme", label:"Barème progressif — taux = votre TMI"}
         ]},
         {id:"tmi", label:"Tranche marginale d'imposition (si barème)", type:"number", suffix:"%", default:30, step:1}
       ],
@@ -365,24 +365,30 @@
         var ps = gains*0.172;
         var ir = 0;
         var detailsExtra = [];
-        var warnings = ["Calcul simplifié à visée pédagogique (régime des versements post-2017), hors cas particuliers (licenciement, invalidité, retraite anticipée, contrats DSK/NSK...). À valider avec un professionnel avant toute décision."];
+        var tauxAppliqueLabel = "";
+        var warnings = ["Le PFU (flat tax) n'est pas une exonération d'impôt sur le revenu : il applique un taux forfaitaire d'IR (12,8 %, ou 7,5 % après 8 ans sous le seuil de 150 000 €) en plus des 17,2 % de prélèvements sociaux. Calcul simplifié à visée pédagogique (régime des versements post-2017), hors cas particuliers (licenciement, invalidité, retraite anticipée, contrats DSK/NSK...). À valider avec un professionnel avant toute décision."];
 
         if(inputs.anciennete < 8){
-          if(inputs.regimeChoisi === "pfu"){ ir = gains*0.128; }
-          else { ir = gains*(inputs.tmi/100); }
+          if(inputs.regimeChoisi === "pfu"){ ir = gains*0.128; tauxAppliqueLabel = "PFU 12,8 % sur la totalité des gains"; }
+          else { ir = gains*(inputs.tmi/100); tauxAppliqueLabel = "Barème progressif à " + inputs.tmi + " % sur la totalité des gains"; }
         } else {
           var abattement = inputs.situationFamiliale === "couple" ? 9200 : 4600;
           var gainsApresAbat = Math.max(0, gains-abattement);
           if(inputs.regimeChoisi === "bareme"){
             ir = gainsApresAbat*(inputs.tmi/100);
+            tauxAppliqueLabel = "Barème progressif à " + inputs.tmi + " % sur les gains après abattement";
           } else {
             var propReduit = inputs.totalVersements>0 ? Math.min(1, 150000/inputs.totalVersements) : 1;
             var gainsReduit = gainsApresAbat*propReduit;
             var gainsNormal = gainsApresAbat-gainsReduit;
             ir = gainsReduit*0.075 + gainsNormal*0.128;
+            tauxAppliqueLabel = gainsNormal>0
+              ? "PFU 7,5 % jusqu'à 150 000 € de versements, 12,8 % au-delà, sur les gains après abattement"
+              : "PFU taux réduit 7,5 % sur les gains après abattement (versements sous le seuil de 150 000 €)";
           }
           detailsExtra.push({label:"Abattement annuel appliqué", value: euro.format(Math.min(abattement, gains))});
         }
+        detailsExtra.push({label:"Taux d'IR appliqué", value: tauxAppliqueLabel});
 
         var totalImpot = ps+ir;
         var net = inputs.montantRachat - totalImpot;
@@ -416,23 +422,29 @@
     {
       id:"impact-frais", category:"epargne", status:"ready", icon:"📉",
       name:"Impact des frais cumulés",
-      desc:"Compare sur 10, 20 et 30 ans le capital final d'un placement avec et sans frais de gestion, à partir d'un capital initial et d'un rendement annuel.",
+      desc:"Compare sur 10, 20 et 30 ans le capital final d'un placement avec et sans frais, à partir d'un capital initial, d'un rendement annuel, de frais sur versement et de frais de gestion.",
       fields:[
         {id:"capitalInitial", label:"Capital initial investi", type:"number", suffix:"€", default:50000, step:1000},
         {id:"versementMensuel", label:"Versement mensuel (optionnel)", type:"number", suffix:"€", default:0, step:50},
         {id:"rendementAnnuel", label:"Taux de rendement annuel brut", type:"number", suffix:"%", default:5, step:0.1},
-        {id:"fraisGestion", label:"Taux de frais de gestion annuel", type:"number", suffix:"%", default:1.5, step:0.1}
+        {id:"fraisVersement", label:"Frais sur versement (frais d'entrée)", type:"number", suffix:"%", default:1.5, step:0.1, help:"Prélevés une fois sur chaque euro versé (capital initial et versements)."},
+        {id:"fraisGestion", label:"Taux de frais de gestion annuel", type:"number", suffix:"%", default:1, step:0.1, help:"Prélevé chaque année sur l'encours, en réduction du rendement."}
       ],
       compute:function(inputs){
         var years = 30;
+        var versementAnnuelBrut = inputs.versementMensuel*12;
+        var versementAnnuelNet = versementAnnuelBrut*(1-inputs.fraisVersement/100);
+        var capitalInitialNet = inputs.capitalInitial*(1-inputs.fraisVersement/100);
+
         var sans = [inputs.capitalInitial];
-        var avec = [inputs.capitalInitial];
+        var avec = [capitalInitialNet];
         for(var y=1; y<=years; y++){
-          sans.push(sans[y-1]*(1+inputs.rendementAnnuel/100) + inputs.versementMensuel*12);
-          avec.push(avec[y-1]*(1+(inputs.rendementAnnuel-inputs.fraisGestion)/100) + inputs.versementMensuel*12);
+          sans.push(sans[y-1]*(1+inputs.rendementAnnuel/100) + versementAnnuelBrut);
+          avec.push(avec[y-1]*(1+(inputs.rendementAnnuel-inputs.fraisGestion)/100) + versementAnnuelNet);
         }
         function milestone(y){ return {sans:sans[y], avec:avec[y], ecart: sans[y]-avec[y]}; }
         var m10 = milestone(10), m20 = milestone(20), m30 = milestone(30);
+        var fraisEntreeTotal = (inputs.capitalInitial-capitalInitialNet) + (versementAnnuelBrut-versementAnnuelNet)*years;
 
         return {
           keyFigures:[
@@ -445,7 +457,8 @@
             {label:"Capital à 20 ans (sans frais / avec frais)", value: euro.format(m20.sans) + " / " + euro.format(m20.avec)},
             {label:"Écart à 10 ans", value: euro.format(m10.ecart)},
             {label:"Écart à 20 ans", value: euro.format(m20.ecart)},
-            {label:"Écart à 30 ans", value: euro.format(m30.ecart)}
+            {label:"Écart à 30 ans", value: euro.format(m30.ecart)},
+            {label:"Dont frais sur versement prélevés (30 ans)", value: euro.format(fraisEntreeTotal)}
           ],
           chart:{
             type:"line",
