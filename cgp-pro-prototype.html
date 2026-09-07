@@ -1089,43 +1089,69 @@
     {
       id:"dca-vs-unique", category:"epargne", status:"ready", icon:"📆",
       name:"Simulateur DCA vs versement unique",
-      desc:"Compare, sous une hypothèse de rendement annuel constant, la valeur finale d'un versement unique investi immédiatement et d'un investissement programmé (DCA) étalé dans le temps.",
+      desc:"Compare la valeur finale et la trajectoire d'un versement unique et d'un investissement programmé (DCA), sous une hypothèse de marché constant et sous un scénario de baisse au démarrage.",
       fields:[
         {id:"montantTotal", label:"Montant total à investir", type:"number", suffix:"€", default:60000, step:1000},
         {id:"dureeDCA", label:"Durée d'investissement programmé (DCA)", type:"number", suffix:"mois", default:12, step:1},
-        {id:"rendementAnnuelMoyen", label:"Rendement annuel moyen (hypothèse)", type:"number", suffix:"%", default:6, step:0.5}
+        {id:"rendementAnnuelMoyen", label:"Rendement annuel moyen (hypothèse)", type:"number", suffix:"%", default:6, step:0.5},
+        {id:"baisseInitiale", label:"Baisse simulée en début de période", type:"number", suffix:"%", default:20, step:1, help:"Scénario de correction de marché juste après l'investissement, pour illustrer le risque de timing."},
+        {id:"dureeBaisseMois", label:"Durée de la baisse avant reprise de la tendance", type:"number", suffix:"mois", default:3, step:1}
       ],
       compute:function(inputs){
         var tauxMensuel = Math.pow(1+inputs.rendementAnnuelMoyen/100, 1/12)-1;
         var n = inputs.dureeDCA;
-
-        var valeurUnique = inputs.montantTotal*Math.pow(1+tauxMensuel, n);
-
         var versementMensuel = inputs.montantTotal/n;
-        var valeurDCA = 0;
-        for(var k=1; k<=n; k++){
-          valeurDCA += versementMensuel*Math.pow(1+tauxMensuel, n-k);
+        var dureeBaisse = Math.min(inputs.dureeBaisseMois, n);
+        var factorAuCreux = 1 - inputs.baisseInitiale/100;
+
+        function factorConstant(t){ return Math.pow(1+tauxMensuel, t); }
+        function factorCrash(t){
+          if(dureeBaisse<=0) return factorConstant(t);
+          if(t<=dureeBaisse){ return 1 + (factorAuCreux-1)*(t/dureeBaisse); }
+          return factorAuCreux*Math.pow(1+tauxMensuel, t-dureeBaisse);
         }
 
-        var ecart = valeurUnique - valeurDCA;
+        // Simule les deux stratégies pour un chemin de marché donné (indice de valeur, base 1 à t=0).
+        function simuler(factorFn){
+          var trajUnique = [inputs.montantTotal*factorFn(0)];
+          var trajDCA = [0];
+          var dcaValue = 0;
+          for(var t=1; t<=n; t++){
+            var rPeriode = factorFn(t)/factorFn(t-1) - 1;
+            dcaValue = dcaValue*(1+rPeriode) + versementMensuel;
+            trajDCA.push(dcaValue);
+            trajUnique.push(inputs.montantTotal*factorFn(t));
+          }
+          return {unique: trajUnique[n], dca: trajDCA[n], trajUnique: trajUnique, trajDCA: trajDCA};
+        }
+
+        var constant = simuler(factorConstant);
+        var crash = simuler(factorCrash);
+        var ecartConstant = constant.unique - constant.dca;
+        var ecartCrash = crash.unique - crash.dca;
 
         return {
           keyFigures:[
-            {label:"Valeur finale — versement unique", value: euro.format(valeurUnique)},
-            {label:"Valeur finale — DCA (investissement programmé)", value: euro.format(valeurDCA)},
-            {label:"Écart (unique − DCA)", value: (ecart>=0?"+":"") + euro.format(ecart)}
+            {label:"Écart si baisse de " + inputs.baisseInitiale + "% au démarrage (unique − DCA)", value: (ecartCrash>=0?"+":"") + euro.format(ecartCrash)},
+            {label:"Versement unique — scénario constant", value: euro.format(constant.unique)},
+            {label:"DCA — scénario constant", value: euro.format(constant.dca)}
           ],
           details:[
             {label:"Versement mensuel en DCA", value: euro2.format(versementMensuel)},
-            {label:"Durée de la comparaison", value: n + " mois"},
-            {label:"Rendement mensuel équivalent retenu", value: pct(tauxMensuel*100, 3)}
+            {label:"Écart en scénario constant (unique − DCA)", value: (ecartConstant>=0?"+":"") + euro.format(ecartConstant)},
+            {label:"Versement unique — avec baisse au démarrage", value: euro.format(crash.unique)},
+            {label:"DCA — avec baisse au démarrage", value: euro.format(crash.dca)},
+            {label:"Niveau du marché au plus bas de la baisse", value: pct(-inputs.baisseInitiale, 0)}
           ],
           chart:{
-            type:"bar",
-            labels:["Versement unique","DCA (investissement programmé)"],
-            datasets:[{label:"Valeur finale (€)", data:[Math.round(valeurUnique), Math.round(valeurDCA)], backgroundColor:["#122b46","#0f7a72"]}]
+            type:"line",
+            labels: Array.from({length: n+1}, function(_,i){ return String(i); }),
+            datasets:[
+              {label:"Versement unique (avec baisse au démarrage)", data: crash.trajUnique.map(Math.round), borderColor:"#122b46", backgroundColor:"rgba(18,43,70,0.08)", tension:0.1},
+              {label:"DCA (avec baisse au démarrage)", data: crash.trajDCA.map(Math.round), borderColor:"#0f7a72", backgroundColor:"rgba(15,122,114,0.08)", tension:0.1}
+            ]
           },
-          warnings:["Sous hypothèse de rendement constant et positif, le versement unique est mathématiquement toujours au moins aussi favorable que le DCA (il reste investi plus longtemps) : ce n'est pas un argument contre le DCA. L'intérêt réel du DCA n'est pas un rendement supérieur, mais de lisser le prix d'entrée et de réduire le risque de investir un capital important juste avant une baisse des marchés — un bénéfice de gestion du risque que cette simulation à rendement constant ne représente pas."]
+          warnings:["Deux scénarios déterministes, pas une simulation de marché réelle (pas de volatilité aléatoire ni de rebond partiel) : ils illustrent un principe, pas une prévision. Scénario constant : sous rendement positif constant, le versement unique reste toujours au moins aussi favorable que le DCA, puisqu'il est investi plus longtemps — ce n'est pas un argument contre le DCA. Scénario avec baisse au démarrage : montre au contraire l'intérêt réel du DCA, qui n'a pas encore investi tout le capital au moment du creux et limite ainsi la perte, contrairement au versement unique qui encaisse la baisse en totalité dès le premier jour."]
         };
       }
     },
