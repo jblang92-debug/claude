@@ -64,6 +64,46 @@
   .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:6px 20px;}
   .field{display:flex;flex-direction:column;gap:4px;margin-bottom:14px;}
   .field[hidden]{display:none !important;}
+  .checkbox-inline{display:flex;align-items:center;gap:8px;font-size:.88rem;font-weight:600;color:var(--ink);cursor:pointer;}
+  .checkbox-inline input{width:auto;}
+  .form-section-title{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:18px 0 8px;grid-column:1/-1;}
+  .form-section-title:first-child{margin-top:0;}
+
+  /* Client selector inside a calculator */
+  .client-select-bar{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;}
+  .client-select-bar .field{margin-bottom:0;flex:1 1 260px;}
+  .client-select-bar .link-new-client{font-size:.82rem;font-weight:600;color:var(--navy-2);text-decoration:none;white-space:nowrap;padding-bottom:10px;}
+
+  /* Clients section */
+  .client-card{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:10px;flex-wrap:wrap;}
+  .client-card-name{font-weight:700;font-size:1rem;}
+  .client-card-meta{font-size:.82rem;color:var(--muted);margin-top:3px;}
+  .client-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+  .client-tag{font-size:.7rem;font-weight:700;background:#eef1f5;color:var(--navy-2);padding:3px 9px;border-radius:20px;}
+  .page-header-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+
+  /* Bilan patrimonial */
+  .wizard-steps{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;}
+  .wizard-step{flex:1 1 120px;text-align:center;padding:8px 6px;border-radius:8px;font-size:.75rem;font-weight:700;background:#eef1f5;color:var(--muted);}
+  .wizard-step.active{background:var(--navy);color:#fff;}
+  .wizard-step.done{background:#dfece9;color:var(--accent-2);}
+  .wizard-nav{display:flex;justify-content:space-between;margin-top:22px;}
+  .synthesis-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px;}
+  .synthesis-card h3{margin:0 0 10px;font-size:1rem;color:var(--navy);}
+  .synthesis-kf{display:flex;flex-wrap:wrap;gap:10px;}
+  .synthesis-kf-item{flex:1 1 160px;background:var(--bg);border-radius:8px;padding:10px 12px;}
+  .synthesis-kf-item .value{font-weight:800;font-size:1.05rem;color:var(--navy);}
+  .synthesis-kf-item .label{font-size:.68rem;text-transform:uppercase;color:var(--muted);margin-top:2px;}
+  .synthesis-open-link{display:inline-block;margin-top:10px;font-size:.8rem;font-weight:600;color:var(--navy-2);text-decoration:none;}
+
+  /* Cabinet / settings */
+  .logo-preview{max-width:160px;max-height:80px;border:1px solid var(--border);border-radius:8px;padding:6px;background:#fff;display:block;margin-bottom:8px;}
+  .brand-logo{max-height:34px;max-width:120px;display:block;border-radius:4px;}
+
+  /* Legal footer */
+  .legal-footer{max-width:960px;margin:0 auto;padding:18px 20px 40px;font-size:.72rem;color:var(--muted);text-align:center;line-height:1.5;}
+  .legal-footer a{color:var(--navy-2);font-weight:600;text-decoration:none;}
+  body.presenting .legal-footer{display:none;}
   .reference-panel{background:#fbf3e7;border:1px solid #eadfc7;border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;font-size:.85rem;color:#5b4a26;}
   .reference-panel h3{margin:0 0 8px;font-size:.9rem;color:#7a5b1c;}
   .reference-panel table{width:100%;border-collapse:collapse;margin-top:8px;}
@@ -166,7 +206,8 @@
       <a href="#/" class="brand">CGP Pro<span class="brand-sub">Outils d'aide au rendez-vous client</span></a>
       <nav>
         <a href="#/" class="nav-link">Accueil</a>
-        <a href="#/historique" class="nav-link">Historique clients</a>
+        <a href="#/clients" class="nav-link">Clients</a>
+        <a href="#/historique" class="nav-link">Historique</a>
       </nav>
     </div>
   </header>
@@ -208,6 +249,66 @@
     var all = getSimulations().filter(function(s){ return s.id !== id; });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
   }
+
+  /* ============================ Clients ============================ */
+  var CLIENTS_KEY = "cgppro_clients_v1";
+  function getClients(){
+    try{ return JSON.parse(localStorage.getItem(CLIENTS_KEY)) || []; }
+    catch(e){ return []; }
+  }
+  function getClientById(id){ return getClients().filter(function(c){ return c.id === id; })[0] || null; }
+  function saveClient(client){
+    var all = getClients();
+    var idx = all.findIndex(function(c){ return c.id === client.id; });
+    if(idx >= 0){ all[idx] = client; } else { all.unshift(client); }
+    localStorage.setItem(CLIENTS_KEY, JSON.stringify(all));
+  }
+  function deleteClient(id){
+    var all = getClients().filter(function(c){ return c.id !== id; });
+    localStorage.setItem(CLIENTS_KEY, JSON.stringify(all));
+  }
+  function clientFullName(c){ return ((c.prenom||"") + " " + (c.nom||"")).trim() || "(sans nom)"; }
+
+  // Champs de la fiche client. `clientField` sur un champ d'outil (voir TOOLS) référence l'id ci-dessous
+  // pour permettre le pré-remplissage automatique depuis la fiche.
+  var CLIENT_FIELDS = [
+    {id:"prenom", label:"Prénom", type:"text", default:"", section:"Identité"},
+    {id:"nom", label:"Nom", type:"text", default:"", section:"Identité"},
+    {id:"age", label:"Âge", type:"number", suffix:"ans", default:45, step:1, section:"Identité"},
+    {id:"situationFamiliale", label:"Situation familiale", type:"select", default:"seul", section:"Identité", options:[
+      {value:"seul", label:"Célibataire / divorcé(e) / veuf(ve)"},
+      {value:"couple", label:"Couple (marié, pacsé ou en concubinage)"}
+    ]},
+    {id:"nombreEnfants", label:"Nombre d'enfants à charge", type:"number", default:0, step:1, section:"Identité"},
+    {id:"tmi", label:"Tranche marginale d'imposition (TMI)", type:"number", suffix:"%", default:30, step:1, section:"Identité"},
+    {id:"revenusMensuelsNets", label:"Revenus nets mensuels du foyer", type:"number", suffix:"€", default:0, step:100, section:"Revenus & charges"},
+    {id:"revenusLocatifsExistants", label:"Revenus locatifs déjà perçus", type:"number", suffix:"€", default:0, step:50, section:"Revenus & charges"},
+    {id:"chargesMensuellesCredits", label:"Mensualités de crédits en cours", type:"number", suffix:"€", default:0, step:50, section:"Revenus & charges"},
+    {id:"patrimoineFinancier", label:"Épargne / placements financiers existants", type:"number", suffix:"€", default:0, step:1000, section:"Patrimoine"},
+    {id:"patrimoineImmobilierBrut", label:"Valeur brute du patrimoine immobilier", type:"number", suffix:"€", default:0, step:5000, section:"Patrimoine"},
+    {id:"valeurResidencePrincipale", label:"Dont valeur de la résidence principale", type:"number", suffix:"€", default:0, step:5000, section:"Patrimoine"},
+    {id:"dettesImmobilieres", label:"Dettes / emprunts immobiliers restant dus", type:"number", suffix:"€", default:0, step:5000, section:"Patrimoine"},
+    {id:"projetAchatResidence", label:"Projet d'achat de résidence principale", type:"checkbox", default:false, section:"Projets en cours"},
+    {id:"projetInvestissementLocatif", label:"Projet d'investissement locatif", type:"checkbox", default:false, section:"Projets en cours"},
+    {id:"projetVenteImmobiliere", label:"Projet de vente d'un bien immobilier", type:"checkbox", default:false, section:"Projets en cours"},
+    {id:"projetRachatAssuranceVie", label:"Rachat d'assurance-vie envisagé", type:"checkbox", default:false, section:"Projets en cours"},
+    {id:"projetPlacerEpargne", label:"Souhaite placer ou optimiser son épargne", type:"checkbox", default:false, section:"Projets en cours"},
+    {id:"projetPreparerRetraite", label:"Souhaite préparer sa retraite", type:"checkbox", default:false, section:"Projets en cours"},
+    {id:"projetTransmission", label:"Réflexion sur la transmission / succession", type:"checkbox", default:false, section:"Projets en cours"},
+    {id:"notes", label:"Notes libres", type:"text", default:"", section:"Notes"}
+  ];
+
+  // Fait le lien entre les cases "Projets en cours" de la fiche client et les outils pertinents
+  // pour le module Bilan patrimonial (sélection automatique des calculateurs à déclencher).
+  var PROJET_TOOL_MAP = {
+    projetAchatResidence: ["capacite-emprunt","pret-amortissement","frais-notaire","apport-optimal"],
+    projetInvestissementLocatif: ["capacite-emprunt","rentabilite-locative","frais-notaire","pret-amortissement","scpi","lmnp-vs-nue"],
+    projetVenteImmobiliere: ["plus-value-immo"],
+    projetRachatAssuranceVie: ["fiscalite-assurance-vie","av-per-cto"],
+    projetPlacerEpargne: ["impact-frais","dca-vs-unique","scpi"],
+    projetPreparerRetraite: ["pension-retraite","epargner-retraite","av-per-cto"],
+    projetTransmission: ["succession","demembrement","ifi"]
+  };
 
   /* ============================ Shared fiscal helpers ============================ */
   // Calcule un impôt par tranches marginales. brackets = [{upTo:N, rate:r}, ..., {upTo:Infinity, rate:r}]
@@ -273,14 +374,14 @@
       name:"Capacité d'emprunt",
       desc:"Calcule la mensualité maximale et le montant empruntable à partir des revenus, charges, taux et durée saisis (taux d'endettement 35% par défaut).",
       fields:[
-        {id:"revenuNet", label:"Revenus nets mensuels du foyer", type:"number", suffix:"€", default:3000, step:50},
-        {id:"revenusLocatifs", label:"Revenus locatifs perçus (optionnel)", type:"number", suffix:"€", default:0, step:50, help:"Pondérés à 70% dans le calcul, comme le font la plupart des banques."},
-        {id:"chargesExistantes", label:"Mensualités de crédits en cours", type:"number", suffix:"€", default:0, step:10},
+        {id:"revenuNet", label:"Revenus nets mensuels du foyer", type:"number", suffix:"€", default:3000, step:50, clientField:"revenusMensuelsNets"},
+        {id:"revenusLocatifs", label:"Revenus locatifs perçus (optionnel)", type:"number", suffix:"€", default:0, step:50, help:"Pondérés à 70% dans le calcul, comme le font la plupart des banques.", clientField:"revenusLocatifsExistants"},
+        {id:"chargesExistantes", label:"Mensualités de crédits en cours", type:"number", suffix:"€", default:0, step:10, clientField:"chargesMensuellesCredits"},
         {id:"tauxEndettement", label:"Taux d'endettement maximum", type:"number", suffix:"%", default:35, step:0.5},
         {id:"tauxInteret", label:"Taux d'intérêt annuel du prêt", type:"number", suffix:"%", default:3.8, step:0.01},
         {id:"tauxAssurance", label:"Taux d'assurance emprunteur annuel", type:"number", suffix:"%", default:0.34, step:0.01},
         {id:"dureeAnnees", label:"Durée du prêt", type:"number", suffix:"ans", default:25, step:1},
-        {id:"apport", label:"Apport personnel (optionnel)", type:"number", suffix:"€", default:0, step:1000}
+        {id:"apport", label:"Apport personnel (optionnel)", type:"number", suffix:"€", default:0, step:1000, clientField:"patrimoineFinancier"}
       ],
       compute:function(inputs){
         var revenuPondere = inputs.revenuNet + inputs.revenusLocatifs*0.7;
@@ -472,8 +573,8 @@
       name:"Calculateur de rachat de crédit",
       desc:"Compare le coût de poursuivre les crédits actuels au coût d'un rachat/regroupement à un nouveau taux et une nouvelle durée.",
       fields:[
-        {id:"mensualitesActuelles", label:"Total des mensualités actuelles", type:"number", suffix:"€", default:1400, step:50},
-        {id:"capitalRestantDu", label:"Capital restant dû total (tous crédits)", type:"number", suffix:"€", default:180000, step:1000},
+        {id:"mensualitesActuelles", label:"Total des mensualités actuelles", type:"number", suffix:"€", default:1400, step:50, clientField:"chargesMensuellesCredits"},
+        {id:"capitalRestantDu", label:"Capital restant dû total (tous crédits)", type:"number", suffix:"€", default:180000, step:1000, clientField:"dettesImmobilieres"},
         {id:"dureeRestanteAnnees", label:"Durée restante actuelle (si non rachetés)", type:"number", suffix:"ans", default:15, step:1},
         {id:"nouveauTaux", label:"Taux proposé pour le rachat", type:"number", suffix:"%", default:3.9, step:0.01},
         {id:"nouvelleDureeAnnees", label:"Nouvelle durée après rachat", type:"number", suffix:"ans", default:20, step:1},
@@ -672,7 +773,7 @@
           {value:"assurance-vie", label:"Via assurance-vie (unités de compte)"},
           {value:"credit", label:"À crédit (détention directe)"}
         ]},
-        {id:"tmi", label:"Tranche marginale d'imposition (détention directe)", type:"number", suffix:"%", default:30, step:1},
+        {id:"tmi", label:"Tranche marginale d'imposition (détention directe)", type:"number", suffix:"%", default:30, step:1, clientField:"tmi"},
         {id:"tauxCredit", label:"Taux du crédit (si achat à crédit)", type:"number", suffix:"%", default:3.9, step:0.01},
         {id:"dureeAnnees", label:"Durée de projection", type:"number", suffix:"ans", default:10, step:1}
       ],
@@ -757,7 +858,7 @@
         {id:"chargesAnnuelles", label:"Charges annuelles réelles (copro, entretien, assurance, gestion...)", type:"number", suffix:"€", default:2000, step:100},
         {id:"prixBienAmortissable", label:"Valeur amortissable du bien (hors terrain, LMNP réel)", type:"number", suffix:"€", default:170000, step:1000, help:"Environ 80-85% du prix d'achat (le terrain n'est pas amortissable)."},
         {id:"dureeAmortissementAns", label:"Durée d'amortissement retenue", type:"number", suffix:"ans", default:25, step:1},
-        {id:"tmi", label:"Tranche marginale d'imposition", type:"number", suffix:"%", default:30, step:1}
+        {id:"tmi", label:"Tranche marginale d'imposition", type:"number", suffix:"%", default:30, step:1, clientField:"tmi"}
       ],
       compute:function(inputs){
         var tauxGlobal = inputs.tmi/100 + 0.172;
@@ -913,7 +1014,7 @@
         {id:"montantRachat", label:"Montant total du rachat", type:"number", suffix:"€", default:20000, step:500},
         {id:"montantGains", label:"Dont montant des gains (plus-value)", type:"number", suffix:"€", default:5000, step:100},
         {id:"anciennete", label:"Ancienneté du contrat", type:"number", suffix:"ans", default:10, step:1},
-        {id:"situationFamiliale", label:"Situation familiale (abattement après 8 ans)", type:"select", default:"seul", options:[
+        {id:"situationFamiliale", label:"Situation familiale (abattement après 8 ans)", type:"select", default:"seul", clientField:"situationFamiliale", options:[
           {value:"seul", label:"Célibataire (abattement 4 600 €)"},
           {value:"couple", label:"Couple imposé en commun (abattement 9 200 €)"}
         ]},
@@ -922,7 +1023,7 @@
           {value:"pfu", label:"PFU / flat tax — 12,8 % (7,5 % après 8 ans sous 150 000 €)"},
           {value:"bareme", label:"Barème progressif — taux = votre TMI"}
         ]},
-        {id:"tmi", label:"Tranche marginale d'imposition (si barème)", type:"number", suffix:"%", default:30, step:1}
+        {id:"tmi", label:"Tranche marginale d'imposition (si barème)", type:"number", suffix:"%", default:30, step:1, clientField:"tmi"}
       ],
       compute:function(inputs){
         var gains = Math.max(0, Math.min(inputs.montantGains, inputs.montantRachat));
@@ -966,7 +1067,7 @@
       name:"Impact des frais cumulés",
       desc:"Compare sur 10, 20 et 30 ans le capital final d'un placement avec et sans frais, à partir d'un capital initial, d'un rendement annuel, de frais sur versement et de frais de gestion.",
       fields:[
-        {id:"capitalInitial", label:"Capital initial investi", type:"number", suffix:"€", default:50000, step:1000},
+        {id:"capitalInitial", label:"Capital initial investi", type:"number", suffix:"€", default:50000, step:1000, clientField:"patrimoineFinancier"},
         {id:"versementMensuel", label:"Versement mensuel (optionnel)", type:"number", suffix:"€", default:0, step:50},
         {id:"rendementAnnuel", label:"Taux de rendement annuel brut", type:"number", suffix:"%", default:5, step:0.1},
         {id:"fraisVersement", label:"Frais sur versement (frais d'entrée)", type:"number", suffix:"%", default:1.5, step:0.1, help:"Prélevés une fois sur chaque euro versé (capital initial et versements)."},
@@ -1031,7 +1132,7 @@
         {id:"capitalVerse", label:"Capital versé (total des versements)", type:"number", suffix:"€", default:50000, step:1000},
         {id:"gains", label:"Gains (plus-value) au moment de la sortie", type:"number", suffix:"€", default:20000, step:500},
         {id:"dureeDetention", label:"Ancienneté du contrat (assurance-vie)", type:"number", suffix:"ans", default:10, step:1},
-        {id:"situationFamiliale", label:"Situation familiale (abattement AV après 8 ans)", type:"select", default:"seul", options:[
+        {id:"situationFamiliale", label:"Situation familiale (abattement AV après 8 ans)", type:"select", default:"seul", clientField:"situationFamiliale", options:[
           {value:"seul", label:"Célibataire (abattement 4 600 €)"},
           {value:"couple", label:"Couple imposé en commun (abattement 9 200 €)"}
         ]},
@@ -1039,12 +1140,12 @@
           {value:"oui", label:"Oui (cas le plus fréquent)"},
           {value:"non", label:"Non (versements non déduits)"}
         ]},
-        {id:"tmiEntree", label:"TMI au moment du versement (déduction PER)", type:"number", suffix:"%", default:30, step:1, help:"Souvent plus élevée qu'à la retraite : c'est l'avantage recherché du PER (déduire à un TMI haut, sortir à un TMI plus bas)."},
+        {id:"tmiEntree", label:"TMI au moment du versement (déduction PER)", type:"number", suffix:"%", default:30, step:1, help:"Souvent plus élevée qu'à la retraite : c'est l'avantage recherché du PER (déduire à un TMI haut, sortir à un TMI plus bas).", clientField:"tmi"},
         {id:"regimeChoisi", label:"Régime d'imposition des gains (PFU ou barème)", type:"select", default:"pfu", options:[
           {value:"pfu", label:"PFU / flat tax (12,8% + 17,2% PS, taux réduit AV après 8 ans)"},
           {value:"bareme", label:"Barème progressif de l'IR + 17,2% PS"}
         ]},
-        {id:"tmiSortie", label:"TMI à la sortie", type:"number", suffix:"%", default:30, step:1}
+        {id:"tmiSortie", label:"TMI à la sortie", type:"number", suffix:"%", default:30, step:1, clientField:"tmi"}
       ],
       compute:function(inputs){
         var montantTotal = inputs.capitalVerse + inputs.gains;
@@ -1278,7 +1379,7 @@
       desc:"Calcule le versement mensuel nécessaire pour atteindre un capital cible à la retraite, compte tenu de l'épargne déjà constituée et d'une hypothèse de rendement.",
       fields:[
         {id:"capitalCible", label:"Capital cible à la retraite", type:"number", suffix:"€", default:300000, step:5000},
-        {id:"epargneExistante", label:"Épargne déjà constituée pour ce projet", type:"number", suffix:"€", default:30000, step:1000},
+        {id:"epargneExistante", label:"Épargne déjà constituée pour ce projet", type:"number", suffix:"€", default:30000, step:1000, clientField:"patrimoineFinancier"},
         {id:"dureeAnnees", label:"Nombre d'années avant le départ à la retraite", type:"number", suffix:"ans", default:20, step:1},
         {id:"rendementAnnuel", label:"Rendement annuel moyen espéré", type:"number", suffix:"%", default:4, step:0.5}
       ],
@@ -1322,9 +1423,9 @@
       name:"Simulateur d'IFI",
       desc:"Calcule l'impôt sur la fortune immobilière selon le barème progressif (Art. 977 CGI), avec l'abattement de 30% sur la résidence principale et la décote de lissage en entrée de barème.",
       fields:[
-        {id:"patrimoineImmobilierBrut", label:"Valeur brute du patrimoine immobilier taxable", type:"number", suffix:"€", default:1600000, step:10000, help:"Résidence principale incluse, à sa valeur brute avant abattement."},
-        {id:"valeurResidencePrincipale", label:"Dont valeur brute de la résidence principale", type:"number", suffix:"€", default:800000, step:10000, help:"Bénéficie d'un abattement de 30% sur cette valeur."},
-        {id:"dettesDeductibles", label:"Dettes déductibles (emprunts en cours sur les biens taxables)", type:"number", suffix:"€", default:200000, step:10000}
+        {id:"patrimoineImmobilierBrut", label:"Valeur brute du patrimoine immobilier taxable", type:"number", suffix:"€", default:1600000, step:10000, help:"Résidence principale incluse, à sa valeur brute avant abattement.", clientField:"patrimoineImmobilierBrut"},
+        {id:"valeurResidencePrincipale", label:"Dont valeur brute de la résidence principale", type:"number", suffix:"€", default:800000, step:10000, help:"Bénéficie d'un abattement de 30% sur cette valeur.", clientField:"valeurResidencePrincipale"},
+        {id:"dettesDeductibles", label:"Dettes déductibles (emprunts en cours sur les biens taxables)", type:"number", suffix:"€", default:200000, step:10000, clientField:"dettesImmobilieres"}
       ],
       compute:function(inputs){
         var abattementRP = inputs.valeurResidencePrincipale*0.30;
@@ -1455,7 +1556,7 @@
       desc:"Répartit la valeur d'un bien entre usufruit et nue-propriété selon l'âge de l'usufruitier, d'après le barème fiscal légal (Art. 669 CGI).",
       fields:[
         {id:"valeurPleinePropriete", label:"Valeur en pleine propriété du bien", type:"number", suffix:"€", default:400000, step:5000},
-        {id:"ageUsufruitier", label:"Âge de l'usufruitier", type:"number", suffix:"ans", default:65, step:1}
+        {id:"ageUsufruitier", label:"Âge de l'usufruitier", type:"number", suffix:"ans", default:65, step:1, clientField:"age"}
       ],
       compute:function(inputs){
         var bareme = [
@@ -1509,6 +1610,16 @@
         '<select id="f_' + f.id + '">' + opts + '</select>' +
         (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
     }
+    if(f.type === "checkbox"){
+      var checked = (value !== undefined && value !== null) ? !!value : !!f.default;
+      return '<div ' + wrapAttrs + '><label class="checkbox-inline"><input type="checkbox" id="f_' + f.id + '" ' + (checked?"checked":"") + '> ' + escapeHTML(f.label) + '</label>' +
+        (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
+    }
+    if(f.type === "text"){
+      return '<div ' + wrapAttrs + '><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
+        '<input type="text" id="f_' + f.id + '" value="' + escapeHTML(val||"") + '">' +
+        (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
+    }
     return '<div ' + wrapAttrs + '><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
       '<div class="input-suffix"><input type="number" id="f_' + f.id + '" value="' + escapeHTML(val) + '" step="' + (f.step||"any") + '">' +
       '<span class="suffix">' + escapeHTML(f.suffix||"") + '</span></div>' +
@@ -1526,11 +1637,38 @@
     });
   }
 
+  // (Re)branche les listeners de visibilité conditionnelle sur un formulaire donné — utilisé au montage
+  // initial et après un re-rendu des champs (ex. changement de client sélectionné).
+  function wireFieldVisibility(formEl){
+    applyFieldVisibility(formEl);
+    formEl.querySelectorAll("[data-visible-when-field]").forEach(function(wrap){
+      var controllerId = wrap.getAttribute("data-visible-when-field");
+      var controllerEl = document.getElementById("f_" + controllerId);
+      if(controllerEl){ controllerEl.addEventListener("change", function(){ applyFieldVisibility(formEl); }); }
+    });
+  }
+
+  // Construit un objet de pré-remplissage pour les champs d'un outil à partir d'une fiche client,
+  // en ne reprenant que les champs qui déclarent un `clientField` correspondant à une valeur renseignée.
+  function mapClientToInputs(client, tool){
+    var out = {};
+    if(!client) return out;
+    tool.fields.forEach(function(f){
+      if(!f.clientField) return;
+      var v = client[f.clientField];
+      if(v === undefined || v === null || v === "") return;
+      out[f.id] = v;
+    });
+    return out;
+  }
+
   function readInputs(fields){
     var out = {};
     fields.forEach(function(f){
       var elm = document.getElementById("f_" + f.id);
       if(f.type === "select"){ out[f.id] = elm.value; }
+      else if(f.type === "checkbox"){ out[f.id] = elm.checked; }
+      else if(f.type === "text"){ out[f.id] = elm.value; }
       else { out[f.id] = parseFloat(elm.value) || 0; }
     });
     return out;
@@ -1541,6 +1679,8 @@
       var opt = f.options.filter(function(o){ return String(o.value)===String(v); })[0];
       return opt ? opt.label : v;
     }
+    if(f.type === "checkbox"){ return v ? "Oui" : "Non"; }
+    if(f.type === "text"){ return v || "—"; }
     return v + (f.suffix ? (" " + f.suffix) : "");
   }
 
@@ -1616,12 +1756,23 @@
   function mountCalculator(tool, opts){
     var main = document.getElementById("main");
     var prefill = opts.prefill || null;
+    var clients = getClients();
+    var selectedClientId = opts.clientId && getClientById(opts.clientId) ? opts.clientId : "";
+    if(selectedClientId && !prefill){ prefill = mapClientToInputs(getClientById(selectedClientId), tool); }
+
+    var clientOptionsHTML = '<option value="">— Aucun / autre —</option>' +
+      clients.map(function(c){ return '<option value="' + c.id + '" ' + (c.id===selectedClientId?"selected":"") + '>' + escapeHTML(clientFullName(c)) + '</option>'; }).join("");
 
     main.innerHTML =
       '<div class="container calc-page">' +
         '<a href="#/" class="back-link">← Retour aux outils</a>' +
         '<h1>' + escapeHTML(tool.name) + '</h1>' +
         '<p class="tool-desc">' + escapeHTML(tool.desc) + '</p>' +
+        '<div class="client-select-bar">' +
+          '<div class="field"><label for="clientSelect">Client (pré-remplissage automatique)</label>' +
+          '<select id="clientSelect">' + clientOptionsHTML + '</select></div>' +
+          '<a href="#/clients/new" class="link-new-client">+ Nouveau client</a>' +
+        '</div>' +
         '<form id="calcForm" class="calc-form"><div class="form-grid">' +
           tool.fields.map(function(f){ return fieldHTML(f, prefill ? prefill[f.id] : undefined); }).join("") +
         '</div><button type="submit" class="btn btn-primary">Calculer</button></form>' +
@@ -1634,7 +1785,7 @@
           '<div class="warnings" id="warningsArea"></div>' +
           '<div class="actions-bar">' +
             '<div class="field client-field"><label for="clientName">Nom du client (optionnel)</label>' +
-            '<input type="text" id="clientName" placeholder="ex. M. Dupont"></div>' +
+            '<input type="text" id="clientName" placeholder="ex. M. Dupont" value="' + (selectedClientId ? escapeHTML(clientFullName(getClientById(selectedClientId))) : "") + '"></div>' +
             '<div class="actions-buttons">' +
               '<button class="btn btn-outline" id="presentBtn" type="button">🖥 Mode présentation</button>' +
               '<button class="btn btn-outline" id="pdfBtn" type="button">⤓ Exporter en PDF</button>' +
@@ -1646,6 +1797,8 @@
       '</div>';
 
     var lastInputs = null, lastResult = null;
+    var calcFormEl = document.getElementById("calcForm");
+    var formGridEl = calcFormEl.querySelector(".form-grid");
 
     function runCompute(){
       lastInputs = readInputs(tool.fields);
@@ -1665,12 +1818,16 @@
       renderChart(result.chart);
     }
 
-    var calcFormEl = document.getElementById("calcForm");
-    applyFieldVisibility(calcFormEl);
-    calcFormEl.querySelectorAll("[data-visible-when-field]").forEach(function(wrap){
-      var controllerId = wrap.getAttribute("data-visible-when-field");
-      var controllerEl = document.getElementById("f_" + controllerId);
-      if(controllerEl){ controllerEl.addEventListener("change", function(){ applyFieldVisibility(calcFormEl); }); }
+    wireFieldVisibility(calcFormEl);
+
+    document.getElementById("clientSelect").addEventListener("change", function(e){
+      selectedClientId = e.target.value;
+      var client = selectedClientId ? getClientById(selectedClientId) : null;
+      var newPrefill = client ? mapClientToInputs(client, tool) : {};
+      formGridEl.innerHTML = tool.fields.map(function(f){ return fieldHTML(f, newPrefill[f.id]); }).join("");
+      wireFieldVisibility(calcFormEl);
+      document.getElementById("clientName").value = client ? clientFullName(client) : "";
+      document.getElementById("resultsArea").hidden = true;
     });
 
     calcFormEl.addEventListener("submit", function(e){ e.preventDefault(); runCompute(); });
@@ -1685,6 +1842,7 @@
         id: "sim_" + Date.now() + "_" + Math.random().toString(36).slice(2,7),
         toolId: tool.id,
         toolName: tool.name,
+        clientId: selectedClientId || null,
         clientName: clientName || "(sans nom)",
         timestamp: new Date().toISOString(),
         inputs: lastInputs,
@@ -1778,13 +1936,113 @@
     document.getElementById("searchClient").addEventListener("input", function(e){ draw(e.target.value); });
   }
 
+  /* ============================ Clients ============================ */
+  var PROJET_LABELS = {
+    projetAchatResidence:"Achat résidence principale",
+    projetInvestissementLocatif:"Investissement locatif",
+    projetVenteImmobiliere:"Vente immobilière",
+    projetRachatAssuranceVie:"Rachat assurance-vie",
+    projetPlacerEpargne:"Placer son épargne",
+    projetPreparerRetraite:"Préparer la retraite",
+    projetTransmission:"Transmission / succession"
+  };
+
+  function renderClients(){
+    var main = document.getElementById("main");
+    main.innerHTML = '<div class="container clients-page">' +
+      '<a href="#/" class="back-link">← Retour aux outils</a>' +
+      '<div class="page-header-row"><h1>Clients</h1><a href="#/clients/new" class="btn btn-primary">+ Nouveau client</a></div>' +
+      '<div id="clientList"></div>' +
+    '</div>';
+
+    var clients = getClients();
+    var list = document.getElementById("clientList");
+    if(!clients.length){
+      list.innerHTML = '<p class="empty">Aucun client enregistré pour l\'instant.</p>';
+      return;
+    }
+    list.innerHTML = clients.map(function(c){
+      var tags = Object.keys(PROJET_LABELS).filter(function(k){ return c[k]; }).map(function(k){ return '<span class="client-tag">' + PROJET_LABELS[k] + '</span>'; }).join("");
+      return '<div class="client-card">' +
+        '<div>' +
+          '<div class="client-card-name">' + escapeHTML(clientFullName(c)) + '</div>' +
+          '<div class="client-card-meta">' + euro.format(c.revenusMensuelsNets||0) + ' /mois · patrimoine financier ' + euro.format(c.patrimoineFinancier||0) + '</div>' +
+          (tags ? '<div class="client-tags">' + tags + '</div>' : '') +
+        '</div>' +
+        '<div class="sim-actions">' +
+          '<a class="btn btn-outline btn-sm" href="#/bilan/' + c.id + '">Bilan patrimonial</a>' +
+          '<a class="btn btn-outline btn-sm" href="#/clients/' + c.id + '">Modifier</a>' +
+          '<button class="btn btn-danger btn-sm" data-del="' + c.id + '">Supprimer</button>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+
+    list.querySelectorAll("[data-del]").forEach(function(b){
+      b.addEventListener("click", function(){
+        if(confirm("Supprimer cette fiche client ? Les simulations déjà enregistrées ne seront pas supprimées.")){
+          deleteClient(b.dataset.del);
+          renderClients();
+        }
+      });
+    });
+  }
+
+  function renderClientForm(clientId){
+    var main = document.getElementById("main");
+    var isNew = clientId === "new";
+    var client = isNew ? null : getClientById(clientId);
+    if(!isNew && !client){ location.hash = "#/clients"; return; }
+
+    var sections = [];
+    CLIENT_FIELDS.forEach(function(f){
+      if(sections.indexOf(f.section) === -1){ sections.push(f.section); }
+    });
+
+    main.innerHTML = '<div class="container client-form-page">' +
+      '<a href="#/clients" class="back-link">← Retour aux clients</a>' +
+      '<h1>' + (isNew ? "Nouveau client" : "Modifier " + escapeHTML(clientFullName(client))) + '</h1>' +
+      '<form id="clientForm" class="calc-form"><div class="form-grid">' +
+        sections.map(function(section){
+          return '<div class="form-section-title">' + escapeHTML(section) + '</div>' +
+            CLIENT_FIELDS.filter(function(f){ return f.section===section; })
+              .map(function(f){ return fieldHTML(f, client ? client[f.id] : undefined); }).join("");
+        }).join("") +
+      '</div><button type="submit" class="btn btn-primary">' + (isNew ? "Créer le client" : "Enregistrer les modifications") + '</button></form>' +
+    '</div>';
+
+    document.getElementById("clientForm").addEventListener("submit", function(e){
+      e.preventDefault();
+      var values = readInputs(CLIENT_FIELDS);
+      var entry = Object.assign({}, client, values, {
+        id: isNew ? ("client_" + Date.now() + "_" + Math.random().toString(36).slice(2,7)) : client.id,
+        updatedAt: new Date().toISOString(),
+        createdAt: isNew ? new Date().toISOString() : client.createdAt
+      });
+      saveClient(entry);
+      location.hash = "#/clients";
+    });
+  }
+
   /* ============================ Router ============================ */
   function parseHash(){
-    var h = location.hash.replace(/^#\/?/, "");
-    var parts = h.split("/").filter(Boolean);
-    if(parts[0] === "calc" && parts[1]) return {name:"calc", toolId:parts[1], simId:parts[2]};
-    if(parts[0] === "historique") return {name:"historique"};
-    return {name:"home"};
+    var raw = location.hash.replace(/^#\/?/, "");
+    var clientIdParam = null;
+    var queryIdx = raw.indexOf("?");
+    if(queryIdx !== -1){
+      var query = raw.slice(queryIdx+1);
+      raw = raw.slice(0, queryIdx);
+      var m = query.match(/(?:^|&)client=([^&]*)/);
+      if(m) clientIdParam = decodeURIComponent(m[1]);
+    }
+    var parts = raw.split("/").filter(Boolean);
+    var result;
+    if(parts[0] === "calc" && parts[1]) result = {name:"calc", toolId:parts[1], simId:parts[2]};
+    else if(parts[0] === "historique") result = {name:"historique"};
+    else if(parts[0] === "clients" && parts[1]) result = {name:"client-edit", clientId:parts[1]};
+    else if(parts[0] === "clients") result = {name:"clients"};
+    else result = {name:"home"};
+    result.clientIdParam = clientIdParam;
+    return result;
   }
 
   function render(){
@@ -1798,9 +2056,13 @@
         var sim = getSimulations().filter(function(s){ return s.id === v.simId; })[0];
         if(sim) prefill = sim.inputs;
       }
-      mountCalculator(tool, {prefill: prefill, autoCompute: !!prefill});
+      mountCalculator(tool, {prefill: prefill, autoCompute: !!prefill, clientId: v.clientIdParam});
     } else if(v.name === "historique"){
       renderHistorique();
+    } else if(v.name === "clients"){
+      renderClients();
+    } else if(v.name === "client-edit"){
+      renderClientForm(v.clientId);
     } else {
       renderHome();
     }
