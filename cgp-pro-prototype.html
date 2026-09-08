@@ -300,7 +300,9 @@
   }
 
   /* Export complet "avis d'imposition" — garde-fous anti-confusion avec un document officiel obligatoires :
-     bandeau + filigrane "SIMULATION" sur chaque page, aucune reprise d'éléments visuels administratifs. */
+     bandeau + filigrane "SIMULATION" sur chaque page, aucune reprise d'éléments visuels administratifs.
+     Typographie/mise en page soignées (cartes de synthèse, sections numérotées, tableaux zébrés) tout en
+     gardant l'identité visuelle propre à CGP Pro (navy/accent), jamais la charte d'un document officiel. */
   @media print{
     .avis-complet-report{position:relative;}
     .avis-watermark{
@@ -310,15 +312,37 @@
     }
     .avis-banner{
       background:#fbeee0;color:#8a5a1c;border:1px solid #eecfa0;border-radius:6px;
-      padding:9px 16px;font-size:.8rem;font-weight:700;letter-spacing:.03em;text-align:center;
-      margin-bottom:16px;
+      padding:10px 16px;font-size:.8rem;font-weight:700;letter-spacing:.04em;text-align:center;
+      margin-bottom:18px;
     }
-    .avis-section{page-break-inside:avoid;margin-bottom:18px;position:relative;}
-    .avis-section h2{font-size:.92rem;color:var(--navy);border-bottom:1px solid var(--border);padding-bottom:5px;margin:0 0 10px;}
+    .avis-summary{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 22px;}
+    .avis-summary-item{flex:1 1 130px;background:var(--navy);color:#fff;border-radius:10px;padding:14px 16px;}
+    .avis-summary-item:nth-child(2){background:var(--accent);}
+    .avis-summary-item:nth-child(4){background:var(--navy-2);}
+    .avis-summary-item .val{font-size:1.2rem;font-weight:800;line-height:1.2;}
+    .avis-summary-item .lbl{font-size:.64rem;text-transform:uppercase;letter-spacing:.05em;opacity:.85;margin-top:5px;}
+    .avis-section{page-break-inside:avoid;margin-bottom:20px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;}
+    .avis-section-head{display:flex;align-items:center;gap:10px;background:var(--navy);color:#fff;padding:9px 16px;}
+    .avis-num{
+      display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+      width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.22);
+      font-size:.7rem;font-weight:800;
+    }
+    .avis-section-head h2{margin:0;font-size:.82rem;font-weight:700;letter-spacing:.03em;}
     .avis-section table{width:100%;border-collapse:collapse;font-size:.83rem;}
-    .avis-section td{padding:6px 8px;border-bottom:1px solid #eee;}
+    .avis-section td{padding:9px 16px;border-bottom:1px solid #f0f1f3;}
+    .avis-section tr:last-child td{border-bottom:none;}
+    .avis-section tr:nth-child(even) td{background:#f8f9fb;}
     .avis-section td:first-child{color:#555;}
-    .avis-section td:last-child{text-align:right;font-weight:700;white-space:nowrap;padding-left:14px;}
+    .avis-section td:last-child{text-align:right;font-weight:700;color:var(--navy);white-space:nowrap;padding-left:16px;}
+    .avis-section .print-freetext{margin:0;padding:14px 16px;}
+    .avis-identity{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;padding:16px;}
+    .avis-identity > div{font-size:.83rem;line-height:1.7;color:#444;}
+    .avis-identity .lbl{display:block;color:#8a97a6;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;}
+    .avis-identity strong{color:var(--navy);font-size:.98rem;}
+    .avis-per-body{padding:14px 16px 16px;}
+    .avis-per-body .print-keyfigures{margin:6px 0 16px;}
+    .avis-per-body table{margin-top:6px;}
     .avis-footer{font-weight:700;color:#8a5a1c;}
   }
 
@@ -3383,82 +3407,104 @@
     var perEstimate = estimatePlafondPerForAvis(inputs, client);
 
     function row(label, value){ return '<tr><td>' + escapeHTML(label) + '</td><td>' + escapeHTML(value) + '</td></tr>'; }
+    function tableHTML(rowsHTML){ return '<table>' + rowsHTML + '</table>'; }
+    function section(num, title, bodyHTML){
+      return '<div class="avis-section">' +
+        '<div class="avis-section-head"><span class="avis-num">' + num + '</span><h2>' + escapeHTML(title) + '</h2></div>' +
+        bodyHTML +
+      '</div>';
+    }
+    function summaryItem(value, label){
+      return '<div class="avis-summary-item"><div class="val">' + escapeHTML(value) + '</div><div class="lbl">' + escapeHTML(label) + '</div></div>';
+    }
 
     var explicationParts = (e.parts + " part(s) — " +
       (e.imposeCommun ? "vous êtes marié(e) ou pacsé(e)" : "vous êtes imposé(e) seul(e)") +
       (e.parts > e.partsDeBase ? ", majorées des parts liées aux enfants à charge" : ""));
+
+    var identiteHTML = '<div class="avis-identity">' +
+      '<div><span class="lbl">Foyer fiscal</span><strong>' + escapeHTML(clientName || "—") + '</strong>' +
+        (adresse ? '<br>' + escapeHTML(adresse) : '') +
+      '</div>' +
+      '<div><span class="lbl">Numéro fiscal (simulation)</span><strong>' + escapeHTML(numFiscal) + '</strong>' +
+        '<br>Date de la simulation : ' + dateStr +
+      '</div>' +
+    '</div>';
+
+    var perBodyHTML = '<div class="avis-per-body">' +
+      (perEstimate ? (
+        (perEstimate.source === "simulation"
+          ? '<p class="print-freetext">Basé sur la simulation de plafond PER enregistrée le ' + new Date(perEstimate.timestamp).toLocaleDateString("fr-FR") + '.</p>'
+          : '<p class="print-freetext">Estimation calculée à partir des revenus déjà saisis dans cet avis (statut ' +
+            (perEstimate.isTns ? "travailleur non salarié, déduit de vos BIC/BNC déclarés" : "salarié par défaut — à ajuster si besoin via le Simulateur de plafond PER") +
+            ').</p>') +
+        rapportToolResultHTML(perEstimate.result)
+      ) : '<p class="print-freetext">Calculateur de plafond PER non disponible.</p>') +
+    '</div>';
 
     var html = '<div class="avis-complet-report">' +
       '<div class="avis-watermark">SIMULATION</div>' +
       '<div class="avis-banner">SIMULATION — Document non officiel à but pédagogique</div>' +
       printHeaderHTML("Simulation d'avis d'imposition — " + (clientName || "")) +
 
-      '<div class="avis-section"><h2>1. Identification</h2><table>' +
-        row("Nom du foyer fiscal", clientName || "—") +
-        row("Numéro fiscal (simulation)", numFiscal) +
-        (adresse ? row("Adresse fiscale", adresse) : "") +
-        row("Date de la simulation", dateStr) +
-      '</table></div>' +
-
-      '<div class="avis-section"><h2>2. Revenus déclarés</h2>' +
-        (e.revenuDetail ? '<table>' + e.revenuDetail.lignes.map(function(l){ return row(l.label.replace("Revenus déclarés — ",""), l.value); }).join("") + '</table>'
-          : '<p class="print-freetext">Ancien format de simulation (revenu net imposable global, sans détail par catégorie).</p>') +
+      '<div class="avis-summary">' +
+        summaryItem(euro.format(e.revenuNetImposableBareme), "Revenu net imposable") +
+        summaryItem(euro.format(e.irNet), "Impôt net (barème)") +
+        summaryItem(euro.format(e.rfrEstime), "Revenu fiscal de référence") +
+        summaryItem(euro.format(Math.abs(e.soldeNet)), e.soldeNet>=0 ? "Solde restant à payer" : "Solde à rembourser") +
       '</div>' +
 
-      '<div class="avis-section"><h2>3. Calcul du revenu net imposable</h2><table>' +
+      section("1", "Identification", identiteHTML) +
+
+      section("2", "Revenus déclarés",
+        e.revenuDetail ? tableHTML(e.revenuDetail.lignes.map(function(l){ return row(l.label.replace("Revenus déclarés — ",""), l.value); }).join(""))
+          : '<p class="print-freetext">Ancien format de simulation (revenu net imposable global, sans détail par catégorie).</p>') +
+
+      section("3", "Calcul du revenu net imposable", tableHTML(
         row("Revenu net imposable avant charges déductibles", euro.format(e.revenuNetImposableAvantCharges)) +
         row("Charges déductibles du revenu global", euro.format(e.chargesDeductibles)) +
-        row("Revenu net imposable", euro.format(e.revenuNetImposableBareme)) +
-      '</table></div>' +
+        row("Revenu net imposable", euro.format(e.revenuNetImposableBareme))
+      )) +
 
-      '<div class="avis-section"><h2>4. Parts et quotient familial</h2><table>' +
+      section("4", "Parts et quotient familial", tableHTML(
         row("Nombre de parts retenues", explicationParts) +
-        row("Quotient familial (revenu net imposable ÷ parts)", euro.format(e.qf)) +
-      '</table></div>' +
+        row("Quotient familial (revenu net imposable ÷ parts)", euro.format(e.qf))
+      )) +
 
-      '<div class="avis-section"><h2>5. Impôt sur les revenus soumis au barème</h2><table>' +
+      section("5", "Impôt sur les revenus soumis au barème", tableHTML(
         row("Impôt avant plafonnement du quotient familial", euro.format(e.irAvantPlafonnement)) +
         row("Impôt sur la base de " + e.partsDeBase + " part(s) (sans les parts supplémentaires)", euro.format(e.irBase)) +
         row("Plafond de l'avantage lié aux parts supplémentaires", euro.format(e.plafondAvantage)) +
-        row("Impôt après plafonnement du quotient familial", euro.format(e.irApresPlafonnement)) +
-      '</table></div>' +
+        row("Impôt après plafonnement du quotient familial", euro.format(e.irApresPlafonnement))
+      )) +
 
-      '<div class="avis-section"><h2>6. Décote, réductions et crédits d\'impôt</h2><table>' +
+      section("6", "Décote, réductions et crédits d'impôt", tableHTML(
         row("Décote", euro.format(e.decote)) +
-        row("Crédits et réductions d'impôt déclarés", euro.format(e.creditsImpot)) +
-      '</table></div>' +
+        row("Crédits et réductions d'impôt déclarés", euro.format(e.creditsImpot))
+      )) +
 
-      '<div class="avis-section"><h2>7. Impôt net et contributions sociales</h2><table>' +
+      section("7", "Impôt net et contributions sociales", tableHTML(
         row("Impôt net sur le revenu (barème)", euro.format(e.irNet)) +
         (e.revenuDetail && e.revenuDetail.totalPfuEtSocial>0 ? row("Prélèvement forfaitaire (PFU, part IR 12,8%) sur capitaux mobiliers/plus-values", euro.format(e.revenuDetail.irPfu)) : "") +
         (e.revenuDetail && e.revenuDetail.psSurCapitaux>0 ? row("Contributions sociales (17,2%) sur revenus du patrimoine", euro.format(e.revenuDetail.psSurCapitaux)) : "") +
-        row("Total dû avant imputations", euro.format(e.totalDuAvantImputations)) +
-      '</table></div>' +
+        row("Total dû avant imputations", euro.format(e.totalDuAvantImputations))
+      )) +
 
-      '<div class="avis-section"><h2>8. Retenue à la source et solde</h2><table>' +
+      section("8", "Retenue à la source et solde", tableHTML(
         row("Retenue à la source déjà prélevée", euro.format(e.retenueALaSource)) +
-        row(e.soldeNet>=0 ? "Solde restant à payer" : "Solde à rembourser", euro.format(Math.abs(e.soldeNet))) +
-      '</table></div>' +
+        row(e.soldeNet>=0 ? "Solde restant à payer" : "Solde à rembourser", euro.format(Math.abs(e.soldeNet)))
+      )) +
 
-      '<div class="avis-section"><h2>9. Revenu fiscal de référence</h2><table>' +
-        row("RFR estimé", euro.format(e.rfrEstime)) +
-      '</table></div>' +
+      section("9", "Revenu fiscal de référence", tableHTML(
+        row("RFR estimé", euro.format(e.rfrEstime))
+      )) +
 
-      '<div class="avis-section"><h2>10. Votre situation</h2><table>' +
+      section("10", "Votre situation", tableHTML(
         row("Tranche marginale d'imposition (TMI)", pct(e.tmi,0)) +
-        (e.margeFoyer!==null ? row("Marge avant la tranche supérieure", euro.format(e.margeFoyer)) : row("Tranche marginale", "Déjà au taux maximal (45 %)")) +
-      '</table></div>' +
+        (e.margeFoyer!==null ? row("Marge avant la tranche supérieure", euro.format(e.margeFoyer)) : row("Tranche marginale", "Déjà au taux maximal (45 %)"))
+      )) +
 
-      '<div class="avis-section"><h2>11. Plafond épargne retraite (PER) disponible</h2>' +
-        (perEstimate ? (
-          (perEstimate.source === "simulation"
-            ? '<p class="print-freetext">Basé sur la simulation de plafond PER enregistrée le ' + new Date(perEstimate.timestamp).toLocaleDateString("fr-FR") + '.</p>'
-            : '<p class="print-freetext">Estimation calculée à partir des revenus déjà saisis dans cet avis (statut ' +
-              (perEstimate.isTns ? "travailleur non salarié, déduit de vos BIC/BNC déclarés" : "salarié par défaut — à ajuster si besoin via le Simulateur de plafond PER") +
-              ').</p>') +
-          rapportToolResultHTML(perEstimate.result)
-        ) : '<p class="print-freetext">Calculateur de plafond PER non disponible.</p>') +
-      '</div>' +
+      section("11", "Plafond épargne retraite (PER) disponible", perBodyHTML) +
 
       '<div class="print-footer avis-footer">Simulation réalisée par ' + escapeHTML(profile.nomCabinet || "CGP Pro") + ' à titre indicatif — ne constitue pas un document fiscal officiel et ne peut être utilisé comme justificatif.</div>' +
     '</div>';
