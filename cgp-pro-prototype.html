@@ -299,6 +299,29 @@
     .print-bullet-list li{margin-bottom:4px;}
   }
 
+  /* Export complet "avis d'imposition" — garde-fous anti-confusion avec un document officiel obligatoires :
+     bandeau + filigrane "SIMULATION" sur chaque page, aucune reprise d'éléments visuels administratifs. */
+  @media print{
+    .avis-complet-report{position:relative;}
+    .avis-watermark{
+      position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);
+      font-size:5.5rem;font-weight:800;letter-spacing:.3em;color:rgba(90,90,90,0.11);
+      white-space:nowrap;z-index:0;pointer-events:none;
+    }
+    .avis-banner{
+      background:#fbeee0;color:#8a5a1c;border:1px solid #eecfa0;border-radius:6px;
+      padding:9px 16px;font-size:.8rem;font-weight:700;letter-spacing:.03em;text-align:center;
+      margin-bottom:16px;
+    }
+    .avis-section{page-break-inside:avoid;margin-bottom:18px;position:relative;}
+    .avis-section h2{font-size:.92rem;color:var(--navy);border-bottom:1px solid var(--border);padding-bottom:5px;margin:0 0 10px;}
+    .avis-section table{width:100%;border-collapse:collapse;font-size:.83rem;}
+    .avis-section td{padding:6px 8px;border-bottom:1px solid #eee;}
+    .avis-section td:first-child{color:#555;}
+    .avis-section td:last-child{text-align:right;font-weight:700;white-space:nowrap;padding-left:14px;}
+    .avis-footer{font-weight:700;color:#8a5a1c;}
+  }
+
   /* Écran de configuration du rapport patrimonial */
   .rapport-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
   .rapport-group{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;}
@@ -492,6 +515,8 @@
     ]},
     {id:"nombreEnfants", label:"Nombre d'enfants à charge", type:"number", default:0, step:1, section:"Identité"},
     {id:"tmi", label:"Tranche marginale d'imposition (TMI)", type:"number", suffix:"%", default:30, step:1, section:"Identité"},
+    {id:"adresseFiscale", label:"Adresse fiscale du foyer (optionnel)", type:"text", default:"", section:"Identité",
+      help:"Utilisée uniquement pour l'export complet du Simulateur d'avis d'imposition."},
     {id:"revenusMensuelsNets", label:"Revenus nets mensuels du foyer", type:"number", suffix:"€", default:0, step:100, section:"Revenus & charges"},
     {id:"revenusLocatifsExistants", label:"Revenus locatifs déjà perçus", type:"number", suffix:"€", default:0, step:50, section:"Revenus & charges"},
     {id:"chargesMensuellesCredits", label:"Mensualités de crédits en cours", type:"number", suffix:"€", default:0, step:50, section:"Revenus & charges"},
@@ -697,7 +722,7 @@
     var revenuNetImposableBareme = 0;
     var pfuAssiette = 0;
     var psSurCapitaux = 0;
-    var netBicTns = 0, netBncTns = 0;
+    var netBicTns = 0, netBncTns = 0, netSalaires = 0, netPensions = 0;
 
     if(cat.salaires && cat.salaires.actif){
       var brutS = cat.salaires.montantBrut||0, netS;
@@ -710,12 +735,14 @@
         lignes.push({label:"Revenus déclarés — Traitements et salaires (abattement 10%)", value: euro.format(netS) + " net (brut " + euro.format(brutS) + ")"});
       }
       revenuNetImposableBareme += netS;
+      netSalaires = netS;
     }
     if(cat.pensions && cat.pensions.actif){
       var brutP = cat.pensions.montant||0;
       var abatP = Math.min(A.pensionsPlafond, Math.max(A.pensionsPlancher, brutP*0.10));
       var netP = Math.max(0, brutP - Math.min(abatP, brutP));
       revenuNetImposableBareme += netP;
+      netPensions = netP;
       lignes.push({label:"Revenus déclarés — Pensions et retraites (abattement 10%)", value: euro.format(netP) + " net (brut " + euro.format(brutP) + ")"});
     }
     if(cat.fonciers && cat.fonciers.actif){
@@ -792,6 +819,8 @@
       totalPfuEtSocial: totalPfuEtSocial,
       netBicTns: netBicTns,
       netBncTns: netBncTns,
+      netSalaires: netSalaires,
+      netPensions: netPensions,
       isTns: !!((cat.bic && cat.bic.actif) || (cat.bnc && cat.bnc.actif))
     };
   }
@@ -2001,7 +2030,9 @@
         // simplement sans détail de catégories ni bloc PFU.
         var cat = inputs.revenusCategorises;
         var revenuDetail = (cat && hasAnyCategorieActive(cat)) ? computeRevenusCategorises(cat) : null;
-        var revenu = revenuDetail ? revenuDetail.revenuNetImposableBareme : Math.max(0, inputs.revenuNetImposable||0);
+        var revenuAvantCharges = revenuDetail ? revenuDetail.revenuNetImposableBareme : Math.max(0, inputs.revenuNetImposable||0);
+        var chargesDeductibles = Math.max(0, inputs.chargesDeductibles||0);
+        var revenu = Math.max(0, revenuAvantCharges - chargesDeductibles);
 
         var parts = Math.max(0.5, inputs.nombreParts||1);
         var partsDeBase = inputs.imposeCommun ? 2 : 1;
@@ -2039,10 +2070,17 @@
           (margeFoyer!==null ? ", et une marge de <strong>" + euro.format(margeFoyer) + "</strong> avant de basculer dans la tranche supérieure." : ", déjà dans la tranche marginale la plus élevée du barème.") +
           (revenuDetail && revenuDetail.totalPfuEtSocial>0 ? " À cela s'ajoutent <strong>" + euro.format(revenuDetail.totalPfuEtSocial) + "</strong> de PFU et prélèvements sociaux sur les revenus de capitaux mobiliers et plus-values non soumis au barème — une imposition distincte." : "");
 
+        var creditsImpot = Math.max(0, inputs.creditsImpot||0);
+        var retenueALaSource = Math.max(0, inputs.retenueALaSource||0);
+        var totalDuAvantImputations = irNet + (revenuDetail ? revenuDetail.totalPfuEtSocial : 0);
+        var soldeNet = totalDuAvantImputations - creditsImpot - retenueALaSource;
+
         var details = [];
         if(revenuDetail){
           details = details.concat(revenuDetail.lignes);
-          details.push({label:"Revenu net imposable total (barème)", value: euro.format(revenuDetail.revenuNetImposableBareme)});
+          details.push({label:"Revenu net imposable avant charges déductibles", value: euro.format(revenuAvantCharges)});
+          if(chargesDeductibles>0){ details.push({label:"Charges déductibles du revenu global", value: euro.format(chargesDeductibles)}); }
+          details.push({label:"Revenu net imposable total (barème)", value: euro.format(revenu)});
         }
         details = details.concat([
           {label:"Quotient familial (revenu ÷ parts)", value: euro.format(qf)},
@@ -2063,6 +2101,14 @@
             {label:"Total PFU + prélèvements sociaux sur capitaux", value: euro.format(revenuDetail.totalPfuEtSocial)}
           );
         }
+        if(creditsImpot>0 || retenueALaSource>0){
+          details.push(
+            {label:"Total dû avant imputations (barème + PFU/PS)", value: euro.format(totalDuAvantImputations)},
+            {label:"Crédits et réductions d'impôt", value: euro.format(creditsImpot)},
+            {label:"Retenue à la source déjà prélevée", value: euro.format(retenueALaSource)},
+            {label: soldeNet>=0 ? "Solde restant à payer" : "Solde à rembourser", value: euro.format(Math.abs(soldeNet))}
+          );
+        }
 
         var keyFigures = [
           {label:"Impôt net à payer (barème)", value: euro.format(irNet)},
@@ -2079,7 +2125,22 @@
           details: details,
           chart:null,
           warnings: warnings,
-          summaryHTML: summaryHTML
+          summaryHTML: summaryHTML,
+          // Chiffres bruts (non formatés) pour l'export complet ("avis d'imposition" détaillé), qui a besoin
+          // de composer ses propres rubriques sans reparser les chaînes déjà formatées ci-dessus.
+          extra: {
+            revenuDetail: revenuDetail,
+            revenuNetImposableAvantCharges: revenuAvantCharges,
+            chargesDeductibles: chargesDeductibles,
+            revenuNetImposableBareme: revenu,
+            parts: parts, partsDeBase: partsDeBase, imposeCommun: !!inputs.imposeCommun,
+            qf: qf,
+            irAvantPlafonnement: irAvantPlafonnement, irBase: irBase, demiPartsSupp: demiPartsSupp,
+            plafondAvantage: plafondAvantage, irApresPlafonnement: irApresPlafonnement,
+            decote: decote, irNet: irNet, tmi: tmi, margeFoyer: margeFoyer, rfrEstime: rfrEstime,
+            creditsImpot: creditsImpot, retenueALaSource: retenueALaSource,
+            totalDuAvantImputations: totalDuAvantImputations, soldeNet: soldeNet
+          }
         };
       }
     },
@@ -3266,6 +3327,146 @@
     recalc();
   }
 
+  // Identifiant fiscal FICTIF affiché sur l'export complet — jamais un format à 13 chiffres (celui du vrai
+  // numéro fiscal), toujours préfixé "SIMU-" pour qu'aucune confusion avec un document officiel ne soit
+  // possible. Dérivé de façon déterministe de l'id client pour rester stable d'un export à l'autre.
+  function numeroFiscalFictif(client){
+    var seed = (client && client.id) ? client.id : "anonyme-" + Date.now();
+    var hash = 0;
+    for(var i=0;i<seed.length;i++){ hash = (hash*31 + seed.charCodeAt(i)) >>> 0; }
+    var digits = String(hash % 1000000000).padStart(9, "0");
+    return "SIMU-" + digits;
+  }
+
+  // Plafond épargne retraite (PER) pour l'export complet de l'avis d'imposition : réutilise le calculateur
+  // "Simulateur de plafond PER" existant (même compute(), aucune logique dupliquée). Priorité à une
+  // simulation de plafond PER déjà enregistrée pour ce client ; à défaut, estimation directe à partir des
+  // revenus déjà saisis dans cet avis (statut TNS déduit des BIC/BNC actifs, comme ailleurs dans l'app),
+  // pour ne jamais bloquer l'export faute d'avoir pré-rempli l'autre calculateur.
+  function estimatePlafondPerForAvis(avisInputs, client){
+    var perTool = TOOLS_BY_ID["plafond-per"];
+    if(!perTool || perTool.status !== "ready") return null;
+    if(client){
+      var sims = getSimulations().filter(function(s){ return s.clientId === client.id && s.toolId === "plafond-per"; });
+      if(sims.length){
+        return {result: perTool.compute(sims[0].inputs), source:"simulation", timestamp: sims[0].timestamp, isTns:null};
+      }
+    }
+    var cat = avisInputs.revenusCategorises;
+    var detail = (cat && hasAnyCategorieActive(cat)) ? computeRevenusCategorises(cat) : null;
+    var isTns = detail ? detail.isTns : false;
+    var perInputs = {};
+    perTool.fields.forEach(function(f){ perInputs[f.id] = f.default; });
+    perInputs.statutProfessionnel = isTns ? "tns" : "salarie";
+    if(isTns){
+      var benefice = detail.netBicTns + detail.netBncTns;
+      if(benefice>0) perInputs.beneficeImposable = benefice;
+    } else if(detail && detail.netSalaires>0){
+      perInputs.revenuNetImposableN1 = detail.netSalaires;
+    }
+    return {result: perTool.compute(perInputs), source:"estimation", isTns: isTns};
+  }
+
+  // Export complet, façon avis d'imposition détaillé : reprend toutes les rubriques d'un vrai avis, avec les
+  // garde-fous obligatoires (bandeau + filigrane "SIMULATION", aucun élément visuel officiel, numéro fiscal
+  // fictif, mention de non-officialité en pied de page) — jamais destiné à se substituer à un vrai document.
+  // Réutilise le même mécanisme (#printReport + window.print()) et les mêmes classes visuelles de base que
+  // l'export PDF simple, pour rester cohérent.
+  function exportAvisComplet(inputs, result, client, clientName){
+    if(!result || !result.extra) return;
+    var reportEl = document.getElementById("printReport");
+    var dateStr = new Date().toLocaleDateString("fr-FR", {year:"numeric", month:"long", day:"numeric"});
+    var profile = getCabinetProfile();
+    var e = result.extra;
+    var numFiscal = numeroFiscalFictif(client);
+    var adresse = client && client.adresseFiscale ? client.adresseFiscale : "";
+    var perEstimate = estimatePlafondPerForAvis(inputs, client);
+
+    function row(label, value){ return '<tr><td>' + escapeHTML(label) + '</td><td>' + escapeHTML(value) + '</td></tr>'; }
+
+    var explicationParts = (e.parts + " part(s) — " +
+      (e.imposeCommun ? "vous êtes marié(e) ou pacsé(e)" : "vous êtes imposé(e) seul(e)") +
+      (e.parts > e.partsDeBase ? ", majorées des parts liées aux enfants à charge" : ""));
+
+    var html = '<div class="avis-complet-report">' +
+      '<div class="avis-watermark">SIMULATION</div>' +
+      '<div class="avis-banner">SIMULATION — Document non officiel à but pédagogique</div>' +
+      printHeaderHTML("Simulation d'avis d'imposition — " + (clientName || "")) +
+
+      '<div class="avis-section"><h2>1. Identification</h2><table>' +
+        row("Nom du foyer fiscal", clientName || "—") +
+        row("Numéro fiscal (simulation)", numFiscal) +
+        (adresse ? row("Adresse fiscale", adresse) : "") +
+        row("Date de la simulation", dateStr) +
+      '</table></div>' +
+
+      '<div class="avis-section"><h2>2. Revenus déclarés</h2>' +
+        (e.revenuDetail ? '<table>' + e.revenuDetail.lignes.map(function(l){ return row(l.label.replace("Revenus déclarés — ",""), l.value); }).join("") + '</table>'
+          : '<p class="print-freetext">Ancien format de simulation (revenu net imposable global, sans détail par catégorie).</p>') +
+      '</div>' +
+
+      '<div class="avis-section"><h2>3. Calcul du revenu net imposable</h2><table>' +
+        row("Revenu net imposable avant charges déductibles", euro.format(e.revenuNetImposableAvantCharges)) +
+        row("Charges déductibles du revenu global", euro.format(e.chargesDeductibles)) +
+        row("Revenu net imposable", euro.format(e.revenuNetImposableBareme)) +
+      '</table></div>' +
+
+      '<div class="avis-section"><h2>4. Parts et quotient familial</h2><table>' +
+        row("Nombre de parts retenues", explicationParts) +
+        row("Quotient familial (revenu net imposable ÷ parts)", euro.format(e.qf)) +
+      '</table></div>' +
+
+      '<div class="avis-section"><h2>5. Impôt sur les revenus soumis au barème</h2><table>' +
+        row("Impôt avant plafonnement du quotient familial", euro.format(e.irAvantPlafonnement)) +
+        row("Impôt sur la base de " + e.partsDeBase + " part(s) (sans les parts supplémentaires)", euro.format(e.irBase)) +
+        row("Plafond de l'avantage lié aux parts supplémentaires", euro.format(e.plafondAvantage)) +
+        row("Impôt après plafonnement du quotient familial", euro.format(e.irApresPlafonnement)) +
+      '</table></div>' +
+
+      '<div class="avis-section"><h2>6. Décote, réductions et crédits d\'impôt</h2><table>' +
+        row("Décote", euro.format(e.decote)) +
+        row("Crédits et réductions d'impôt déclarés", euro.format(e.creditsImpot)) +
+      '</table></div>' +
+
+      '<div class="avis-section"><h2>7. Impôt net et contributions sociales</h2><table>' +
+        row("Impôt net sur le revenu (barème)", euro.format(e.irNet)) +
+        (e.revenuDetail && e.revenuDetail.totalPfuEtSocial>0 ? row("Prélèvement forfaitaire (PFU, part IR 12,8%) sur capitaux mobiliers/plus-values", euro.format(e.revenuDetail.irPfu)) : "") +
+        (e.revenuDetail && e.revenuDetail.psSurCapitaux>0 ? row("Contributions sociales (17,2%) sur revenus du patrimoine", euro.format(e.revenuDetail.psSurCapitaux)) : "") +
+        row("Total dû avant imputations", euro.format(e.totalDuAvantImputations)) +
+      '</table></div>' +
+
+      '<div class="avis-section"><h2>8. Retenue à la source et solde</h2><table>' +
+        row("Retenue à la source déjà prélevée", euro.format(e.retenueALaSource)) +
+        row(e.soldeNet>=0 ? "Solde restant à payer" : "Solde à rembourser", euro.format(Math.abs(e.soldeNet))) +
+      '</table></div>' +
+
+      '<div class="avis-section"><h2>9. Revenu fiscal de référence</h2><table>' +
+        row("RFR estimé", euro.format(e.rfrEstime)) +
+      '</table></div>' +
+
+      '<div class="avis-section"><h2>10. Votre situation</h2><table>' +
+        row("Tranche marginale d'imposition (TMI)", pct(e.tmi,0)) +
+        (e.margeFoyer!==null ? row("Marge avant la tranche supérieure", euro.format(e.margeFoyer)) : row("Tranche marginale", "Déjà au taux maximal (45 %)")) +
+      '</table></div>' +
+
+      '<div class="avis-section"><h2>11. Plafond épargne retraite (PER) disponible</h2>' +
+        (perEstimate ? (
+          (perEstimate.source === "simulation"
+            ? '<p class="print-freetext">Basé sur la simulation de plafond PER enregistrée le ' + new Date(perEstimate.timestamp).toLocaleDateString("fr-FR") + '.</p>'
+            : '<p class="print-freetext">Estimation calculée à partir des revenus déjà saisis dans cet avis (statut ' +
+              (perEstimate.isTns ? "travailleur non salarié, déduit de vos BIC/BNC déclarés" : "salarié par défaut — à ajuster si besoin via le Simulateur de plafond PER") +
+              ').</p>') +
+          rapportToolResultHTML(perEstimate.result)
+        ) : '<p class="print-freetext">Calculateur de plafond PER non disponible.</p>') +
+      '</div>' +
+
+      '<div class="print-footer avis-footer">Simulation réalisée par ' + escapeHTML(profile.nomCabinet || "CGP Pro") + ' à titre indicatif — ne constitue pas un document fiscal officiel et ne peut être utilisé comme justificatif.</div>' +
+    '</div>';
+
+    reportEl.innerHTML = html;
+    window.print();
+  }
+
   /* ============================ Simulateur d'avis d'imposition (rendu sur mesure) ============================ */
   // Interface dédiée : catégories de revenus dépliables (une par source fiscale), chacune avec ses propres
   // sous-champs et son régime (micro/réel, forfaitaire/frais réels, PFU/barème...). Ne passe pas par
@@ -3286,23 +3487,28 @@
       return base;
     }
     function stateFromInputs(inputs){
+      var common = {
+        chargesDeductibles: inputs.chargesDeductibles||0,
+        creditsImpot: inputs.creditsImpot||0,
+        retenueALaSource: inputs.retenueALaSource||0
+      };
       if(inputs.revenusCategorises){
-        return {
+        return Object.assign({
           imposeCommun: inputs.imposeCommun !== undefined ? inputs.imposeCommun : true,
           nombreParts: inputs.nombreParts !== undefined ? inputs.nombreParts : 2,
           revenusCategorises: mergeCategorises(inputs.revenusCategorises)
-        };
+        }, common);
       }
       // Compatibilité ascendante : simulation enregistrée avant la ventilation par catégorie.
       var cat = defaultRevenusCategorises();
       if(inputs.revenuNetImposable){
         cat.salaires = {actif:true, montantBrut: Math.round((inputs.revenuNetImposable||0)/0.9), fraisReels:false, montantFraisReels:0};
       }
-      return {
+      return Object.assign({
         imposeCommun: inputs.imposeCommun !== undefined ? inputs.imposeCommun : true,
         nombreParts: inputs.nombreParts !== undefined ? inputs.nombreParts : 2,
         revenusCategorises: cat
-      };
+      }, common);
     }
 
     var client = selectedClientId ? getClientById(selectedClientId) : null;
@@ -3313,12 +3519,13 @@
       state = {
         imposeCommun: client.statutCouple === "marie" || client.statutCouple === "pacse",
         nombreParts: computePartsFiscalesEstimees(client),
-        revenusCategorises: mergeCategorises(client.revenusCategorises)
+        revenusCategorises: mergeCategorises(client.revenusCategorises),
+        chargesDeductibles:0, creditsImpot:0, retenueALaSource:0
       };
     } else if(client){
       state = stateFromInputs(buildAvisImpositionInputsFromClient(client));
     } else {
-      state = {imposeCommun:true, nombreParts:2, revenusCategorises: defaultRevenusCategorises()};
+      state = {imposeCommun:true, nombreParts:2, revenusCategorises: defaultRevenusCategorises(), chargesDeductibles:0, creditsImpot:0, retenueALaSource:0};
     }
 
     var clientOptionsHTML = '<option value="">— Aucun / autre —</option>' +
@@ -3412,6 +3619,12 @@
         '</div>' +
         '<div class="subsection-title">Revenus déclarés par catégorie</div>' +
         '<div id="avisCategoriesWrap">' + REVENU_CATEGORIES_META.map(function(m){ return categoryBlockHTML(m, state.revenusCategorises[m.id]); }).join("") + '</div>' +
+        '<div class="subsection-title">Éléments complémentaires (pour l\'export complet)</div>' +
+        '<div class="form-grid">' +
+          '<div class="field"><label for="ai_chargesDeductibles">Charges déductibles du revenu global</label><div class="input-suffix"><input type="number" id="ai_chargesDeductibles" value="' + state.chargesDeductibles + '" step="100"><span class="suffix">€</span></div></div>' +
+          '<div class="field"><label for="ai_creditsImpot">Crédits et réductions d\'impôt</label><div class="input-suffix"><input type="number" id="ai_creditsImpot" value="' + state.creditsImpot + '" step="50"><span class="suffix">€</span></div></div>' +
+          '<div class="field"><label for="ai_retenueALaSource">Retenue à la source déjà prélevée</label><div class="input-suffix"><input type="number" id="ai_retenueALaSource" value="' + state.retenueALaSource + '" step="50"><span class="suffix">€</span></div></div>' +
+        '</div>' +
       '</div>' +
       (tool.referenceHTML ? '<div class="reference-panel tech-detail">' + tool.referenceHTML + '</div>' : '') +
       '<hr class="sep">' +
@@ -3425,6 +3638,7 @@
         '<div class="actions-buttons">' +
           '<button class="btn btn-outline" id="presentBtn" type="button">🖥 Mode présentation</button>' +
           '<button class="btn btn-outline" id="pdfBtn" type="button">⤓ Exporter en PDF</button>' +
+          '<button class="btn btn-outline" id="pdfCompletBtn" type="button">📋 Exporter la simulation complète</button>' +
           '<button class="btn btn-primary" id="saveBtn" type="button">💾 Enregistrer pour ce client</button>' +
         '</div>' +
         '<div class="save-msg" id="saveMsg"></div>' +
@@ -3434,7 +3648,10 @@
     var lastInputs = null, lastResult = null;
 
     function currentInputs(){
-      return {imposeCommun: state.imposeCommun, nombreParts: state.nombreParts, revenusCategorises: state.revenusCategorises};
+      return {
+        imposeCommun: state.imposeCommun, nombreParts: state.nombreParts, revenusCategorises: state.revenusCategorises,
+        chargesDeductibles: state.chargesDeductibles, creditsImpot: state.creditsImpot, retenueALaSource: state.retenueALaSource
+      };
     }
 
     function recalc(){
@@ -3486,6 +3703,9 @@
 
     document.getElementById("ai_imposeCommun").addEventListener("change", function(e){ state.imposeCommun = e.target.checked; recalc(); });
     document.getElementById("ai_nombreParts").addEventListener("input", function(e){ state.nombreParts = parseFloat(e.target.value)||1; recalc(); });
+    document.getElementById("ai_chargesDeductibles").addEventListener("input", function(e){ state.chargesDeductibles = parseFloat(e.target.value)||0; recalc(); });
+    document.getElementById("ai_creditsImpot").addEventListener("input", function(e){ state.creditsImpot = parseFloat(e.target.value)||0; recalc(); });
+    document.getElementById("ai_retenueALaSource").addEventListener("input", function(e){ state.retenueALaSource = parseFloat(e.target.value)||0; recalc(); });
     REVENU_CATEGORIES_META.forEach(function(meta){
       wireCategoryBlock(main.querySelector('[data-cat-block="' + meta.id + '"]'));
     });
@@ -3497,15 +3717,19 @@
         state = {
           imposeCommun: newClient.statutCouple === "marie" || newClient.statutCouple === "pacse",
           nombreParts: computePartsFiscalesEstimees(newClient),
-          revenusCategorises: mergeCategorises(newClient.revenusCategorises)
+          revenusCategorises: mergeCategorises(newClient.revenusCategorises),
+          chargesDeductibles:0, creditsImpot:0, retenueALaSource:0
         };
       } else if(newClient){
         state = stateFromInputs(buildAvisImpositionInputsFromClient(newClient));
       } else {
-        state = {imposeCommun:true, nombreParts:2, revenusCategorises: defaultRevenusCategorises()};
+        state = {imposeCommun:true, nombreParts:2, revenusCategorises: defaultRevenusCategorises(), chargesDeductibles:0, creditsImpot:0, retenueALaSource:0};
       }
       document.getElementById("ai_imposeCommun").checked = state.imposeCommun;
       document.getElementById("ai_nombreParts").value = state.nombreParts;
+      document.getElementById("ai_chargesDeductibles").value = state.chargesDeductibles;
+      document.getElementById("ai_creditsImpot").value = state.creditsImpot;
+      document.getElementById("ai_retenueALaSource").value = state.retenueALaSource;
       REVENU_CATEGORIES_META.forEach(renderCategoryBlock);
       document.getElementById("clientName").value = newClient ? clientFullName(newClient) : "";
       recalc();
@@ -3514,6 +3738,10 @@
     document.getElementById("presentBtn").addEventListener("click", enterPresentationMode);
     document.getElementById("pdfBtn").addEventListener("click", function(){
       exportPDF(tool, lastInputs, lastResult, document.getElementById("clientName").value.trim());
+    });
+    document.getElementById("pdfCompletBtn").addEventListener("click", function(){
+      var currentClient = selectedClientId ? getClientById(selectedClientId) : null;
+      exportAvisComplet(lastInputs, lastResult, currentClient, document.getElementById("clientName").value.trim());
     });
     document.getElementById("saveBtn").addEventListener("click", function(){
       if(!lastResult) return;
