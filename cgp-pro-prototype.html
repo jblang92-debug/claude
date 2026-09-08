@@ -171,10 +171,11 @@
   .input-suffix{position:relative;display:flex;align-items:center;}
   .input-suffix input{width:100%;}
   .input-suffix .suffix{position:absolute;right:12px;font-size:.85rem;color:var(--muted);pointer-events:none;}
-  input[type=number], input[type=text], select{
+  input[type=number], input[type=text], select, textarea{
     width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;
     font-size:.95rem;background:#fff;color:var(--ink);font-family:inherit;
   }
+  textarea{resize:vertical;line-height:1.5;}
   input[type=number]{padding-right:44px;}
   .help{font-size:.75rem;color:#8a97a6;}
   .btn{border:none;border-radius:8px;padding:11px 18px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit;}
@@ -253,7 +254,48 @@
     .print-details table, .print-inputs table{width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:18px;}
     .print-details td, .print-inputs td{padding:6px 8px;border-bottom:1px solid #ddd;}
     .print-footer{font-size:.72rem;color:#777;margin-top:20px;border-top:1px solid #ddd;padding-top:10px;}
+
+    /* Rapport patrimonial complet (multi-sections) */
+    .print-report{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .print-running-footer{position:fixed;bottom:8mm;left:16mm;right:16mm;font-size:7.5pt;color:#888;border-top:1px solid #ddd;padding-top:4px;text-align:center;}
+    .print-section{page-break-before:always;padding-top:4mm;}
+    .print-section-first{page-break-before:auto;}
+    .print-section-title{font-size:1.05rem;color:var(--navy);border-bottom:2px solid var(--accent);padding-bottom:6px;margin:0 0 16px;}
+    .print-section table{width:100%;border-collapse:collapse;font-size:.83rem;margin-bottom:14px;}
+    .print-section th, .print-section td{padding:6px 8px;border-bottom:1px solid #ddd;text-align:left;}
+    .print-section thead th{background:var(--navy);color:#fff;}
+    .print-freetext{white-space:normal;font-size:.88rem;color:#333;line-height:1.6;}
+    .print-cover-page{padding-top:0;}
+    .print-cover{display:flex;flex-direction:column;min-height:230mm;}
+    .print-cover-band{background:var(--navy);color:#fff;padding:26px 30px;border-radius:8px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .print-cover-logo{max-height:46px;display:block;margin-bottom:10px;}
+    .print-cover-cabinet{font-size:1.1rem;font-weight:700;letter-spacing:.02em;}
+    .print-cover-title{font-size:2.1rem;font-weight:800;color:var(--navy);margin:70px 0 10px;text-align:center;}
+    .print-cover-client{font-size:1.3rem;color:var(--ink);text-align:center;margin-bottom:6px;}
+    .print-cover-date{font-size:.9rem;color:#666;text-align:center;}
+    .print-cover-advisor{margin-top:auto;padding-top:40px;border-top:1px solid #ddd;font-size:.82rem;color:#555;line-height:1.6;}
+    .print-lettre{white-space:normal;font-size:.92rem;color:#222;line-height:1.75;max-width:640px;}
+    .print-signature{margin-top:30px;font-size:.9rem;font-weight:700;color:var(--navy);}
+    .print-toc-group{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin:14px 0 4px;}
+    .print-toc-row{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dotted #ccc;padding:5px 0;font-size:.88rem;}
+    .print-toc-row .toc-page{color:#777;}
+    .print-toc-note{margin-top:16px;font-size:.72rem;color:#888;font-style:italic;}
   }
+
+  /* Écran de configuration du rapport patrimonial */
+  .rapport-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+  .rapport-group{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;}
+  .rapport-group > summary{cursor:pointer;padding:14px 18px;font-weight:700;color:var(--navy);list-style:none;display:flex;align-items:center;gap:8px;}
+  .rapport-group > summary::-webkit-details-marker{display:none;}
+  .rapport-group > summary::before{content:"▸";display:inline-block;transition:transform .15s;color:var(--accent);}
+  .rapport-group[open] > summary::before{transform:rotate(90deg);}
+  .rapport-group-body{padding:0 18px 16px;}
+  .rapport-section-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px 16px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .rapport-section-row:last-child{border-bottom:none;}
+  .rapport-section-row > label{flex:0 0 260px;font-size:.9rem;font-weight:600;cursor:pointer;padding-top:10px;}
+  .rapport-freetext-wrap{flex:1 1 320px;min-width:260px;}
+  .rapport-toplevel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:6px 18px;margin-bottom:14px;}
+  .rapport-mentions-note{font-size:.8rem;color:var(--muted);padding:10px 18px;}
 
   @media (max-width:600px){
     .key-figure .value{font-size:1.4rem;}
@@ -459,6 +501,54 @@
     projetTransmission: ["succession","demembrement","ifi"]
   };
 
+  // Registre des sections disponibles pour le rapport patrimonial complet (module Bilan patrimonial).
+  // group:null = section de premier niveau (hors catégories repliables). freeText = un espace de texte
+  // libre est proposé (pas de calculateur dédié dans l'app pour ce sujet). always = jamais désactivable.
+  var RAPPORT_GROUPS = [
+    {id:"analyse", label:"Analyse de la situation"},
+    {id:"objectifs", label:"Objectifs et préconisations"}
+  ];
+  var RAPPORT_SECTIONS = [
+    {id:"couverture", label:"Page de couverture", group:null, defaultOn:true},
+    {id:"lettre", label:"Lettre commerciale / mot d'introduction", group:null, defaultOn:true, freeText:true},
+    {id:"sommaire", label:"Sommaire", group:null, defaultOn:true},
+    {id:"synthese", label:"Synthèse", group:null, defaultOn:true},
+
+    {id:"situationFamiliale", label:"Situation familiale", group:"analyse", defaultOn:true},
+    {id:"patrimoine", label:"Patrimoine", group:"analyse", defaultOn:true},
+    {id:"budget", label:"Budget", group:"analyse", defaultOn:true, freeText:true},
+    {id:"projectionBudgetaire", label:"Projection budgétaire", group:"analyse", defaultOn:true, freeText:true},
+    {id:"impotRevenu", label:"Impôt sur le revenu", group:"analyse", defaultOn:true, freeText:true},
+    {id:"ifiSection", label:"IFI", group:"analyse", defaultOn:true},
+    {id:"pressionFiscale", label:"Pression fiscale", group:"analyse", defaultOn:true, freeText:true},
+    {id:"retraiteSection", label:"Retraite", group:"analyse", defaultOn:true},
+    {id:"prevoyance", label:"Prévoyance", group:"analyse", defaultOn:true, freeText:true},
+    {id:"diagnosticSuccessoral", label:"Diagnostic successoral", group:"analyse", defaultOn:true},
+
+    {id:"objectifsPreconisations", label:"Objectifs et préconisations", group:"objectifs", defaultOn:true, freeText:true},
+    {id:"planAction", label:"Plan d'action", group:"objectifs", defaultOn:true, freeText:true},
+    {id:"profilInvestisseur1", label:"Profil investisseur — Personne 1", group:"objectifs", defaultOn:true, freeText:true},
+    {id:"profilInvestisseur2", label:"Profil investisseur — Personne 2", group:"objectifs", defaultOn:true, freeText:true},
+
+    {id:"simulationsComplementaires", label:"Simulations complémentaires", group:null, defaultOn:true},
+    {id:"annexes", label:"Annexes", group:null, defaultOn:true, freeText:true}
+  ];
+  var RAPPORT_MENTIONS_ID = "mentionsLegales"; // toujours incluse, ne figure pas dans RAPPORT_SECTIONS / n'est pas décochable.
+
+  function defaultRapportConfig(){
+    var sections = RAPPORT_SECTIONS.filter(function(s){ return s.defaultOn; }).map(function(s){ return s.id; });
+    return {sections: sections, textes: {lettre: (getCabinetProfile().lettreCommercialeDefaut || LETTRE_COMMERCIALE_DEFAUT)}};
+  }
+  function getRapportConfig(client){
+    var stored = client.rapportConfig;
+    var def = defaultRapportConfig();
+    if(!stored) return def;
+    return {
+      sections: Array.isArray(stored.sections) ? stored.sections : def.sections,
+      textes: Object.assign({}, def.textes, stored.textes || {})
+    };
+  }
+
   /* ============================ Cabinet (marque blanche) ============================ */
   var CABINET_KEY = "cgppro_cabinet_v1";
   function getCabinetProfile(){
@@ -467,12 +557,23 @@
   }
   function saveCabinetProfile(profile){ localStorage.setItem(CABINET_KEY, JSON.stringify(profile)); }
 
+  var LETTRE_COMMERCIALE_DEFAUT =
+    "Madame, Monsieur,\n\n" +
+    "Suite à notre entretien, nous avons le plaisir de vous remettre cette étude patrimoniale, réalisée sur la base des informations que vous nous avez communiquées.\n\n" +
+    "Ce document a pour objectif de dresser un état des lieux de votre situation patrimoniale, d'identifier vos objectifs prioritaires et de vous proposer des pistes de réflexion adaptées à votre situation.\n\n" +
+    "Cette étude constitue une base de travail : nous restons naturellement à votre disposition pour l'affiner, l'ajuster et l'approfondir au fil de nos échanges.\n\n" +
+    "Nous vous en souhaitons une excellente lecture et restons à votre écoute pour toute question.\n\n" +
+    "Bien cordialement,";
+
   var CABINET_FIELDS = [
     {id:"nomCabinet", label:"Nom du cabinet", type:"text", default:""},
+    {id:"nomConseiller", label:"Nom du conseiller (signature des rapports)", type:"text", default:""},
     {id:"telephone", label:"Téléphone", type:"text", default:""},
     {id:"email", label:"Email", type:"text", default:""},
     {id:"adresse", label:"Adresse", type:"text", default:""},
-    {id:"couleurAccent", label:"Couleur d'accent (optionnel)", type:"color", default:"#9c7a3c"}
+    {id:"couleurAccent", label:"Couleur d'accent (optionnel)", type:"color", default:"#9c7a3c"},
+    {id:"lettreCommercialeDefaut", label:"Texte par défaut de la lettre commerciale (étude patrimoniale)", type:"textarea", rows:10, default:LETTRE_COMMERCIALE_DEFAUT,
+      help:"Utilisé comme point de départ de la lettre d'introduction de chaque rapport ; modifiable au cas par cas lors de la génération d'un rapport."}
   ];
 
   // Applique le nom/logo/couleur du cabinet à la barre de navigation (présente sur tout l'écran, pas
@@ -2033,6 +2134,11 @@
         '<input type="color" id="f_' + f.id + '" value="' + escapeHTML(val||"#9c7a3c") + '" style="height:42px;padding:4px;width:100%;">' +
         (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
     }
+    if(f.type === "textarea"){
+      return '<div ' + wrapAttrs + ' style="grid-column:1/-1;"><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
+        '<textarea id="f_' + f.id + '" rows="' + (f.rows||6) + '">' + escapeHTML(val||"") + '</textarea>' +
+        (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
+    }
     return '<div ' + wrapAttrs + '><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
       '<div class="input-suffix"><input type="number" id="f_' + f.id + '" value="' + escapeHTML(val) + '" step="' + (f.step||"any") + '">' +
       '<span class="suffix">' + escapeHTML(f.suffix||"") + '</span></div>' +
@@ -2114,7 +2220,7 @@
       var elm = document.getElementById("f_" + f.id);
       if(f.type === "select"){ out[f.id] = elm.value; }
       else if(f.type === "checkbox"){ out[f.id] = elm.checked; }
-      else if(f.type === "text" || f.type === "color"){ out[f.id] = elm.value; }
+      else if(f.type === "text" || f.type === "color" || f.type === "textarea"){ out[f.id] = elm.value; }
       else { out[f.id] = parseFloat(elm.value) || 0; }
     });
     return out;
@@ -2211,22 +2317,215 @@
     window.print();
   }
 
-  // Export PDF du Bilan patrimonial complet : une section par outil déclenché, avec ses chiffres clés.
-  function exportBilanPDF(client, sections){
-    var reportEl = document.getElementById("printReport");
+  // ======================= Rapport patrimonial complet (multi-sections) =======================
+  // Chiffres clés + détail d'un résultat tool.compute(), au format impression (réutilisé par plusieurs sections).
+  function rapportToolResultHTML(result){
+    var kf = '<div class="print-keyfigures">' + result.keyFigures.map(function(k){
+      return '<div class="print-kf"><div class="print-kf-value">' + escapeHTML(k.value) + '</div><div class="print-kf-label">' + escapeHTML(k.label) + '</div></div>';
+    }).join("") + '</div>';
+    var details = (result.details||[]).length ?
+      '<table>' + result.details.map(function(d){ return '<tr><td>' + escapeHTML(d.label) + '</td><td>' + escapeHTML(d.value) + '</td></tr>'; }).join("") + '</table>' : '';
+    var summary = result.summaryHTML ? '<p class="print-summary">' + result.summaryHTML + '</p>' : '';
+    return kf + summary + details;
+  }
+
+  // Génère (hors DOM visible) un graphique camembert du patrimoine par catégorie et retourne son image en base64.
+  function rapportPatrimoineChartImg(client){
+    if(typeof Chart === "undefined") return "";
+    var recap = computeRecapPatrimonial(client);
+    var nonZero = recap.rows.filter(function(r){ return r.total > 0; });
+    if(!nonZero.length) return "";
+    var canvas = document.createElement("canvas");
+    canvas.width = 420; canvas.height = 420;
+    var chart = new Chart(canvas.getContext("2d"), {
+      type:"pie",
+      data:{
+        labels: nonZero.map(function(r){ return r.categorie; }),
+        datasets:[{data: nonZero.map(function(r){ return Math.round(r.total); }), backgroundColor:["#122b46","#9c7a3c","#0f7a72","#b3422c","#5b6b7c","#c9a87c","#1c3f63"]}]
+      },
+      options:{responsive:false, animation:false, plugins:{legend:{position:"bottom", labels:{boxWidth:12, font:{size:10}}}}}
+    });
+    var img = "";
+    try{ img = canvas.toDataURL("image/png", 1.0); } catch(e){ img = ""; }
+    chart.destroy();
+    return img ? '<img src="' + img + '" class="print-chart">' : "";
+  }
+
+  // Contenu (hors titre) d'une section du rapport. Les sections adossées à un calculateur existant sont
+  // calculées à partir de la fiche client (buildFullInputsFromClient) ; les autres affichent le texte libre
+  // saisi dans l'écran de configuration (config.textes[id]), faute de calculateur dédié dans l'application.
+  function rapportSectionBodyHTML(client, sectionDef, config){
+    var id = sectionDef.id;
+
+    if(id === "situationFamiliale"){
+      var adultesRows = (client.adultes||[]).map(function(a, i){
+        return '<tr><td>' + (i===0?"Adulte 1":"Adulte 2") + '</td><td>' + escapeHTML(((a.prenom||"")+" "+(a.nom||"")).trim()||"—") + '</td>' +
+          '<td>' + (a.age!==undefined && a.age!==null && a.age!=="" ? escapeHTML(String(a.age))+" ans" : "—") + '</td>' +
+          '<td>' + escapeHTML(a.profession||"—") + '</td></tr>';
+      }).join("");
+      var statutLabel = labelFromList(STATUTS_COUPLE, client.statutCouple);
+      var regimeLabel = client.statutCouple==="marie" ? labelFromList(REGIMES_MARIAGE, client.regimeMatrimonial)
+        : client.statutCouple==="pacse" ? labelFromList(REGIMES_PACS, client.regimePacs) : "";
+      var enfants = client.enfants || [];
+      return '<p><strong>Statut du couple :</strong> ' + escapeHTML(statutLabel) + (regimeLabel ? " (" + escapeHTML(regimeLabel) + ")" : "") + '</p>' +
+        '<table><thead><tr><th></th><th>Nom</th><th>Âge</th><th>Profession</th></tr></thead><tbody>' + adultesRows + '</tbody></table>' +
+        (enfants.length ?
+          '<p style="margin-top:14px;"><strong>Enfants (' + nombreEnfantsACharge(client) + ' à charge fiscalement) :</strong></p>' +
+          '<table><thead><tr><th>Prénom</th><th>Âge</th><th>À charge</th><th>Garde alternée</th></tr></thead><tbody>' +
+          enfants.map(function(e){
+            return '<tr><td>' + escapeHTML(e.prenom||"—") + '</td><td>' + (e.age!==undefined && e.age!==null && e.age!=="" ? escapeHTML(String(e.age)) : "—") + '</td>' +
+              '<td>' + (e.aCharge?"Oui":"Non") + '</td><td>' + (e.gardeAlternee?"Oui":"Non") + '</td></tr>';
+          }).join("") + '</tbody></table>'
+          : '<p class="print-freetext">Aucun enfant renseigné.</p>');
+    }
+
+    if(id === "patrimoine"){
+      var recap = computeRecapPatrimonial(client);
+      return '<table><thead><tr><th>Catégorie</th>' +
+          recap.owners.map(function(o){ return '<th>' + escapeHTML(recap.ownerLabels[o]) + '</th>'; }).join("") + '<th>Total</th></tr></thead><tbody>' +
+          recap.rows.map(function(r){
+            return '<tr><td>' + escapeHTML(r.categorie) + '</td>' + recap.owners.map(function(o){ return '<td>' + euro.format(r.values[o]) + '</td>'; }).join("") + '<td>' + euro.format(r.total) + '</td></tr>';
+          }).join("") +
+        '</tbody><tfoot><tr><td><strong>Total</strong></td>' +
+          recap.owners.map(function(o){ return '<td><strong>' + euro.format(recap.colTotals[o]) + '</strong></td>'; }).join("") +
+          '<td><strong>' + euro.format(recap.grandTotal) + '</strong></td></tr></tfoot></table>' +
+        rapportPatrimoineChartImg(client);
+    }
+
+    if(id === "ifiSection" || id === "retraiteSection" || id === "diagnosticSuccessoral"){
+      var toolId = id==="ifiSection" ? "ifi" : id==="retraiteSection" ? "pension-retraite" : "succession";
+      var tool = TOOLS_BY_ID[toolId];
+      if(!tool || tool.status !== "ready") return '<p class="print-freetext">Calculateur non disponible.</p>';
+      return rapportToolResultHTML(tool.compute(buildFullInputsFromClient(client, tool)));
+    }
+
+    if(id === "synthese"){
+      var triggeredIds = getTriggeredToolIds(client);
+      if(!triggeredIds.length) return '<p class="print-freetext">Aucun projet coché pour ce client à l\'étape « Projets en cours » du bilan : aucune synthèse à afficher.</p>';
+      return triggeredIds.map(function(tid){
+        var t = TOOLS_BY_ID[tid];
+        var result = t.compute(buildFullInputsFromClient(client, t));
+        return '<div style="margin-bottom:20px;"><h4 style="margin:0 0 8px;color:var(--navy);">' + t.icon + ' ' + escapeHTML(t.name) + '</h4>' + rapportToolResultHTML(result) + '</div>';
+      }).join("");
+    }
+
+    if(id === "simulationsComplementaires"){
+      var sims = getSimulations().filter(function(s){ return s.clientId === client.id; });
+      if(!sims.length) return '<p class="print-freetext">Aucune simulation enregistrée pour ce client dans l\'historique.</p>';
+      return '<table><thead><tr><th>Outil</th><th>Date</th><th>Résultat principal</th></tr></thead><tbody>' +
+        sims.map(function(s){
+          var kf = (s.keyFigures && s.keyFigures[0]) ? s.keyFigures[0] : null;
+          return '<tr><td>' + escapeHTML(s.toolName||s.toolId) + '</td><td>' + new Date(s.timestamp).toLocaleDateString("fr-FR") + '</td>' +
+            '<td>' + (kf ? escapeHTML(kf.value) + " — " + escapeHTML(kf.label) : "—") + '</td></tr>';
+        }).join("") + '</tbody></table>';
+    }
+
+    // Sections sans calculateur dédié dans l'application : texte libre saisi dans l'écran de configuration.
+    var text = (config.textes && config.textes[id]) || "";
+    return text ? '<div class="print-freetext">' + escapeHTML(text).replace(/\n/g, "<br>") + '</div>' : '<p class="print-freetext">(Section non renseignée)</p>';
+  }
+
+  function rapportCoverHTML(client){
+    var profile = getCabinetProfile();
     var dateStr = new Date().toLocaleDateString("fr-FR", {year:"numeric", month:"long", day:"numeric"});
-    reportEl.innerHTML =
-      printHeaderHTML("Bilan patrimonial — " + clientFullName(client)) +
-      '<div class="print-meta"><div><strong>Date :</strong> ' + dateStr + '</div></div>' +
-      sections.map(function(s){
-        return '<div class="print-details"><h3>' + escapeHTML(s.tool.name) + '</h3>' +
-          '<div class="print-keyfigures">' +
-            s.result.keyFigures.map(function(k){
-              return '<div class="print-kf"><div class="print-kf-value">' + escapeHTML(k.value) + '</div><div class="print-kf-label">' + escapeHTML(k.label) + '</div></div>';
-            }).join("") +
-          '</div></div>';
-      }).join("") +
-      '<div class="print-footer">' + escapeHTML(getLegalMention()) + '</div>';
+    var coordParts = [profile.telephone, profile.email, profile.adresse].filter(Boolean);
+    return '<div class="print-cover">' +
+      '<div class="print-cover-band">' +
+        (profile.logo ? '<img src="' + profile.logo + '" class="print-cover-logo" alt="Logo">' : '') +
+        '<div class="print-cover-cabinet">' + escapeHTML(profile.nomCabinet || "CGP Pro") + '</div>' +
+      '</div>' +
+      '<div class="print-cover-title">Étude Patrimoniale</div>' +
+      '<div class="print-cover-client">' + escapeHTML(clientFullName(client)) + '</div>' +
+      '<div class="print-cover-date">Étude réalisée le ' + dateStr + '</div>' +
+      '<div class="print-cover-advisor">' +
+        (profile.nomConseiller ? '<div>' + escapeHTML(profile.nomConseiller) + '</div>' : '') +
+        '<div>' + escapeHTML(profile.nomCabinet || "CGP Pro") + '</div>' +
+        (coordParts.length ? '<div>' + escapeHTML(coordParts.join(" · ")) + '</div>' : '') +
+      '</div>' +
+    '</div>';
+  }
+
+  function rapportLettreHTML(client, config){
+    var profile = getCabinetProfile();
+    var text = (config.textes && config.textes.lettre) || profile.lettreCommercialeDefaut || LETTRE_COMMERCIALE_DEFAUT;
+    return '<div class="print-lettre">' + escapeHTML(text).replace(/\n/g, "<br>") + '</div>' +
+      '<div class="print-signature">' +
+        (profile.nomConseiller ? escapeHTML(profile.nomConseiller) + '<br>' : '') +
+        escapeHTML(profile.nomCabinet || "CGP Pro") +
+      '</div>';
+  }
+
+  // Poids indicatif (en nombre de pages) d'une section, pour l'estimation de pagination du sommaire —
+  // aucun navigateur ne permettant de connaître la pagination réelle avant impression effective.
+  function rapportSectionWeight(client, sectionDef){
+    if(sectionDef.id === "synthese"){ return Math.max(1, getTriggeredToolIds(client).length); }
+    if(sectionDef.id === "simulationsComplementaires"){
+      var n = getSimulations().filter(function(s){ return s.clientId === client.id; }).length;
+      return Math.max(1, Math.ceil(n/10));
+    }
+    if(sectionDef.id === "patrimoine"){ return (client.actifs||[]).length > 12 ? 2 : 1; }
+    return 1;
+  }
+
+  function rapportSommaireHTML(client, selectedDefs){
+    var contentDefs = selectedDefs.filter(function(s){ return s.id!=="couverture" && s.id!=="lettre" && s.id!=="sommaire"; });
+    var page = 1; // page de couverture
+    if(selectedDefs.some(function(s){ return s.id==="couverture"; })){ page = 2; } else { page = 1; }
+    if(selectedDefs.some(function(s){ return s.id==="lettre"; })){ page += 1; }
+    page += 1; // page(s) du sommaire lui-même (estimation : 1)
+
+    var rows = contentDefs.map(function(s){
+      var startPage = page;
+      page += rapportSectionWeight(client, s);
+      return {label: s.label, group: s.group, page: startPage};
+    });
+    rows.push({label:"Mentions légales", group:null, page:page});
+
+    var lastGroup = undefined;
+    var rowsHTML = rows.map(function(r){
+      var groupHeader = "";
+      if(r.group !== lastGroup){
+        lastGroup = r.group;
+        if(r.group){
+          var g = RAPPORT_GROUPS.filter(function(gr){ return gr.id===r.group; })[0];
+          groupHeader = '<div class="print-toc-group">' + escapeHTML(g ? g.label : r.group) + '</div>';
+        }
+      }
+      return groupHeader + '<div class="print-toc-row"><span>' + escapeHTML(r.label) + '</span><span class="toc-page">p. ' + r.page + '</span></div>';
+    }).join("");
+
+    return rowsHTML + '<p class="print-toc-note">Pagination indicative, donnée à titre de repère (les navigateurs ne permettent pas de calculer la pagination exacte avant impression).</p>';
+  }
+
+  function rapportSectionWrapperHTML(title, bodyHTML, isFirst){
+    return '<div class="print-section' + (isFirst ? ' print-section-first' : '') + '">' +
+      (title ? '<h2 class="print-section-title">' + escapeHTML(title) + '</h2>' : '') +
+      bodyHTML + '</div>';
+  }
+
+  // Assemble et imprime le rapport patrimonial complet, selon les sections cochées à l'écran de configuration.
+  function generateRapportPDF(client, config){
+    var reportEl = document.getElementById("printReport");
+    var selectedDefs = RAPPORT_SECTIONS.filter(function(s){ return config.sections.indexOf(s.id) !== -1; });
+    var dateStr = new Date().toLocaleDateString("fr-FR", {year:"numeric", month:"long", day:"numeric"});
+
+    var html = "";
+    var first = true;
+    selectedDefs.forEach(function(s){
+      if(s.id === "couverture"){
+        html += '<div class="print-section print-cover-page' + (first ? ' print-section-first' : '') + '">' + rapportCoverHTML(client) + '</div>';
+      } else if(s.id === "lettre"){
+        html += rapportSectionWrapperHTML(s.label, rapportLettreHTML(client, config), first);
+      } else if(s.id === "sommaire"){
+        html += rapportSectionWrapperHTML(s.label, rapportSommaireHTML(client, selectedDefs), first);
+      } else {
+        html += rapportSectionWrapperHTML(s.label, rapportSectionBodyHTML(client, s, config), first);
+      }
+      first = false;
+    });
+    html += rapportSectionWrapperHTML("Mentions légales", '<p class="print-freetext">' + escapeHTML(getLegalMention()) + '</p>', first);
+
+    reportEl.innerHTML = '<div class="print-running-footer">Document non contractuel · ' + dateStr + '</div>' + html;
     window.print();
   }
 
@@ -2991,14 +3290,11 @@
           '<div id="bilanStepBody">' + bodyHTML + '</div>' +
           '<div class="wizard-nav">' +
             '<button class="btn btn-outline" id="bilanBackBtn">← Précédent</button>' +
-            (sections.length ? '<button class="btn btn-primary" id="bilanPdfBtn">⤓ Exporter la synthèse en PDF</button>' : '<span></span>') +
+            '<a class="btn btn-primary" id="bilanRapportBtn" href="#/bilan/' + client.id + '/rapport">📄 Générer le rapport complet →</a>' +
           '</div>' +
         '</div>';
 
         document.getElementById("bilanBackBtn").addEventListener("click", function(){ currentStep--; renderStep(); });
-        if(sections.length){
-          document.getElementById("bilanPdfBtn").addEventListener("click", function(){ exportBilanPDF(wip, sections); });
-        }
         return;
       }
 
@@ -3055,6 +3351,107 @@
     }
 
     renderStep();
+  }
+
+  /* ============================ Écran de configuration du rapport patrimonial ============================ */
+  function renderRapportConfig(clientId){
+    var main = document.getElementById("main");
+    var client = getClientById(clientId);
+    if(!client){ location.hash = "#/clients"; return; }
+    var config = getRapportConfig(client);
+    var selected = config.sections.slice();
+    var textes = Object.assign({}, config.textes);
+
+    function isSelected(id){ return selected.indexOf(id) !== -1; }
+    function toggle(id, on){
+      var idx = selected.indexOf(id);
+      if(on && idx===-1) selected.push(id);
+      if(!on && idx!==-1) selected.splice(idx, 1);
+    }
+
+    function sectionRowHTML(s){
+      return '<div class="rapport-section-row">' +
+        '<label><input type="checkbox" class="rapport-section-check" data-section="' + s.id + '" ' + (isSelected(s.id)?"checked":"") + '> ' + escapeHTML(s.label) + '</label>' +
+        (s.freeText ? '<div class="rapport-freetext-wrap"><textarea data-section-text="' + s.id + '" rows="' + (s.id==="lettre"?8:4) + '" placeholder="Texte libre pour cette section (non calculée automatiquement)...">' + escapeHTML(textes[s.id]||"") + '</textarea></div>' : '') +
+      '</div>';
+    }
+
+    var topSections = RAPPORT_SECTIONS.filter(function(s){ return !s.group; });
+    var groupsHTML = RAPPORT_GROUPS.map(function(g){
+      var gSections = RAPPORT_SECTIONS.filter(function(s){ return s.group === g.id; });
+      var allOn = gSections.every(function(s){ return isSelected(s.id); });
+      return '<details class="rapport-group" open><summary><label><input type="checkbox" class="rapport-group-check" data-group="' + g.id + '" ' + (allOn?"checked":"") + '> ' + escapeHTML(g.label) + '</label></summary>' +
+        '<div class="rapport-group-body">' + gSections.map(sectionRowHTML).join("") + '</div></details>';
+    }).join("");
+
+    var allOnGlobal = RAPPORT_SECTIONS.every(function(s){ return isSelected(s.id); });
+
+    main.innerHTML = '<div class="container rapport-config-page">' +
+      '<a href="#/bilan/' + client.id + '" class="back-link">← Retour au bilan</a>' +
+      '<h1>Rapport patrimonial — ' + escapeHTML(clientFullName(client)) + '</h1>' +
+      '<p class="tool-desc">Sélectionnez les sections à inclure dans le rapport PDF. Les sections adossées à un calculateur (Patrimoine, IFI, Retraite...) sont calculées automatiquement depuis la fiche client ; les autres proposent un espace de texte libre.</p>' +
+      '<div class="rapport-toolbar"><label><input type="checkbox" id="rapportSelectAll" ' + (allOnGlobal?"checked":"") + '> Tout sélectionner</label></div>' +
+      '<div class="rapport-toplevel">' + topSections.map(sectionRowHTML).join("") + '</div>' +
+      groupsHTML +
+      '<div class="rapport-toplevel"><div class="rapport-mentions-note">✓ Mentions légales — section toujours incluse dans le rapport (non désactivable).</div></div>' +
+      '<div class="wizard-nav">' +
+        '<button class="btn btn-primary" id="rapportGenerateBtn">⤓ Générer le rapport PDF</button>' +
+      '</div>' +
+    '</div>';
+
+    function refreshGroupCheckbox(groupId){
+      var cb = main.querySelector('.rapport-group-check[data-group="' + groupId + '"]');
+      if(!cb) return;
+      var gSections = RAPPORT_SECTIONS.filter(function(s){ return s.group === groupId; });
+      var allOn = gSections.every(function(s){ return isSelected(s.id); });
+      var noneOn = gSections.every(function(s){ return !isSelected(s.id); });
+      cb.checked = allOn;
+      cb.indeterminate = !allOn && !noneOn;
+    }
+    function refreshGlobalCheckbox(){
+      var cb = document.getElementById("rapportSelectAll");
+      var allOn = RAPPORT_SECTIONS.every(function(s){ return isSelected(s.id); });
+      var noneOn = RAPPORT_SECTIONS.every(function(s){ return !isSelected(s.id); });
+      cb.checked = allOn;
+      cb.indeterminate = !allOn && !noneOn;
+    }
+
+    main.querySelectorAll(".rapport-section-check").forEach(function(cb){
+      cb.addEventListener("change", function(){
+        toggle(cb.dataset.section, cb.checked);
+        var s = RAPPORT_SECTIONS.filter(function(x){ return x.id === cb.dataset.section; })[0];
+        if(s.group) refreshGroupCheckbox(s.group);
+        refreshGlobalCheckbox();
+      });
+    });
+    main.querySelectorAll(".rapport-group-check").forEach(function(cb){
+      cb.addEventListener("click", function(e){ e.stopPropagation(); });
+      cb.addEventListener("change", function(){
+        var groupId = cb.dataset.group;
+        RAPPORT_SECTIONS.filter(function(s){ return s.group === groupId; }).forEach(function(s){
+          toggle(s.id, cb.checked);
+          var rowCb = main.querySelector('.rapport-section-check[data-section="' + s.id + '"]');
+          if(rowCb) rowCb.checked = cb.checked;
+        });
+        cb.indeterminate = false;
+        refreshGlobalCheckbox();
+      });
+    });
+    document.getElementById("rapportSelectAll").addEventListener("change", function(){
+      var on = this.checked;
+      RAPPORT_SECTIONS.forEach(function(s){ toggle(s.id, on); });
+      main.querySelectorAll(".rapport-section-check").forEach(function(cb2){ cb2.checked = on; });
+      RAPPORT_GROUPS.forEach(function(g){ refreshGroupCheckbox(g.id); });
+    });
+    main.querySelectorAll("[data-section-text]").forEach(function(ta){
+      ta.addEventListener("input", function(){ textes[ta.dataset.sectionText] = ta.value; });
+    });
+
+    document.getElementById("rapportGenerateBtn").addEventListener("click", function(){
+      var newConfig = {sections: selected.slice(), textes: Object.assign({}, textes)};
+      saveClient(Object.assign({}, client, {rapportConfig: newConfig, updatedAt: new Date().toISOString()}));
+      generateRapportPDF(client, newConfig);
+    });
   }
 
   /* ============================ Paramètres (cabinet) ============================ */
@@ -3141,6 +3538,7 @@
     else if(parts[0] === "historique") result = {name:"historique"};
     else if(parts[0] === "clients" && parts[1]) result = {name:"client-edit", clientId:parts[1]};
     else if(parts[0] === "clients") result = {name:"clients"};
+    else if(parts[0] === "bilan" && parts[1] && parts[2] === "rapport") result = {name:"bilan-rapport", clientId:parts[1]};
     else if(parts[0] === "bilan" && parts[1]) result = {name:"bilan", clientId:parts[1]};
     else if(parts[0] === "bilan") result = {name:"bilan-picker"};
     else if(parts[0] === "parametres") result = {name:"parametres"};
@@ -3173,6 +3571,8 @@
       renderBilanPicker();
     } else if(v.name === "bilan"){
       renderBilan(v.clientId);
+    } else if(v.name === "bilan-rapport"){
+      renderRapportConfig(v.clientId);
     } else if(v.name === "parametres"){
       renderParametres();
     } else if(v.name === "mentions"){
