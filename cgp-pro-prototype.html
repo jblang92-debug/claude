@@ -56,6 +56,17 @@
   .tool-desc-short{font-size:.8rem;color:var(--muted);}
   .badge-soon{display:inline-block;margin-top:8px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:#eef1f5;color:var(--muted);padding:3px 8px;border-radius:20px;}
 
+  /* Widget d'accueil "Actions à venir" (prochaines actions saisies dans l'historique des échanges) */
+  .actions-list{display:flex;flex-direction:column;gap:8px;}
+  .action-row{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--border);border-left:4px solid var(--border);border-radius:var(--radius);padding:12px 16px;text-decoration:none;color:var(--ink);font-size:.85rem;flex-wrap:wrap;transition:box-shadow .15s;}
+  .action-row:hover{box-shadow:var(--shadow);}
+  .action-date{font-weight:700;color:var(--navy);flex:0 0 auto;min-width:150px;}
+  .action-client{font-weight:600;flex:0 0 auto;}
+  .action-texte{color:var(--muted);}
+  .action-row.soon{border-left-color:var(--accent);}
+  .action-row.overdue{border-left-color:var(--danger);background:#fdf3ef;}
+  .action-row.overdue .action-date{color:var(--danger);}
+
   /* Calculator page */
   .back-link{display:inline-block;margin-bottom:14px;font-size:.85rem;color:var(--navy-2);text-decoration:none;font-weight:600;}
   .calc-page h1{font-size:1.4rem;margin:0 0 6px;}
@@ -81,6 +92,28 @@
   .client-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
   .client-tag{font-size:.7rem;font-weight:700;background:#eef1f5;color:var(--navy-2);padding:3px 9px;border-radius:20px;}
   .page-header-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+
+  /* Onglets de la fiche client (Fiche client / Historique des échanges) */
+  .client-tabs{display:flex;gap:22px;border-bottom:1px solid var(--border);margin:18px 0 22px;}
+  .client-tab-btn{background:none;border:none;padding:10px 2px;font-size:.9rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;font-family:inherit;}
+  .client-tab-btn:hover{color:var(--navy);}
+  .client-tab-btn.active{color:var(--navy);border-bottom-color:var(--accent);}
+
+  /* Historique des échanges */
+  .hist-form{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:18px;}
+  .hist-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;}
+  .hist-card-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+  .hist-badge{font-size:.72rem;font-weight:700;padding:4px 10px;border-radius:20px;color:#fff;white-space:nowrap;}
+  .hist-badge-rdv_physique{background:var(--navy);}
+  .hist-badge-appel{background:var(--accent);}
+  .hist-badge-email{background:var(--accent-2);}
+  .hist-badge-visio{background:var(--navy-2);}
+  .hist-date{font-size:.82rem;color:var(--muted);font-weight:600;}
+  .hist-card-actions{margin-left:auto;display:flex;gap:6px;}
+  .hist-notes{font-size:.88rem;color:var(--ink);line-height:1.55;margin:0 0 8px;white-space:pre-wrap;}
+  .hist-next-action{font-size:.82rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:6px;}
+  .hist-sims{font-size:.8rem;color:var(--muted);}
+  .hist-sims a{color:var(--accent-2);font-weight:600;text-decoration:none;}
 
   /* Foyer / actifs (composants réutilisables fiche client + bilan) */
   .foyer-header{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;}
@@ -462,6 +495,19 @@
   ];
   function labelFromList(list, value){ var f = list.filter(function(o){ return o.value===value; })[0]; return f ? f.label : value; }
 
+  var ECHANGE_TYPES = [
+    {value:"rdv_physique", label:"RDV physique", icon:"🤝"},
+    {value:"appel", label:"Appel téléphonique", icon:"📞"},
+    {value:"email", label:"Email", icon:"✉️"},
+    {value:"visio", label:"Visioconférence", icon:"💻"}
+  ];
+  function formatDateFr(isoDate){
+    if(!isoDate) return "—";
+    var d = new Date(isoDate + "T00:00:00");
+    if(isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("fr-FR", {year:"numeric", month:"long", day:"numeric"});
+  }
+
   // Migration douce : complète en mémoire (sans réécriture immédiate du localStorage) les fiches créées
   // avant l'ajout du modèle foyer/actifs. Un ancien client sans "adultes" devient un foyer à un adulte
   // reprenant son prénom/nom/âge ; les actifs sans propriétaire assigné basculent sur l'adulte 1.
@@ -474,6 +520,7 @@
     c.actifs.forEach(function(a){ if(!a.proprietaire) a.proprietaire = "adulte1"; });
     if(!c.statutCouple) c.statutCouple = "celibataire";
     if(!c.revenusCategorises) c.revenusCategorises = defaultRevenusCategorises();
+    if(!c.historique) c.historique = [];
     return c;
   }
 
@@ -3820,11 +3867,47 @@
   }
 
   /* ============================ Home view ============================ */
+  // Rassemble les "prochaines actions" saisies dans l'historique des échanges de tous les clients, triées
+  // par date la plus proche — alimente le widget d'accueil "Actions à venir".
+  function collectActionsAVenir(){
+    var actions = [];
+    getClients().forEach(function(c){
+      (c.historique||[]).forEach(function(e){
+        if(e.prochaineActionDate){
+          actions.push({clientId:c.id, clientName: clientFullName(c), date: e.prochaineActionDate, texte: e.prochaineActionTexte||""});
+        }
+      });
+    });
+    actions.sort(function(a,b){ return a.date.localeCompare(b.date); });
+    return actions;
+  }
+
+  function actionsAVenirHTML(){
+    var actions = collectActionsAVenir();
+    if(!actions.length) return "";
+    var todayStr = new Date().toISOString().slice(0,10);
+    var in7Str = new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+    return '<section class="category-section actions-a-venir">' +
+      '<h2 class="category-title"><span class="cat-icon">📌</span>Actions à venir</h2>' +
+      '<div class="actions-list">' +
+        actions.map(function(a){
+          var urgency = a.date < todayStr ? "overdue" : (a.date <= in7Str ? "soon" : "");
+          return '<a class="action-row ' + urgency + '" href="#/clients/' + a.clientId + '/historique">' +
+            '<span class="action-date">' + formatDateFr(a.date) + '</span>' +
+            '<span class="action-client">' + escapeHTML(a.clientName) + '</span>' +
+            (a.texte ? '<span class="action-texte">' + escapeHTML(a.texte) + '</span>' : '') +
+          '</a>';
+        }).join("") +
+      '</div>' +
+    '</section>';
+  }
+
   function renderHome(){
     var main = document.getElementById("main");
     var cabinet = getCabinetProfile();
     main.innerHTML = '<div class="container home">' +
       '<div class="home-intro"><h1>Boîte à outils CGP' + (cabinet.nomCabinet ? ' — ' + escapeHTML(cabinet.nomCabinet) : '') + '</h1><p>Sélectionnez un simulateur pour préparer ou animer votre rendez-vous client.</p></div>' +
+      actionsAVenirHTML() +
       CATEGORIES.map(function(cat){
         var tools = TOOLS.filter(function(t){ return t.category === cat.id; });
         if(!tools.length) return "";
@@ -4145,6 +4228,121 @@
     };
   }
 
+  /* ============================ Historique des échanges (onglet fiche client) ============================ */
+  // Contrairement au foyer/actifs (données en mémoire jusqu'à la soumission du formulaire principal), les
+  // échanges s'enregistrent immédiatement à chaque ajout/modification/suppression — action indépendante du
+  // reste de la fiche, cohérent avec les boutons "Ajouter/Modifier/Supprimer" demandés.
+  function mountHistoriqueTab(container, client){
+    var editingId = null; // id d'une entrée en cours d'édition, "new" pour l'ajout, ou null (liste seule)
+
+    function getEntries(){
+      return (client.historique || []).slice().sort(function(a, b){ return (b.date||"").localeCompare(a.date||""); });
+    }
+
+    function formHTML(entry){
+      entry = entry || {date: new Date().toISOString().slice(0,10), type:"rdv_physique", notes:"", prochaineActionTexte:"", prochaineActionDate:""};
+      return '<div class="hist-form">' +
+        '<div class="form-grid">' +
+          '<div class="field"><label for="hist_date">Date</label><input type="date" id="hist_date" value="' + escapeHTML(entry.date||"") + '"></div>' +
+          '<div class="field"><label for="hist_type">Type d\'échange</label><select id="hist_type">' +
+            ECHANGE_TYPES.map(function(t){ return '<option value="' + t.value + '" ' + (t.value===entry.type?"selected":"") + '>' + t.icon + ' ' + escapeHTML(t.label) + '</option>'; }).join("") +
+          '</select></div>' +
+        '</div>' +
+        '<div class="field"><label for="hist_notes">Notes</label><textarea id="hist_notes" rows="4" placeholder="Résumé de ce qui a été dit/décidé...">' + escapeHTML(entry.notes||"") + '</textarea></div>' +
+        '<div class="form-grid">' +
+          '<div class="field"><label for="hist_prochaineActionTexte">Prochaine action (optionnel)</label><input type="text" id="hist_prochaineActionTexte" value="' + escapeHTML(entry.prochaineActionTexte||"") + '" placeholder="ex. Envoyer devis assurance-vie"></div>' +
+          '<div class="field"><label for="hist_prochaineActionDate">Date de la prochaine action</label><input type="date" id="hist_prochaineActionDate" value="' + escapeHTML(entry.prochaineActionDate||"") + '"></div>' +
+        '</div>' +
+        '<div class="help" id="histFormError" style="color:var(--danger);"></div>' +
+        '<div class="actions-buttons" style="margin-top:8px;">' +
+          '<button class="btn btn-primary btn-sm" type="button" id="histSaveBtn">Enregistrer</button>' +
+          '<button class="btn btn-outline btn-sm" type="button" id="histCancelBtn">Annuler</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function entryCardHTML(entry){
+      var typeInfo = ECHANGE_TYPES.filter(function(t){ return t.value === entry.type; })[0] || ECHANGE_TYPES[0];
+      var simsThatDay = getSimulations().filter(function(s){ return s.clientId === client.id && (s.timestamp||"").slice(0,10) === entry.date; });
+      return '<div class="hist-card">' +
+        '<div class="hist-card-head">' +
+          '<span class="hist-badge hist-badge-' + typeInfo.value + '">' + typeInfo.icon + ' ' + escapeHTML(typeInfo.label) + '</span>' +
+          '<span class="hist-date">' + formatDateFr(entry.date) + '</span>' +
+          '<div class="hist-card-actions">' +
+            '<button class="btn btn-outline btn-sm" type="button" data-hist-edit="' + entry.id + '">Modifier</button>' +
+            '<button class="btn btn-danger btn-sm" type="button" data-hist-del="' + entry.id + '">Supprimer</button>' +
+          '</div>' +
+        '</div>' +
+        (entry.notes ? '<p class="hist-notes">' + escapeHTML(entry.notes).replace(/\n/g, "<br>") + '</p>' : '') +
+        (entry.prochaineActionTexte || entry.prochaineActionDate ?
+          '<div class="hist-next-action">📌 Prochaine action : ' + escapeHTML(entry.prochaineActionTexte||"(non précisée)") +
+            (entry.prochaineActionDate ? ' — <strong>' + formatDateFr(entry.prochaineActionDate) + '</strong>' : '') + '</div>' : '') +
+        (simsThatDay.length ?
+          '<div class="hist-sims">Simulations réalisées ce jour : ' +
+            simsThatDay.map(function(s){ return '<a href="#/calc/' + s.toolId + '/' + s.id + '">' + escapeHTML(s.toolName) + '</a>'; }).join(", ") +
+          '</div>' : '') +
+      '</div>';
+    }
+
+    function render(){
+      var entries = getEntries();
+      container.innerHTML =
+        '<div class="page-header-row"><h3 style="margin:0;">Historique des échanges</h3>' +
+          (editingId===null ? '<button class="btn btn-primary btn-sm" type="button" id="histAddBtn">+ Ajouter un échange</button>' : '') +
+        '</div>' +
+        (editingId!==null ? formHTML(editingId==="new" ? null : entries.filter(function(e){ return e.id===editingId; })[0]) : '') +
+        '<div id="histList">' +
+          (entries.length ? entries.map(entryCardHTML).join("") : '<p class="empty">Aucun échange enregistré pour ce client.</p>') +
+        '</div>';
+
+      if(editingId===null){
+        document.getElementById("histAddBtn").addEventListener("click", function(){ editingId = "new"; render(); });
+      } else {
+        document.getElementById("histSaveBtn").addEventListener("click", onSave);
+        document.getElementById("histCancelBtn").addEventListener("click", function(){ editingId = null; render(); });
+      }
+      container.querySelectorAll("[data-hist-edit]").forEach(function(btn){
+        btn.addEventListener("click", function(){ editingId = btn.dataset.histEdit; render(); });
+      });
+      container.querySelectorAll("[data-hist-del]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          if(!confirm("Supprimer cet échange ?")) return;
+          client.historique = (client.historique||[]).filter(function(e){ return e.id !== btn.dataset.histDel; });
+          saveClient(Object.assign({}, client, {updatedAt:new Date().toISOString()}));
+          render();
+        });
+      });
+    }
+
+    function onSave(){
+      var dateVal = document.getElementById("hist_date").value;
+      if(!dateVal){ document.getElementById("histFormError").textContent = "La date est obligatoire."; return; }
+      var entries = getEntries();
+      var existing = editingId==="new" ? null : entries.filter(function(e){ return e.id===editingId; })[0];
+      var newEntry = {
+        id: existing ? existing.id : ("hist_" + Date.now() + "_" + Math.random().toString(36).slice(2,7)),
+        date: dateVal,
+        type: document.getElementById("hist_type").value,
+        notes: document.getElementById("hist_notes").value,
+        prochaineActionTexte: document.getElementById("hist_prochaineActionTexte").value.trim(),
+        prochaineActionDate: document.getElementById("hist_prochaineActionDate").value
+      };
+      var all = (client.historique||[]).slice();
+      if(existing){
+        var idx = all.findIndex(function(x){ return x.id===existing.id; });
+        all[idx] = newEntry;
+      } else {
+        all.push(newEntry);
+      }
+      client.historique = all;
+      saveClient(Object.assign({}, client, {updatedAt:new Date().toISOString()}));
+      editingId = null;
+      render();
+    }
+
+    render();
+  }
+
   /* ============================ Clients ============================ */
   var PROJET_LABELS = {
     projetAchatResidence:"Achat résidence principale",
@@ -4200,11 +4398,13 @@
     });
   }
 
-  function renderClientForm(clientId){
+  function renderClientForm(clientId, initialTab){
     var main = document.getElementById("main");
     var isNew = clientId === "new";
     var client = isNew ? normalizeClient({}) : getClientById(clientId);
     if(!isNew && !client){ location.hash = "#/clients"; return; }
+    // L'onglet Historique n'a de sens que pour un client déjà enregistré (il faut un id à rattacher).
+    var activeTab = (!isNew && initialTab === "historique") ? "historique" : "fiche";
 
     var sections = [];
     CLIENT_FIELDS.forEach(function(f){
@@ -4214,18 +4414,25 @@
     main.innerHTML = '<div class="container client-form-page">' +
       '<a href="#/clients" class="back-link">← Retour aux clients</a>' +
       '<h1>' + (isNew ? "Nouveau client" : "Modifier " + escapeHTML(clientFullName(client))) + '</h1>' +
-      '<form id="clientForm" class="calc-form">' +
-        '<div class="form-section-title">Composition du foyer</div>' +
-        '<div id="foyerEditorContainer"></div>' +
-        '<div class="form-grid">' +
-          sections.map(function(section){
-            return '<div class="form-section-title">' + escapeHTML(section) + '</div>' +
-              CLIENT_FIELDS.filter(function(f){ return f.section===section; })
-                .map(function(f){ return fieldHTML(f, client[f.id]); }).join("");
-          }).join("") +
-        '</div>' +
-        '<div id="actifsEditorContainer" style="margin-top:6px;"></div>' +
-      '<button type="submit" class="btn btn-primary" style="margin-top:22px;">' + (isNew ? "Créer le client" : "Enregistrer les modifications") + '</button></form>' +
+      (!isNew ? '<div class="client-tabs">' +
+        '<button type="button" class="client-tab-btn ' + (activeTab==="fiche"?"active":"") + '" data-tab="fiche">Fiche client</button>' +
+        '<button type="button" class="client-tab-btn ' + (activeTab==="historique"?"active":"") + '" data-tab="historique">Historique des échanges</button>' +
+      '</div>' : '') +
+      '<div id="ficheTabPanel" ' + (activeTab==="fiche" ? "" : "hidden") + '>' +
+        '<form id="clientForm" class="calc-form">' +
+          '<div class="form-section-title">Composition du foyer</div>' +
+          '<div id="foyerEditorContainer"></div>' +
+          '<div class="form-grid">' +
+            sections.map(function(section){
+              return '<div class="form-section-title">' + escapeHTML(section) + '</div>' +
+                CLIENT_FIELDS.filter(function(f){ return f.section===section; })
+                  .map(function(f){ return fieldHTML(f, client[f.id]); }).join("");
+            }).join("") +
+          '</div>' +
+          '<div id="actifsEditorContainer" style="margin-top:6px;"></div>' +
+        '<button type="submit" class="btn btn-primary" style="margin-top:22px;">' + (isNew ? "Créer le client" : "Enregistrer les modifications") + '</button></form>' +
+      '</div>' +
+      (!isNew ? '<div id="historiqueTabPanel" ' + (activeTab==="historique" ? "" : "hidden") + '></div>' : '') +
     '</div>';
 
     var foyerEditor = mountFoyerEditor(document.getElementById("foyerEditorContainer"), client);
@@ -4255,6 +4462,18 @@
       saveClient(entry);
       location.hash = "#/clients";
     });
+
+    if(!isNew){
+      mountHistoriqueTab(document.getElementById("historiqueTabPanel"), client);
+      document.querySelectorAll(".client-tab-btn").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          document.querySelectorAll(".client-tab-btn").forEach(function(b){ b.classList.remove("active"); });
+          btn.classList.add("active");
+          document.getElementById("ficheTabPanel").hidden = btn.dataset.tab !== "fiche";
+          document.getElementById("historiqueTabPanel").hidden = btn.dataset.tab !== "historique";
+        });
+      });
+    }
   }
 
   /* ============================ Bilan patrimonial ============================ */
@@ -4595,6 +4814,7 @@
     var result;
     if(parts[0] === "calc" && parts[1]) result = {name:"calc", toolId:parts[1], simId:parts[2]};
     else if(parts[0] === "historique") result = {name:"historique"};
+    else if(parts[0] === "clients" && parts[1] && parts[2] === "historique") result = {name:"client-edit", clientId:parts[1], initialTab:"historique"};
     else if(parts[0] === "clients" && parts[1]) result = {name:"client-edit", clientId:parts[1]};
     else if(parts[0] === "clients") result = {name:"clients"};
     else if(parts[0] === "bilan" && parts[1] && parts[2] === "rapport") result = {name:"bilan-rapport", clientId:parts[1]};
@@ -4625,7 +4845,7 @@
     } else if(v.name === "clients"){
       renderClients();
     } else if(v.name === "client-edit"){
-      renderClientForm(v.clientId);
+      renderClientForm(v.clientId, v.initialTab);
     } else if(v.name === "bilan-picker"){
       renderBilanPicker();
     } else if(v.name === "bilan"){
