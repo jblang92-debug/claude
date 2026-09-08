@@ -178,6 +178,9 @@
   .details-table tr td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:.87rem;}
   .details-table tr:last-child td{border-bottom:none;}
   .details-table td:last-child{text-align:right;font-weight:700;color:var(--navy);}
+  .summary-sentence{margin:16px 0 0;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;font-size:.9rem;color:var(--ink);line-height:1.55;}
+  .summary-sentence strong{color:var(--navy);}
+  body.presenting .summary-sentence{font-size:1.15rem;text-align:center;max-width:720px;margin:26px auto 0;background:none;border:none;}
   .warnings{margin-top:16px;}
   .warning{background:#fbf3e7;border:1px solid #eadfc7;color:#7a5b1c;padding:10px 14px;border-radius:8px;font-size:.8rem;margin-bottom:8px;}
 
@@ -220,6 +223,7 @@
     .print-logo{max-height:50px;display:block;margin-bottom:6px;}
     .print-coord{font-size:.78rem;color:#777;margin-bottom:10px;}
     .print-sub{color:#555;font-size:1.05rem;margin-bottom:14px;}
+    .print-summary{font-size:.85rem;color:#333;background:#f4f6f8;border-radius:6px;padding:10px 14px;margin-bottom:16px;}
     .print-meta{font-size:.9rem;margin-bottom:16px;}
     .print-keyfigures{display:flex;gap:16px;margin-bottom:18px;}
     .print-kf{border:1px solid #ccc;border-radius:8px;padding:12px;flex:1;text-align:center;}
@@ -1275,6 +1279,124 @@
       }
     },
 
+    /* ---------- 14bis. Simulateur de plafond PER ---------- */
+    {
+      id:"plafond-per", category:"epargne", status:"ready", icon:"🧮",
+      name:"Simulateur de plafond PER",
+      desc:"Calcule le plafond de déduction fiscale disponible pour des versements sur un Plan d'Épargne Retraite (PER), selon le statut professionnel, avec mutualisation possible entre conjoints ou partenaires de PACS.",
+      fields:[
+        {id:"statutProfessionnel", label:"Statut professionnel", type:"select", default:"salarie", options:[
+          {value:"salarie", label:"Salarié"},
+          {value:"tns", label:"Travailleur non salarié (TNS)"},
+          {value:"sans_activite", label:"Sans activité ou retraité"}
+        ]},
+        {id:"revenuNetImposableN1", label:"Revenu net imposable de l'année N-1", type:"number", suffix:"€", default:35000, step:500,
+          help:"Figure sur l'avis d'imposition, ligne des traitements et salaires après abattement de 10%.",
+          visibleWhen:{field:"statutProfessionnel", values:["salarie"]}},
+        {id:"beneficeImposable", label:"Bénéfice imposable de l'année N (BIC/BNC)", type:"number", suffix:"€", default:35000, step:500,
+          visibleWhen:{field:"statutProfessionnel", values:["tns"]}},
+        {id:"reliquatCumule5Ans", label:"Plafonds non utilisés des 5 années précédentes (cumul)", type:"number", suffix:"€", default:0, step:500,
+          help:"Cumul simplifié, indiqué sur l'avis d'imposition (rubrique \"Plafond Épargne Retraite\"). Chaque reliquat annuel n'est reportable que 3 ans : vérifier la ventilation par année avant d'utiliser un reliquat ancien."},
+        {id:"montantDejaVerse", label:"Montant déjà versé sur un PER cette année", type:"number", suffix:"€", default:0, step:500},
+        {id:"mutualiser", label:"Marié(e) ou pacsé(e) — mutualiser le plafond avec le conjoint", type:"checkbox", default:false,
+          help:"Les époux et partenaires de PACS soumis à imposition commune peuvent utiliser le plafond non consommé de l'autre (Art. 163 quatervicies I-A CGI)."},
+        {id:"statutProfessionnelConjoint", label:"Statut professionnel du conjoint", type:"select", default:"salarie",
+          visibleWhen:{field:"mutualiser", values:["true"]},
+          options:[
+            {value:"salarie", label:"Salarié"},
+            {value:"tns", label:"Travailleur non salarié (TNS)"},
+            {value:"sans_activite", label:"Sans activité ou retraité"}
+          ]},
+        {id:"revenuNetImposableN1Conjoint", label:"Revenu net imposable du conjoint (N-1)", type:"number", suffix:"€", default:30000, step:500,
+          visibleWhen:[{field:"mutualiser", values:["true"]}, {field:"statutProfessionnelConjoint", values:["salarie"]}]},
+        {id:"beneficeImposableConjoint", label:"Bénéfice imposable du conjoint (N, BIC/BNC)", type:"number", suffix:"€", default:30000, step:500,
+          visibleWhen:[{field:"mutualiser", values:["true"]}, {field:"statutProfessionnelConjoint", values:["tns"]}]},
+        {id:"reliquatCumule5AnsConjoint", label:"Plafonds non utilisés du conjoint (5 ans, cumul)", type:"number", suffix:"€", default:0, step:500,
+          visibleWhen:{field:"mutualiser", values:["true"]}},
+        {id:"montantDejaVerseConjoint", label:"Montant déjà versé par le conjoint cette année", type:"number", suffix:"€", default:0, step:500,
+          visibleWhen:{field:"mutualiser", values:["true"]}}
+      ],
+      compute:function(inputs){
+        var PASS = 48060; // Plafond annuel de la sécurité sociale 2026
+
+        function labelStatut(v){
+          return v==="salarie" ? "Salarié" : v==="tns" ? "Travailleur non salarié" : "Sans activité ou retraité";
+        }
+        function plafondAnnuel(statut, revenu, benefice){
+          if(statut === "salarie"){
+            return Math.min(Math.max((revenu||0)*0.10, PASS*0.10), PASS*0.80);
+          }
+          if(statut === "tns"){
+            var beneficeRetenu = Math.min(Math.max(0, benefice||0), 8*PASS);
+            var base = beneficeRetenu*0.10 + Math.max(0, beneficeRetenu-PASS)*0.15;
+            return Math.min(Math.max(base, PASS*0.10), PASS*1.85);
+          }
+          return PASS*0.10;
+        }
+
+        var plafondMoi = plafondAnnuel(inputs.statutProfessionnel, inputs.revenuNetImposableN1, inputs.beneficeImposable);
+        var plafondDisponibleMoi = plafondMoi + inputs.reliquatCumule5Ans;
+        var plafondConjoint = 0, plafondDisponibleConjoint = 0;
+
+        var details = [
+          {label:"Plafond de l'année (statut : " + labelStatut(inputs.statutProfessionnel) + ")", value: euro.format(plafondMoi)},
+          {label:"Report des 5 années précédentes", value: euro.format(inputs.reliquatCumule5Ans)}
+        ];
+
+        var plafondDisponibleTotal = plafondDisponibleMoi;
+        var montantVerseTotal = inputs.montantDejaVerse;
+
+        if(inputs.mutualiser){
+          plafondConjoint = plafondAnnuel(inputs.statutProfessionnelConjoint, inputs.revenuNetImposableN1Conjoint, inputs.beneficeImposableConjoint);
+          plafondDisponibleConjoint = plafondConjoint + inputs.reliquatCumule5AnsConjoint;
+          plafondDisponibleTotal = plafondDisponibleMoi + plafondDisponibleConjoint;
+          montantVerseTotal = inputs.montantDejaVerse + inputs.montantDejaVerseConjoint;
+          details.push({label:"Plafond disponible individuel (vous)", value: euro.format(plafondDisponibleMoi)});
+          details.push({label:"Plafond de l'année du conjoint (statut : " + labelStatut(inputs.statutProfessionnelConjoint) + ")", value: euro.format(plafondConjoint)});
+          details.push({label:"Report des 5 années précédentes (conjoint)", value: euro.format(inputs.reliquatCumule5AnsConjoint)});
+          details.push({label:"Plafond disponible individuel (conjoint)", value: euro.format(plafondDisponibleConjoint)});
+        }
+
+        var margeRestante = plafondDisponibleTotal - montantVerseTotal;
+        details.push({label:"Montant déjà versé cette année" + (inputs.mutualiser?" (couple)":""), value: euro.format(montantVerseTotal)});
+
+        var warnings = [
+          "Chaque reliquat annuel non utilisé n'est reportable que pendant 3 ans : le cumul saisi est une simplification, vérifiez la ventilation par année sur votre avis d'imposition avant d'utiliser un reliquat ancien.",
+          "Le plafond exact figure sur votre avis d'imposition à la rubrique \"Plafond Épargne Retraite\". Ce simulateur donne une estimation basée sur le barème 2026 (PASS = 48 060 €)."
+        ];
+        if(montantVerseTotal > plafondDisponibleTotal){
+          warnings.unshift("Le montant déjà versé dépasse le plafond disponible : l'excédent (" + euro.format(montantVerseTotal-plafondDisponibleTotal) + ") ne sera pas déductible du revenu imposable.");
+        }
+
+        var plafondAnneeAffiche = inputs.mutualiser ? plafondMoi+plafondConjoint : plafondMoi;
+        var troisiemeFigure = (inputs.montantDejaVerse>0 || inputs.montantDejaVerseConjoint>0)
+          ? {label:"Marge restante à verser", value: euro.format(margeRestante)}
+          : {label:"Report des années précédentes", value: euro.format(plafondDisponibleTotal-plafondAnneeAffiche)};
+
+        var sujet = inputs.mutualiser ? "vous et votre conjoint disposez ensemble" : "vous disposez";
+        var summaryHTML = "Avec un statut " + labelStatut(inputs.statutProfessionnel).toLowerCase() +
+          (inputs.mutualiser ? " et une mutualisation avec votre conjoint (" + labelStatut(inputs.statutProfessionnelConjoint).toLowerCase() + ")" : "") +
+          ", " + sujet + " d'un plafond de déduction PER disponible de <strong>" + euro.format(plafondDisponibleTotal) + "</strong> cette année" +
+          (montantVerseTotal>0 ? ", dont <strong>" + euro.format(Math.max(0,margeRestante)) + "</strong> restent à verser au-delà des " + euro.format(montantVerseTotal) + " déjà versés" : "") + ".";
+
+        return {
+          keyFigures:[
+            {label:"Plafond disponible total", value: euro.format(plafondDisponibleTotal)},
+            {label:"Plafond de l'année en cours", value: euro.format(plafondAnneeAffiche)},
+            troisiemeFigure
+          ],
+          details: details,
+          chart:{
+            type:"doughnut",
+            labels: inputs.mutualiser ? ["Vous","Conjoint"] : ["Plafond de l'année","Report des 5 années précédentes"],
+            datasets:[{data: inputs.mutualiser ? [plafondDisponibleMoi, plafondDisponibleConjoint] : [plafondMoi, inputs.reliquatCumule5Ans], backgroundColor:["#122b46","#9c7a3c"]}]
+          },
+          summaryHTML: summaryHTML,
+          warnings: warnings
+        };
+      }
+    },
+
     /* ---------- 15. Calculateur d'intérêts composés ---------- */
     {
       id:"interets-composes", category:"epargne", status:"ready", icon:"📊",
@@ -1763,8 +1885,10 @@
   /* ============================ Generic form rendering ============================ */
   function fieldHTML(f, value){
     var val = value !== undefined && value !== null ? value : f.default;
+    // visibleWhen accepte soit une condition unique {field,values}, soit un tableau de conditions (toutes requises, ET logique).
+    var conditions = f.visibleWhen ? (Array.isArray(f.visibleWhen) ? f.visibleWhen : [f.visibleWhen]) : null;
     var wrapAttrs = 'class="field" data-field-wrap="' + f.id + '"' +
-      (f.visibleWhen ? ' data-visible-when-field="' + f.visibleWhen.field + '" data-visible-when-values="' + f.visibleWhen.values.join(",") + '"' : '');
+      (conditions ? " data-visible-when='" + JSON.stringify(conditions) + "'" : '');
     if(f.type === "select"){
       var opts = f.options.map(function(o){
         return '<option value="' + escapeHTML(o.value) + '" ' + (String(o.value)===String(val)?"selected":"") + '>' + escapeHTML(o.label) + '</option>';
@@ -1794,14 +1918,19 @@
       (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
   }
 
-  // Affiche/masque les champs conditionnels (f.visibleWhen = {field, values}) selon la valeur actuelle du champ contrôleur.
+  // Affiche/masque les champs conditionnels. f.visibleWhen (sérialisé en JSON dans data-visible-when) est un
+  // tableau de conditions {field, values} — le champ n'est visible que si TOUTES sont vraies (ET logique).
+  // Un contrôleur de type checkbox est évalué sur son état coché (values:["true"]/["false"]), pas sur .value.
   function applyFieldVisibility(formEl){
-    formEl.querySelectorAll("[data-visible-when-field]").forEach(function(wrap){
-      var controllerId = wrap.getAttribute("data-visible-when-field");
-      var allowedValues = wrap.getAttribute("data-visible-when-values").split(",");
-      var controllerEl = document.getElementById("f_" + controllerId);
-      var currentValue = controllerEl ? controllerEl.value : null;
-      wrap.hidden = allowedValues.indexOf(currentValue) === -1;
+    formEl.querySelectorAll("[data-visible-when]").forEach(function(wrap){
+      var conditions = JSON.parse(wrap.getAttribute("data-visible-when"));
+      var visible = conditions.every(function(cond){
+        var controllerEl = document.getElementById("f_" + cond.field);
+        if(!controllerEl) return false;
+        var currentValue = controllerEl.type === "checkbox" ? String(controllerEl.checked) : controllerEl.value;
+        return cond.values.indexOf(currentValue) !== -1;
+      });
+      wrap.hidden = !visible;
     });
   }
 
@@ -1809,9 +1938,12 @@
   // initial et après un re-rendu des champs (ex. changement de client sélectionné).
   function wireFieldVisibility(formEl){
     applyFieldVisibility(formEl);
-    formEl.querySelectorAll("[data-visible-when-field]").forEach(function(wrap){
-      var controllerId = wrap.getAttribute("data-visible-when-field");
-      var controllerEl = document.getElementById("f_" + controllerId);
+    var controllerIds = {};
+    formEl.querySelectorAll("[data-visible-when]").forEach(function(wrap){
+      JSON.parse(wrap.getAttribute("data-visible-when")).forEach(function(cond){ controllerIds[cond.field] = true; });
+    });
+    Object.keys(controllerIds).forEach(function(id){
+      var controllerEl = document.getElementById("f_" + id);
       if(controllerEl){ controllerEl.addEventListener("change", function(){ applyFieldVisibility(formEl); }); }
     });
   }
@@ -1851,6 +1983,7 @@
     var patrimoineImmoNet = (client.patrimoineImmobilierBrut||0) - (client.dettesImmobilieres||0);
     if(patrimoineImmoNet >= 1000000){ set["ifi"] = true; }
     if((client.chargesMensuellesCredits||0) > 0){ set["rachat-credit"] = true; }
+    if((client.revenusMensuelsNets||0) > 0){ set["plafond-per"] = true; }
     return Object.keys(set).filter(function(id){ return TOOLS_BY_ID[id] && TOOLS_BY_ID[id].status === "ready"; });
   }
 
@@ -1946,6 +2079,7 @@
         }).join("") +
       '</div>' +
       chartImg +
+      (result.summaryHTML ? '<p class="print-summary">' + result.summaryHTML + '</p>' : '') +
       '<div class="print-details"><h3>Détail du calcul</h3><table>' +
         (result.details||[]).map(function(d){ return '<tr><td>' + escapeHTML(d.label) + '</td><td>' + escapeHTML(d.value) + '</td></tr>'; }).join("") +
       '</table></div>' +
@@ -2005,6 +2139,7 @@
           '<div class="key-figures" id="keyFigures"></div>' +
           '<div class="chart-wrap tech-detail" id="chartWrap"><canvas id="resultChart"></canvas></div>' +
           '<div class="tech-detail" id="detailsArea"></div>' +
+          '<div id="summaryArea"></div>' +
           '<div class="warnings" id="warningsArea"></div>' +
           '<div class="actions-bar">' +
             '<div class="field client-field"><label for="clientName">Nom du client (optionnel)</label>' +
@@ -2037,6 +2172,7 @@
       var details = result.details || [];
       document.getElementById("detailsArea").innerHTML = details.length ?
         '<table class="details-table">' + details.map(function(d){ return '<tr><td>' + escapeHTML(d.label) + '</td><td>' + escapeHTML(d.value) + '</td></tr>'; }).join("") + '</table>' : '';
+      document.getElementById("summaryArea").innerHTML = result.summaryHTML ? '<p class="summary-sentence">' + result.summaryHTML + '</p>' : '';
       document.getElementById("warningsArea").innerHTML = (result.warnings||[]).map(function(w){ return '<div class="warning">' + escapeHTML(w) + '</div>'; }).join("");
       renderChart(result.chart);
     }
