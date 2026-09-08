@@ -102,6 +102,15 @@
   .recap-table tfoot td{font-weight:800;background:var(--bg);color:var(--navy);}
   .recap-chart-wrap{max-width:340px;margin:20px auto 0;}
 
+  /* Simulateur d'avis d'imposition : catégories de revenus dépliables */
+  .revenu-cat-block{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;}
+  .revenu-cat-block > summary{cursor:pointer;padding:12px 16px;list-style:none;display:flex;align-items:center;gap:8px;}
+  .revenu-cat-block > summary::-webkit-details-marker{display:none;}
+  .revenu-cat-block > summary::before{content:"▸";display:inline-block;transition:transform .15s;color:var(--accent);}
+  .revenu-cat-block[open] > summary::before{transform:rotate(90deg);}
+  .revenu-cat-block > summary label{font-size:.9rem;cursor:pointer;}
+  .revenu-cat-body{padding:0 16px 16px;}
+
   /* Bilan patrimonial */
   .wizard-steps{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;}
   .wizard-step{flex:1 1 120px;text-align:center;padding:8px 6px;border-radius:8px;font-size:.75rem;font-weight:700;background:#eef1f5;color:var(--muted);}
@@ -417,6 +426,7 @@
     if(!c.actifs) c.actifs = [];
     c.actifs.forEach(function(a){ if(!a.proprietaire) a.proprietaire = "adulte1"; });
     if(!c.statutCouple) c.statutCouple = "celibataire";
+    if(!c.revenusCategorises) c.revenusCategorises = defaultRevenusCategorises();
     return c;
   }
 
@@ -634,6 +644,156 @@
       precedent = b.upTo;
     }
     return impot;
+  }
+
+  // Modèle canonique de la ventilation des revenus par catégorie fiscale — utilisé à la fois par le
+  // Simulateur d'avis d'imposition et par la fiche client (client.revenusCategorises), pour que le
+  // pré-remplissage entre les deux soit une simple copie, sans conversion de format.
+  function defaultRevenusCategorises(){
+    return {
+      salaires: {actif:false, montantBrut:0, fraisReels:false, montantFraisReels:0},
+      pensions: {actif:false, montant:0},
+      fonciers: {actif:false, regime:"micro", montantBrut:0, charges:0},
+      bic: {actif:false, regime:"micro", typeActivite:"prestation", montantBrut:0, charges:0},
+      bnc: {actif:false, regime:"micro", montantBrut:0, charges:0},
+      rcm: {actif:false, dividendes:0, interets:0, optionBareme:false},
+      plusValues: {actif:false, montant:0, optionBareme:false}
+    };
+  }
+  var REVENU_CATEGORIES_META = [
+    {id:"salaires", label:"Traitements et salaires"},
+    {id:"pensions", label:"Pensions et retraites"},
+    {id:"fonciers", label:"Revenus fonciers"},
+    {id:"bic", label:"BIC — Bénéfices industriels et commerciaux"},
+    {id:"bnc", label:"BNC — Bénéfices non commerciaux"},
+    {id:"rcm", label:"Revenus de capitaux mobiliers"},
+    {id:"plusValues", label:"Plus-values mobilières"}
+  ];
+  function hasAnyCategorieActive(cat){
+    if(!cat) return false;
+    return REVENU_CATEGORIES_META.some(function(m){ return cat[m.id] && cat[m.id].actif; });
+  }
+
+  // Seuils/taux des abattements par catégorie de revenu, barème 2026 (revenus 2025) — voir referenceHTML
+  // du Simulateur d'avis d'imposition pour les sources et le détail des articles du CGI.
+  var ABATTEMENTS_CATEGORIES = {
+    salairesPlancher:509, salairesPlafond:14555,
+    pensionsPlancher:454, pensionsPlafond:4439,
+    microFoncierTaux:0.30,
+    microBicVenteTaux:0.71, microBicPrestationTaux:0.50, microBicPlancher:305,
+    microBncTaux:0.34, microBncPlancher:305,
+    dividendesAbattementBareme:0.40,
+    pfuIrTaux:0.128, psTaux:0.172
+  };
+
+  // Calcule, à partir d'une ventilation de revenus par catégorie (modèle canonique ci-dessus), le revenu
+  // net imposable total soumis au barème progressif, l'assiette et le montant du PFU/prélèvements sociaux
+  // sur les revenus de capitaux (calculés séparément, ce sont deux impositions distinctes), et le détail
+  // ligne à ligne pour affichage ("Revenus déclarés"). Fonction unique réutilisée par le Simulateur d'avis
+  // d'imposition et par le calcul du statut TNS/bénéfice imposable pour le plafond PER (Bilan patrimonial).
+  function computeRevenusCategorises(cat){
+    var A = ABATTEMENTS_CATEGORIES;
+    var lignes = [];
+    var revenuNetImposableBareme = 0;
+    var pfuAssiette = 0;
+    var psSurCapitaux = 0;
+    var netBicTns = 0, netBncTns = 0;
+
+    if(cat.salaires && cat.salaires.actif){
+      var brutS = cat.salaires.montantBrut||0, netS;
+      if(cat.salaires.fraisReels){
+        netS = Math.max(0, brutS - (cat.salaires.montantFraisReels||0));
+        lignes.push({label:"Revenus déclarés — Traitements et salaires (frais réels)", value: euro.format(netS) + " net (brut " + euro.format(brutS) + ")"});
+      } else {
+        var abatS = Math.min(A.salairesPlafond, Math.max(A.salairesPlancher, brutS*0.10));
+        netS = Math.max(0, brutS - Math.min(abatS, brutS));
+        lignes.push({label:"Revenus déclarés — Traitements et salaires (abattement 10%)", value: euro.format(netS) + " net (brut " + euro.format(brutS) + ")"});
+      }
+      revenuNetImposableBareme += netS;
+    }
+    if(cat.pensions && cat.pensions.actif){
+      var brutP = cat.pensions.montant||0;
+      var abatP = Math.min(A.pensionsPlafond, Math.max(A.pensionsPlancher, brutP*0.10));
+      var netP = Math.max(0, brutP - Math.min(abatP, brutP));
+      revenuNetImposableBareme += netP;
+      lignes.push({label:"Revenus déclarés — Pensions et retraites (abattement 10%)", value: euro.format(netP) + " net (brut " + euro.format(brutP) + ")"});
+    }
+    if(cat.fonciers && cat.fonciers.actif){
+      var brutF = cat.fonciers.montantBrut||0, netF;
+      if(cat.fonciers.regime === "micro"){
+        netF = brutF*(1-A.microFoncierTaux);
+        lignes.push({label:"Revenus déclarés — Revenus fonciers (micro-foncier, abattement 30%)", value: euro.format(netF) + " net (brut " + euro.format(brutF) + ")"});
+      } else {
+        netF = brutF - (cat.fonciers.charges||0);
+        lignes.push({label:"Revenus déclarés — Revenus fonciers (régime réel)", value: euro.format(netF) + " net (brut " + euro.format(brutF) + " − charges " + euro.format(cat.fonciers.charges||0) + ")"});
+      }
+      revenuNetImposableBareme += netF;
+    }
+    if(cat.bic && cat.bic.actif){
+      var brutBic = cat.bic.montantBrut||0, netBic;
+      if(cat.bic.regime === "micro"){
+        var tauxBic = cat.bic.typeActivite === "vente" ? A.microBicVenteTaux : A.microBicPrestationTaux;
+        var abatBic = Math.max(A.microBicPlancher, brutBic*tauxBic);
+        netBic = Math.max(0, brutBic - Math.min(abatBic, brutBic));
+        lignes.push({label:"Revenus déclarés — BIC (micro-BIC, " + (cat.bic.typeActivite==="vente"?"71%":"50%") + ")", value: euro.format(netBic) + " net (brut " + euro.format(brutBic) + ")"});
+      } else {
+        netBic = Math.max(0, brutBic - (cat.bic.charges||0));
+        lignes.push({label:"Revenus déclarés — BIC (régime réel)", value: euro.format(netBic) + " net (brut " + euro.format(brutBic) + " − charges " + euro.format(cat.bic.charges||0) + ")"});
+      }
+      revenuNetImposableBareme += netBic;
+      netBicTns = netBic;
+    }
+    if(cat.bnc && cat.bnc.actif){
+      var brutBnc = cat.bnc.montantBrut||0, netBnc;
+      if(cat.bnc.regime === "micro"){
+        var abatBnc = Math.max(A.microBncPlancher, brutBnc*A.microBncTaux);
+        netBnc = Math.max(0, brutBnc - Math.min(abatBnc, brutBnc));
+        lignes.push({label:"Revenus déclarés — BNC (micro-BNC, 34%)", value: euro.format(netBnc) + " net (brut " + euro.format(brutBnc) + ")"});
+      } else {
+        netBnc = Math.max(0, brutBnc - (cat.bnc.charges||0));
+        lignes.push({label:"Revenus déclarés — BNC (déclaration contrôlée)", value: euro.format(netBnc) + " net (brut " + euro.format(brutBnc) + " − charges " + euro.format(cat.bnc.charges||0) + ")"});
+      }
+      revenuNetImposableBareme += netBnc;
+      netBncTns = netBnc;
+    }
+    if(cat.rcm && cat.rcm.actif){
+      var div = cat.rcm.dividendes||0, inte = cat.rcm.interets||0, totalRcm = div+inte;
+      psSurCapitaux += totalRcm*A.psTaux;
+      if(cat.rcm.optionBareme){
+        var netDiv = div*(1-A.dividendesAbattementBareme);
+        revenuNetImposableBareme += netDiv + inte;
+        lignes.push({label:"Revenus déclarés — Capitaux mobiliers (option barème, dividendes abattus 40%)", value: euro.format(netDiv+inte) + " net (brut " + euro.format(totalRcm) + ")"});
+      } else {
+        pfuAssiette += totalRcm;
+        lignes.push({label:"Revenus déclarés — Capitaux mobiliers (PFU 30%)", value: euro.format(totalRcm)});
+      }
+    }
+    if(cat.plusValues && cat.plusValues.actif){
+      var mtPv = cat.plusValues.montant||0;
+      psSurCapitaux += mtPv*A.psTaux;
+      if(cat.plusValues.optionBareme){
+        revenuNetImposableBareme += mtPv;
+        lignes.push({label:"Revenus déclarés — Plus-values mobilières (option barème)", value: euro.format(mtPv)});
+      } else {
+        pfuAssiette += mtPv;
+        lignes.push({label:"Revenus déclarés — Plus-values mobilières (PFU 30%)", value: euro.format(mtPv)});
+      }
+    }
+
+    var irPfu = pfuAssiette*A.pfuIrTaux;
+    var totalPfuEtSocial = irPfu + psSurCapitaux;
+
+    return {
+      lignes: lignes,
+      revenuNetImposableBareme: revenuNetImposableBareme,
+      pfuAssiette: pfuAssiette,
+      irPfu: irPfu,
+      psSurCapitaux: psSurCapitaux,
+      totalPfuEtSocial: totalPfuEtSocial,
+      netBicTns: netBicTns,
+      netBncTns: netBncTns,
+      isTns: !!((cat.bic && cat.bic.actif) || (cat.bnc && cat.bnc.actif))
+    };
   }
 
   // Fiscalité d'un rachat d'assurance-vie (PS + IR/PFU), régime des versements post-2017 (Art. 125-0 A CGI).
@@ -1801,15 +1961,8 @@
     {
       id:"avis-imposition", category:"epargne", status:"ready", icon:"🧾",
       name:"Simulateur d'avis d'imposition",
-      desc:"Estime l'impôt sur le revenu du foyer (méthode du quotient familial, avec plafonnement et décote), selon le barème progressif — seul calculateur de l'impôt sur le revenu dans l'application ; les autres modules (Bilan patrimonial, comparateurs) réutilisent ce résultat au lieu de le recalculer.",
-      fields:[
-        {id:"revenuNetImposable", label:"Revenu net imposable annuel du foyer", type:"number", suffix:"€", default:30000, step:500,
-          help:"Figure sur l'avis d'imposition, ligne \"Revenu net imposable\" (après abattement de 10% sur salaires/pensions). À défaut d'avis disponible, base d'estimation à ajuster avec le client."},
-        {id:"imposeCommun", label:"Imposition commune (couple marié ou pacsé)", type:"checkbox", default:true,
-          help:"Les concubins ne sont pas imposés en commun (deux foyers fiscaux distincts) : décochez et simulez chaque personne séparément avec ses propres revenus et parts."},
-        {id:"nombreParts", label:"Nombre de parts fiscales du foyer", type:"number", default:2, step:0.5,
-          help:"Règle générale : 1 part par adulte du foyer fiscal + 0,5 part pour chacun des 2 premiers enfants à charge + 1 part à partir du 3ᵉ (moitié en cas de garde alternée). Cas particuliers (parent isolé, invalidité...) non couverts : ajustez manuellement."}
-      ],
+      desc:"Estime l'impôt sur le revenu du foyer à partir des revenus saisis par catégorie fiscale (salaires, pensions, fonciers, BIC, BNC, capitaux mobiliers, plus-values), avec méthode du quotient familial, plafonnement et décote — seul calculateur de l'impôt sur le revenu dans l'application ; les autres modules (Bilan patrimonial, comparateurs) réutilisent ce résultat au lieu de le recalculer.",
+      fields:[], // Interface entièrement sur-mesure (mountAvisImposition) : catégories de revenus dépliables, pas de formulaire déclaratif à plat.
       referenceHTML:
         '<h3>Barème retenu (2026, revenus 2025)</h3>' +
         '<table>' +
@@ -1819,7 +1972,17 @@
         '<tr><td>De 84 577 € à 181 917 €</td><td>41 %</td></tr>' +
         '<tr><td>Au-delà de 181 917 €</td><td>45 %</td></tr>' +
         '</table>' +
-        '<div class="ref-note">Décote (Art. 197 I 4° CGI) : céliba. si IR &lt; 1 982 € (897 € − 45,25 % × IR) ; couple si IR &lt; 3 277 € (1 483 € − 45,25 % × IR). Plafonnement du quotient familial (Art. 197 I 2° CGI) : avantage des parts au-delà de 1 part (céliba.) / 2 parts (couple) plafonné à 1 807 € par demi-part supplémentaire. Seuils revalorisés chaque année en loi de finances : à vérifier avant toute décision.</div>',
+        '<h3>Abattements par catégorie</h3>' +
+        '<table>' +
+        '<tr><td>Traitements et salaires</td><td>10% (plancher 509 €/déclarant, plafond 14 555 €/foyer)</td></tr>' +
+        '<tr><td>Pensions et retraites</td><td>10% (plancher 454 €/pensionné, plafond 4 439 €/foyer)</td></tr>' +
+        '<tr><td>Revenus fonciers (micro-foncier, ≤ 15 000 €/an)</td><td>30%</td></tr>' +
+        '<tr><td>BIC — vente/hébergement (micro-BIC)</td><td>71% (min. 305 €)</td></tr>' +
+        '<tr><td>BIC — prestations de services (micro-BIC)</td><td>50% (min. 305 €)</td></tr>' +
+        '<tr><td>BNC (micro-BNC)</td><td>34% (min. 305 €)</td></tr>' +
+        '<tr><td>Dividendes, en cas d\'option barème (RCM)</td><td>40% (pas les intérêts)</td></tr>' +
+        '</table>' +
+        '<div class="ref-note">Décote (Art. 197 I 4° CGI) : céliba. si IR &lt; 1 982 € (897 € − 45,25 % × IR) ; couple si IR &lt; 3 277 € (1 483 € − 45,25 % × IR). Plafonnement du quotient familial (Art. 197 I 2° CGI) : avantage des parts au-delà de 1 part (céliba.) / 2 parts (couple) plafonné à 1 807 € par demi-part supplémentaire. PFU (prélèvement forfaitaire unique) sur capitaux mobiliers et plus-values : 30% (12,8% IR + 17,2% prélèvements sociaux), option barème progressif possible (globale, sur l\'ensemble des revenus et gains de capitaux mobiliers de l\'année) — les prélèvements sociaux de 17,2% restent dus dans tous les cas. Tous seuils revalorisés chaque année en loi de finances : à vérifier avant toute décision.</div>',
       compute:function(inputs){
         var BAREME = [
           {upTo:11600, rate:0},{upTo:29579, rate:0.11},{upTo:84577, rate:0.30},{upTo:181917, rate:0.41},{upTo:Infinity, rate:0.45}
@@ -1833,7 +1996,13 @@
           return BAREME[BAREME.length-1];
         }
 
-        var revenu = Math.max(0, inputs.revenuNetImposable||0);
+        // Compatibilité ascendante : simulations enregistrées avant la ventilation par catégorie de revenu
+        // (un seul champ "revenuNetImposable" à plat) — même pipeline barème/QF/plafonnement/décote ci-dessous,
+        // simplement sans détail de catégories ni bloc PFU.
+        var cat = inputs.revenusCategorises;
+        var revenuDetail = (cat && hasAnyCategorieActive(cat)) ? computeRevenusCategorises(cat) : null;
+        var revenu = revenuDetail ? revenuDetail.revenuNetImposableBareme : Math.max(0, inputs.revenuNetImposable||0);
+
         var parts = Math.max(0.5, inputs.nombreParts||1);
         var partsDeBase = inputs.imposeCommun ? 2 : 1;
 
@@ -1859,34 +2028,55 @@
         var rfrEstime = revenu/0.9;
 
         var warnings = [
-          "Barème 2026 (revenus 2025) : tranches, décote et plafonnement du quotient familial sont revalorisés chaque année en loi de finances — vérifiez le barème en vigueur avant toute décision.",
-          "Calcul simplifié : hors crédits/réductions d'impôt, prélèvement à la source (avance déjà versée), revenus déjà taxés au PFU (calculés séparément dans les autres calculateurs), et cas particuliers (parent isolé, invalidité...).",
+          "Barème 2026 (revenus 2025) : tranches, abattements, décote et plafonnement du quotient familial sont revalorisés chaque année en loi de finances — vérifiez le barème en vigueur avant toute décision.",
+          "Calcul simplifié : hors crédits/réductions d'impôt, prélèvement à la source (avance déjà versée), déficit foncier imputable sur le revenu global (plafond 10 700 €/an, non modélisé), abattement pour durée de détention sur plus-values de titres acquis avant 2018 (non modélisé), et cas particuliers (parent isolé, invalidité...).",
           "Nombre de parts fiscales à vérifier avec le client : la règle standard appliquée ici ne couvre pas tous les cas particuliers.",
           "En cas de concubinage, chaque personne du couple doit être imposée séparément (deux foyers fiscaux distincts) : ne cochez \"imposition commune\" que pour un couple marié ou pacsé."
         ];
         if(revenu>0 && irNet===0){ warnings.unshift("Foyer non imposable au barème avant prise en compte d'éventuels autres revenus ou crédits d'impôt."); }
 
         var summaryHTML = "Pour un revenu net imposable de <strong>" + euro.format(revenu) + "</strong> réparti sur <strong>" + parts + " part(s)</strong>, l'impôt sur le revenu net est estimé à <strong>" + euro.format(irNet) + "</strong>, avec une tranche marginale d'imposition de <strong>" + pct(tmi,0) + "</strong>" +
-          (margeFoyer!==null ? ", et une marge de <strong>" + euro.format(margeFoyer) + "</strong> avant de basculer dans la tranche supérieure." : ", déjà dans la tranche marginale la plus élevée du barème.");
+          (margeFoyer!==null ? ", et une marge de <strong>" + euro.format(margeFoyer) + "</strong> avant de basculer dans la tranche supérieure." : ", déjà dans la tranche marginale la plus élevée du barème.") +
+          (revenuDetail && revenuDetail.totalPfuEtSocial>0 ? " À cela s'ajoutent <strong>" + euro.format(revenuDetail.totalPfuEtSocial) + "</strong> de PFU et prélèvements sociaux sur les revenus de capitaux mobiliers et plus-values non soumis au barème — une imposition distincte." : "");
+
+        var details = [];
+        if(revenuDetail){
+          details = details.concat(revenuDetail.lignes);
+          details.push({label:"Revenu net imposable total (barème)", value: euro.format(revenuDetail.revenuNetImposableBareme)});
+        }
+        details = details.concat([
+          {label:"Quotient familial (revenu ÷ parts)", value: euro.format(qf)},
+          {label:"Nombre de parts retenues", value: String(parts)},
+          {label:"IR avant plafonnement du quotient familial", value: euro.format(irAvantPlafonnement)},
+          {label:"IR sur la base de " + partsDeBase + " part(s) (sans les parts supplémentaires)", value: euro.format(irBase)},
+          {label:"Avantage procuré par les parts supplémentaires", value: euro.format(avantageProcure)},
+          {label:"Plafond de l'avantage (" + demiPartsSupp + " demi-part(s) × 1 807 €)", value: euro.format(plafondAvantage)},
+          {label:"IR après plafonnement du quotient familial", value: euro.format(irApresPlafonnement)},
+          {label:"Décote appliquée", value: euro.format(decote)},
+          {label:"Impôt net à payer (barème)", value: euro.format(irNet)}
+        ]);
+        if(revenuDetail && revenuDetail.totalPfuEtSocial>0){
+          details.push(
+            {label:"Assiette PFU (capitaux mobiliers/plus-values non optés au barème)", value: euro.format(revenuDetail.pfuAssiette)},
+            {label:"Dont impôt forfaitaire 12,8% (part IR)", value: euro.format(revenuDetail.irPfu)},
+            {label:"Prélèvements sociaux 17,2% sur revenus de capitaux (toujours dus)", value: euro.format(revenuDetail.psSurCapitaux)},
+            {label:"Total PFU + prélèvements sociaux sur capitaux", value: euro.format(revenuDetail.totalPfuEtSocial)}
+          );
+        }
+
+        var keyFigures = [
+          {label:"Impôt net à payer (barème)", value: euro.format(irNet)},
+          {label:"TMI (taux marginal d'imposition)", value: pct(tmi,0)},
+          {label:"RFR estimé", value: euro.format(rfrEstime)},
+          margeFoyer!==null ? {label:"Marge avant tranche supérieure", value: euro.format(margeFoyer)} : {label:"Tranche marginale", value:"Déjà au taux maximal (45 %)"}
+        ];
+        if(revenuDetail && revenuDetail.totalPfuEtSocial>0){
+          keyFigures.push({label:"PFU + prélèvements sociaux (capitaux, distinct du barème)", value: euro.format(revenuDetail.totalPfuEtSocial)});
+        }
 
         return {
-          keyFigures:[
-            {label:"Impôt net à payer", value: euro.format(irNet)},
-            {label:"TMI (taux marginal d'imposition)", value: pct(tmi,0)},
-            {label:"RFR estimé", value: euro.format(rfrEstime)},
-            margeFoyer!==null ? {label:"Marge avant tranche supérieure", value: euro.format(margeFoyer)} : {label:"Tranche marginale", value:"Déjà au taux maximal (45 %)"}
-          ],
-          details:[
-            {label:"Quotient familial (revenu ÷ parts)", value: euro.format(qf)},
-            {label:"Nombre de parts retenues", value: String(parts)},
-            {label:"IR avant plafonnement du quotient familial", value: euro.format(irAvantPlafonnement)},
-            {label:"IR sur la base de " + partsDeBase + " part(s) (sans les parts supplémentaires)", value: euro.format(irBase)},
-            {label:"Avantage procuré par les parts supplémentaires", value: euro.format(avantageProcure)},
-            {label:"Plafond de l'avantage (" + demiPartsSupp + " demi-part(s) × 1 807 €)", value: euro.format(plafondAvantage)},
-            {label:"IR après plafonnement du quotient familial", value: euro.format(irApresPlafonnement)},
-            {label:"Décote appliquée", value: euro.format(decote)},
-            {label:"Impôt net à payer", value: euro.format(irNet)}
-          ],
+          keyFigures: keyFigures,
+          details: details,
           chart:null,
           warnings: warnings,
           summaryHTML: summaryHTML
@@ -2226,6 +2416,7 @@
   var TOOLS_BY_ID = {};
   TOOLS.forEach(function(t){ TOOLS_BY_ID[t.id] = t; });
   TOOLS_BY_ID["interets-composes"].customRender = function(opts){ mountInteretsComposes(opts); };
+  TOOLS_BY_ID["avis-imposition"].customRender = function(opts){ mountAvisImposition(opts); };
 
   /* ============================ Generic form rendering ============================ */
   function fieldHTML(f, value){
@@ -2312,6 +2503,25 @@
     return out;
   }
 
+  // Statut professionnel inféré de la ventilation des revenus par catégorie du client : présence de BIC
+  // et/ou BNC actifs = travailleur non salarié. Utilisé pour ne pas redemander le statut manuellement au
+  // Simulateur de plafond PER quand le Bilan patrimonial le déclenche automatiquement pour ce client.
+  function inferStatutProfessionnelFromClient(client){
+    var rc = client.revenusCategorises;
+    if(rc && ((rc.bic && rc.bic.actif) || (rc.bnc && rc.bnc.actif))) return "tns";
+    return "salarie";
+  }
+  // Bénéfice imposable BIC+BNC net (après abattement micro ou charges réelles), pour préremplir le champ
+  // du Simulateur de plafond PER quand le statut TNS est inféré. Réutilise computeRevenusCategorises,
+  // pas de recalcul séparé des abattements micro-BIC/micro-BNC.
+  function estimateBeneficeImposableTns(client){
+    var rc = client.revenusCategorises;
+    if(!rc || !hasAnyCategorieActive(rc)) return null;
+    var detail = computeRevenusCategorises(rc);
+    var total = detail.netBicTns + detail.netBncTns;
+    return total > 0 ? total : null;
+  }
+
   // Variante complète pour le Bilan patrimonial : chaque champ reçoit la valeur de la fiche client si
   // disponible, sinon la valeur par défaut de l'outil — afin de pouvoir lancer tool.compute() sans saisie manuelle.
   function buildFullInputsFromClient(client, tool){
@@ -2320,6 +2530,16 @@
       var v = f.clientField ? client[f.clientField] : undefined;
       out[f.id] = (v !== undefined && v !== null && v !== "") ? v : f.default;
     });
+    // Le statut professionnel (salarié/TNS) du plafond PER n'a pas de clientField 1:1 : déduit ici des
+    // revenus catégorisés du client plutôt que de redemander l'information à l'écran.
+    if(tool.id === "plafond-per"){
+      var statutInfere = inferStatutProfessionnelFromClient(client);
+      if(statutInfere === "tns"){
+        out.statutProfessionnel = "tns";
+        var beneficeEstime = estimateBeneficeImposableTns(client);
+        if(beneficeEstime !== null) out.beneficeImposable = beneficeEstime;
+      }
+    }
     return out;
   }
 
@@ -2338,16 +2558,26 @@
     return partsAdultes + partsEnfants;
   }
 
-  // Estimation des paramètres du Simulateur d'avis d'imposition à partir des données déjà saisies dans la
-  // fiche client (revenus nets mensuels du foyer, statut du couple, enfants à charge) — pour permettre à la
-  // section "Impôt sur le revenu" du rapport de calculer un ordre de grandeur sans ressaisie préalable dans
-  // le simulateur dédié. Revenu net imposable approximé par 12 × revenus nets mensuels × 0,9 (abattement
-  // forfaitaire de 10%) : une simulation enregistrée à partir du vrai avis d'imposition reste plus précise.
+  // Paramètres du Simulateur d'avis d'imposition à partir des données déjà saisies dans la fiche client —
+  // pour permettre à la section "Impôt sur le revenu" du rapport de calculer un ordre de grandeur sans
+  // ressaisie préalable dans le simulateur dédié. Si le client a déjà une ventilation par catégorie
+  // renseignée (revenusCategorises), elle est réutilisée telle quelle (même moteur de calcul, aucune
+  // conversion) ; sinon, migration depuis l'ancien champ global "revenus nets mensuels" vers la seule
+  // catégorie "Traitements et salaires" (brut annualisé, abattement 10% appliqué par le calculateur lui-même).
   function buildAvisImpositionInputsFromClient(client){
+    var cat;
+    if(hasAnyCategorieActive(client.revenusCategorises)){
+      cat = client.revenusCategorises;
+    } else {
+      cat = defaultRevenusCategorises();
+      if(client.revenusMensuelsNets){
+        cat.salaires = {actif:true, montantBrut: Math.round(client.revenusMensuelsNets*12), fraisReels:false, montantFraisReels:0};
+      }
+    }
     return {
-      revenuNetImposable: Math.round((client.revenusMensuelsNets||0)*12*0.9),
       imposeCommun: client.statutCouple === "marie" || client.statutCouple === "pacse",
-      nombreParts: computePartsFiscalesEstimees(client)
+      nombreParts: computePartsFiscalesEstimees(client),
+      revenusCategorises: cat
     };
   }
 
@@ -2461,9 +2691,9 @@
       '<div class="print-details"><h3>Détail du calcul</h3><table>' +
         (result.details||[]).map(function(d){ return '<tr><td>' + escapeHTML(d.label) + '</td><td>' + escapeHTML(d.value) + '</td></tr>'; }).join("") +
       '</table></div>' +
-      '<div class="print-inputs"><h3>Paramètres saisis</h3><table>' +
+      (tool.fields.length ? '<div class="print-inputs"><h3>Paramètres saisis</h3><table>' +
         tool.fields.map(function(f){ return '<tr><td>' + escapeHTML(f.label) + '</td><td>' + escapeHTML(formatInputForPrint(f, inputs[f.id])) + '</td></tr>'; }).join("") +
-      '</table></div>' +
+      '</table></div>' : '') +
       '<div class="print-footer">' + escapeHTML(getLegalMention()) + '</div>';
     window.print();
   }
@@ -3028,6 +3258,285 @@
         keyFigures: lastResult.keyFigures
       };
       saveSimulation(entry);
+      var msg = document.getElementById("saveMsg");
+      msg.textContent = "Simulation enregistrée ✓";
+      setTimeout(function(){ msg.textContent = ""; }, 2500);
+    });
+
+    recalc();
+  }
+
+  /* ============================ Simulateur d'avis d'imposition (rendu sur mesure) ============================ */
+  // Interface dédiée : catégories de revenus dépliables (une par source fiscale), chacune avec ses propres
+  // sous-champs et son régime (micro/réel, forfaitaire/frais réels, PFU/barème...). Ne passe pas par
+  // mountCalculator/fieldHTML (système à plat) car chaque catégorie a une forme différente et doit pouvoir
+  // se (dés)activer indépendamment ; suit néanmoins la même disposition générale (sélecteur client, zone de
+  // résultats, actions Présentation/PDF/Enregistrer) que les autres outils pour rester cohérent.
+  function mountAvisImposition(opts){
+    var tool = TOOLS_BY_ID["avis-imposition"];
+    var main = document.getElementById("main");
+    var clients = getClients();
+    var selectedClientId = opts.clientId && getClientById(opts.clientId) ? opts.clientId : "";
+
+    function mergeCategorises(partial){
+      var base = defaultRevenusCategorises();
+      REVENU_CATEGORIES_META.forEach(function(m){
+        if(partial && partial[m.id]) base[m.id] = Object.assign({}, base[m.id], partial[m.id]);
+      });
+      return base;
+    }
+    function stateFromInputs(inputs){
+      if(inputs.revenusCategorises){
+        return {
+          imposeCommun: inputs.imposeCommun !== undefined ? inputs.imposeCommun : true,
+          nombreParts: inputs.nombreParts !== undefined ? inputs.nombreParts : 2,
+          revenusCategorises: mergeCategorises(inputs.revenusCategorises)
+        };
+      }
+      // Compatibilité ascendante : simulation enregistrée avant la ventilation par catégorie.
+      var cat = defaultRevenusCategorises();
+      if(inputs.revenuNetImposable){
+        cat.salaires = {actif:true, montantBrut: Math.round((inputs.revenuNetImposable||0)/0.9), fraisReels:false, montantFraisReels:0};
+      }
+      return {
+        imposeCommun: inputs.imposeCommun !== undefined ? inputs.imposeCommun : true,
+        nombreParts: inputs.nombreParts !== undefined ? inputs.nombreParts : 2,
+        revenusCategorises: cat
+      };
+    }
+
+    var client = selectedClientId ? getClientById(selectedClientId) : null;
+    var state;
+    if(opts.prefill){
+      state = stateFromInputs(opts.prefill);
+    } else if(client && hasAnyCategorieActive(client.revenusCategorises)){
+      state = {
+        imposeCommun: client.statutCouple === "marie" || client.statutCouple === "pacse",
+        nombreParts: computePartsFiscalesEstimees(client),
+        revenusCategorises: mergeCategorises(client.revenusCategorises)
+      };
+    } else if(client){
+      state = stateFromInputs(buildAvisImpositionInputsFromClient(client));
+    } else {
+      state = {imposeCommun:true, nombreParts:2, revenusCategorises: defaultRevenusCategorises()};
+    }
+
+    var clientOptionsHTML = '<option value="">— Aucun / autre —</option>' +
+      clients.map(function(c){ return '<option value="' + c.id + '" ' + (c.id===selectedClientId?"selected":"") + '>' + escapeHTML(clientFullName(c)) + '</option>'; }).join("");
+
+    /* ---- Corps de chaque catégorie (sous-champs propres à sa fiscalité) ---- */
+    function amountFieldHTML(catId, field, label, value, step){
+      return '<div class="field"><label>' + escapeHTML(label) + '</label><div class="input-suffix">' +
+        '<input type="number" data-cat="' + catId + '" data-field="' + field + '" value="' + (value||0) + '" step="' + (step||100) + '">' +
+        '<span class="suffix">€</span></div></div>';
+    }
+    function regimeSelectHTML(catId, options, value){
+      return '<select data-cat="' + catId + '" data-field="regime">' + options.map(function(o){
+        return '<option value="' + o.value + '" ' + (o.value===value?"selected":"") + '>' + escapeHTML(o.label) + '</option>';
+      }).join("") + '</select>';
+    }
+    function catBodyHTML(meta, c){
+      if(meta.id === "salaires"){
+        return '<div class="form-grid">' +
+          amountFieldHTML("salaires", "montantBrut", "Montant brut annuel (avant abattement)", c.montantBrut, 500) +
+          '<div class="field"><label class="checkbox-inline"><input type="checkbox" data-cat="salaires" data-field="fraisReels" ' + (c.fraisReels?"checked":"") + '> Frais réels (au lieu de l\'abattement de 10%)</label></div>' +
+          (c.fraisReels ? amountFieldHTML("salaires", "montantFraisReels", "Montant des frais réels", c.montantFraisReels, 100) : '') +
+        '</div>';
+      }
+      if(meta.id === "pensions"){
+        return '<div class="form-grid">' + amountFieldHTML("pensions", "montant", "Montant annuel brut (abattement 10% appliqué automatiquement)", c.montant, 500) + '</div>';
+      }
+      if(meta.id === "fonciers"){
+        return '<div class="form-grid">' +
+          '<div class="field"><label>Régime</label>' + regimeSelectHTML("fonciers", [{value:"micro",label:"Micro-foncier (abattement 30%, ≤ 15 000 €/an)"},{value:"reel",label:"Régime réel (charges déductibles)"}], c.regime) + '</div>' +
+          amountFieldHTML("fonciers", "montantBrut", "Revenus fonciers bruts annuels", c.montantBrut, 500) +
+          (c.regime==="reel" ? amountFieldHTML("fonciers", "charges", "Charges déductibles (travaux, intérêts d'emprunt...)", c.charges, 500) : '') +
+        '</div>';
+      }
+      if(meta.id === "bic"){
+        return '<div class="form-grid">' +
+          '<div class="field"><label>Régime</label>' + regimeSelectHTML("bic", [{value:"micro",label:"Micro-BIC"},{value:"reel",label:"Régime réel"}], c.regime) + '</div>' +
+          (c.regime==="micro" ? '<div class="field"><label>Type d\'activité</label><select data-cat="bic" data-field="typeActivite">' +
+            '<option value="vente" ' + (c.typeActivite==="vente"?"selected":"") + '>Vente / hébergement (abattement 71%)</option>' +
+            '<option value="prestation" ' + (c.typeActivite==="prestation"?"selected":"") + '>Prestations de services (abattement 50%)</option>' +
+          '</select></div>' : '') +
+          amountFieldHTML("bic", "montantBrut", "Chiffre d'affaires / recettes brutes annuelles", c.montantBrut, 500) +
+          (c.regime==="reel" ? amountFieldHTML("bic", "charges", "Charges réelles déductibles", c.charges, 500) : '') +
+        '</div>';
+      }
+      if(meta.id === "bnc"){
+        return '<div class="form-grid">' +
+          '<div class="field"><label>Régime</label>' + regimeSelectHTML("bnc", [{value:"micro",label:"Micro-BNC (abattement 34%)"},{value:"reel",label:"Déclaration contrôlée"}], c.regime) + '</div>' +
+          amountFieldHTML("bnc", "montantBrut", "Recettes brutes annuelles", c.montantBrut, 500) +
+          (c.regime==="reel" ? amountFieldHTML("bnc", "charges", "Charges réelles déductibles", c.charges, 500) : '') +
+        '</div>';
+      }
+      if(meta.id === "rcm"){
+        return '<div class="form-grid">' +
+          amountFieldHTML("rcm", "dividendes", "Dividendes annuels", c.dividendes, 100) +
+          amountFieldHTML("rcm", "interets", "Intérêts et autres produits à revenu fixe", c.interets, 100) +
+          '<div class="field"><label class="checkbox-inline"><input type="checkbox" data-cat="rcm" data-field="optionBareme" ' + (c.optionBareme?"checked":"") + '> Option barème progressif (au lieu du PFU 30%)</label>' +
+            '<div class="help">Option globale sur l\'ensemble des revenus de capitaux mobiliers et plus-values de l\'année. Abattement de 40% applicable aux seuls dividendes. Les prélèvements sociaux (17,2%) restent dus dans tous les cas.</div></div>' +
+        '</div>';
+      }
+      if(meta.id === "plusValues"){
+        return '<div class="form-grid">' +
+          amountFieldHTML("plusValues", "montant", "Plus-values mobilières annuelles", c.montant, 500) +
+          '<div class="field"><label class="checkbox-inline"><input type="checkbox" data-cat="plusValues" data-field="optionBareme" ' + (c.optionBareme?"checked":"") + '> Option barème progressif (au lieu du PFU 30%)</label>' +
+            '<div class="help">Sans abattement pour durée de détention (cas des titres acquis avant 2018, non modélisé ici). Les prélèvements sociaux (17,2%) restent dus dans tous les cas.</div></div>' +
+        '</div>';
+      }
+      return '';
+    }
+    function categoryBlockHTML(meta, c){
+      return '<details class="revenu-cat-block" data-cat-block="' + meta.id + '" ' + (c.actif?"open":"") + '>' +
+        '<summary><label><input type="checkbox" class="revenu-cat-actif" data-cat="' + meta.id + '" data-field="actif" ' + (c.actif?"checked":"") + '> <strong>' + escapeHTML(meta.label) + '</strong></label></summary>' +
+        '<div class="revenu-cat-body" ' + (c.actif?"":"hidden") + '>' + catBodyHTML(meta, c) + '</div>' +
+      '</details>';
+    }
+
+    main.innerHTML = '<div class="container calc-page">' +
+      '<a href="#/" class="back-link">← Retour aux outils</a>' +
+      '<h1>' + escapeHTML(tool.name) + '</h1>' +
+      '<p class="tool-desc">' + escapeHTML(tool.desc) + '</p>' +
+      '<div class="client-select-bar">' +
+        '<div class="field"><label for="clientSelect">Client (pré-remplissage automatique)</label>' +
+        '<select id="clientSelect">' + clientOptionsHTML + '</select></div>' +
+        '<a href="#/clients/new" class="link-new-client">+ Nouveau client</a>' +
+      '</div>' +
+      '<div class="calc-form">' +
+        '<div class="form-grid">' +
+          '<div class="field"><label class="checkbox-inline"><input type="checkbox" id="ai_imposeCommun" ' + (state.imposeCommun?"checked":"") + '> Imposition commune (couple marié ou pacsé)</label>' +
+            '<div class="help">Les concubins ne sont pas imposés en commun : décochez pour simuler chaque personne séparément.</div></div>' +
+          '<div class="field"><label for="ai_nombreParts">Nombre de parts fiscales du foyer</label><input type="number" id="ai_nombreParts" value="' + state.nombreParts + '" step="0.5"></div>' +
+        '</div>' +
+        '<div class="subsection-title">Revenus déclarés par catégorie</div>' +
+        '<div id="avisCategoriesWrap">' + REVENU_CATEGORIES_META.map(function(m){ return categoryBlockHTML(m, state.revenusCategorises[m.id]); }).join("") + '</div>' +
+      '</div>' +
+      (tool.referenceHTML ? '<div class="reference-panel tech-detail">' + tool.referenceHTML + '</div>' : '') +
+      '<hr class="sep">' +
+      '<div class="key-figures" id="keyFigures"></div>' +
+      '<div class="tech-detail" id="detailsArea"></div>' +
+      '<div id="summaryArea"></div>' +
+      '<div class="warnings" id="warningsArea"></div>' +
+      '<div class="actions-bar">' +
+        '<div class="field client-field"><label for="clientName">Nom du client (optionnel)</label>' +
+        '<input type="text" id="clientName" placeholder="ex. M. Dupont" value="' + (selectedClientId ? escapeHTML(clientFullName(getClientById(selectedClientId))) : "") + '"></div>' +
+        '<div class="actions-buttons">' +
+          '<button class="btn btn-outline" id="presentBtn" type="button">🖥 Mode présentation</button>' +
+          '<button class="btn btn-outline" id="pdfBtn" type="button">⤓ Exporter en PDF</button>' +
+          '<button class="btn btn-primary" id="saveBtn" type="button">💾 Enregistrer pour ce client</button>' +
+        '</div>' +
+        '<div class="save-msg" id="saveMsg"></div>' +
+      '</div>' +
+    '</div>';
+
+    var lastInputs = null, lastResult = null;
+
+    function currentInputs(){
+      return {imposeCommun: state.imposeCommun, nombreParts: state.nombreParts, revenusCategorises: state.revenusCategorises};
+    }
+
+    function recalc(){
+      lastInputs = currentInputs();
+      lastResult = tool.compute(lastInputs);
+      document.getElementById("keyFigures").innerHTML = lastResult.keyFigures.map(function(k){
+        return '<div class="key-figure"><div class="value">' + escapeHTML(k.value) + '</div><div class="label">' + escapeHTML(k.label) + '</div></div>';
+      }).join("");
+      var d = lastResult.details || [];
+      document.getElementById("detailsArea").innerHTML = d.length ?
+        '<table class="details-table">' + d.map(function(row){ return '<tr><td>' + escapeHTML(row.label) + '</td><td>' + escapeHTML(row.value) + '</td></tr>'; }).join("") + '</table>' : '';
+      document.getElementById("summaryArea").innerHTML = lastResult.summaryHTML ? '<p class="summary-sentence">' + lastResult.summaryHTML + '</p>' : '';
+      document.getElementById("warningsArea").innerHTML = (lastResult.warnings||[]).map(function(w){ return '<div class="warning">' + escapeHTML(w) + '</div>'; }).join("");
+    }
+
+    function renderCategoryBlock(meta){
+      var block = main.querySelector('[data-cat-block="' + meta.id + '"]');
+      var wasOpen = block.open;
+      block.outerHTML = categoryBlockHTML(meta, state.revenusCategorises[meta.id]);
+      var newBlock = main.querySelector('[data-cat-block="' + meta.id + '"]');
+      newBlock.open = wasOpen || state.revenusCategorises[meta.id].actif;
+      wireCategoryBlock(newBlock);
+    }
+
+    function wireCategoryBlock(block){
+      var catId = block.getAttribute("data-cat-block");
+      var actifCb = block.querySelector('.revenu-cat-actif');
+      actifCb.addEventListener("click", function(e){ e.stopPropagation(); });
+      actifCb.addEventListener("change", function(){
+        state.revenusCategorises[catId].actif = actifCb.checked;
+        renderCategoryBlock(REVENU_CATEGORIES_META.filter(function(m){ return m.id===catId; })[0]);
+        recalc();
+      });
+      block.querySelectorAll("select[data-cat], input[type=checkbox][data-cat]:not(.revenu-cat-actif)").forEach(function(el){
+        el.addEventListener("change", function(){
+          var field = el.dataset.field;
+          state.revenusCategorises[catId][field] = el.type === "checkbox" ? el.checked : el.value;
+          renderCategoryBlock(REVENU_CATEGORIES_META.filter(function(m){ return m.id===catId; })[0]);
+          recalc();
+        });
+      });
+      block.querySelectorAll("input[type=number][data-cat]").forEach(function(el){
+        el.addEventListener("input", function(){
+          state.revenusCategorises[catId][el.dataset.field] = parseFloat(el.value)||0;
+          recalc();
+        });
+      });
+    }
+
+    document.getElementById("ai_imposeCommun").addEventListener("change", function(e){ state.imposeCommun = e.target.checked; recalc(); });
+    document.getElementById("ai_nombreParts").addEventListener("input", function(e){ state.nombreParts = parseFloat(e.target.value)||1; recalc(); });
+    REVENU_CATEGORIES_META.forEach(function(meta){
+      wireCategoryBlock(main.querySelector('[data-cat-block="' + meta.id + '"]'));
+    });
+
+    document.getElementById("clientSelect").addEventListener("change", function(e){
+      selectedClientId = e.target.value;
+      var newClient = selectedClientId ? getClientById(selectedClientId) : null;
+      if(newClient && hasAnyCategorieActive(newClient.revenusCategorises)){
+        state = {
+          imposeCommun: newClient.statutCouple === "marie" || newClient.statutCouple === "pacse",
+          nombreParts: computePartsFiscalesEstimees(newClient),
+          revenusCategorises: mergeCategorises(newClient.revenusCategorises)
+        };
+      } else if(newClient){
+        state = stateFromInputs(buildAvisImpositionInputsFromClient(newClient));
+      } else {
+        state = {imposeCommun:true, nombreParts:2, revenusCategorises: defaultRevenusCategorises()};
+      }
+      document.getElementById("ai_imposeCommun").checked = state.imposeCommun;
+      document.getElementById("ai_nombreParts").value = state.nombreParts;
+      REVENU_CATEGORIES_META.forEach(renderCategoryBlock);
+      document.getElementById("clientName").value = newClient ? clientFullName(newClient) : "";
+      recalc();
+    });
+
+    document.getElementById("presentBtn").addEventListener("click", enterPresentationMode);
+    document.getElementById("pdfBtn").addEventListener("click", function(){
+      exportPDF(tool, lastInputs, lastResult, document.getElementById("clientName").value.trim());
+    });
+    document.getElementById("saveBtn").addEventListener("click", function(){
+      if(!lastResult) return;
+      var clientName = document.getElementById("clientName").value.trim();
+      var entry = {
+        id: "sim_" + Date.now() + "_" + Math.random().toString(36).slice(2,7),
+        toolId: tool.id,
+        toolName: tool.name,
+        clientId: selectedClientId || null,
+        clientName: clientName || "(sans nom)",
+        timestamp: new Date().toISOString(),
+        inputs: lastInputs,
+        keyFigures: lastResult.keyFigures
+      };
+      saveSimulation(entry);
+      // Persiste aussi la ventilation par catégorie sur la fiche client (pas seulement dans l'historique),
+      // pour le pré-remplissage automatique des futures ouvertures de cet outil et du rapport patrimonial.
+      if(selectedClientId){
+        var clientToUpdate = getClientById(selectedClientId);
+        if(clientToUpdate){
+          saveClient(Object.assign({}, clientToUpdate, {revenusCategorises: state.revenusCategorises, updatedAt: new Date().toISOString()}));
+        }
+      }
       var msg = document.getElementById("saveMsg");
       msg.textContent = "Simulation enregistrée ✓";
       setTimeout(function(){ msg.textContent = ""; }, 2500);
