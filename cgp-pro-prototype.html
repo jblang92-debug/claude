@@ -104,6 +104,42 @@
   .legal-footer{max-width:960px;margin:0 auto;padding:18px 20px 40px;font-size:.72rem;color:var(--muted);text-align:center;line-height:1.5;}
   .legal-footer a{color:var(--navy-2);font-weight:600;text-decoration:none;}
   body.presenting .legal-footer{display:none;}
+
+  /* Intérêts composés (Finary-style, thème clair) */
+  .ic-layout{display:grid;grid-template-columns:360px 1fr;gap:24px;align-items:start;}
+  @media (max-width:800px){ .ic-layout{grid-template-columns:1fr;} }
+  .ic-inputs-card{padding:22px;}
+  .ic-field{margin-bottom:22px;}
+  .ic-field:last-child{margin-bottom:0;}
+  .ic-field-label{display:flex;align-items:center;font-size:.85rem;font-weight:700;color:var(--ink);margin-bottom:9px;}
+  .info-icon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#eef1f5;color:var(--muted);font-size:.68rem;font-weight:700;cursor:pointer;position:relative;margin-left:6px;flex:none;}
+  .info-icon:hover, .info-icon.open{background:var(--navy);color:#fff;}
+  .info-tooltip{display:none;position:absolute;bottom:135%;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:9px 11px;border-radius:8px;font-size:.72rem;font-weight:400;line-height:1.4;width:210px;z-index:20;box-shadow:var(--shadow);text-align:left;}
+  .info-tooltip::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--navy);}
+  .info-icon.open .info-tooltip{display:block;}
+  .stepper{display:flex;align-items:center;gap:8px;}
+  .stepper-btn{width:38px;height:42px;flex:none;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--navy);font-size:1.15rem;font-weight:700;cursor:pointer;line-height:1;}
+  .stepper-btn:hover{border-color:var(--navy);background:#f7f9fb;}
+  .stepper .input-suffix{flex:1 1 auto;}
+  .stepper input{text-align:center;}
+  .ic-results-card{padding:28px 26px;}
+  .ic-result{text-align:center;}
+  .ic-final-value{font-size:2.8rem;font-weight:800;color:var(--navy);line-height:1.1;letter-spacing:-.01em;}
+  .ic-final-sub{color:var(--muted);font-size:.92rem;margin-top:4px;margin-bottom:18px;}
+  .ic-badges{display:flex;justify-content:center;gap:14px;margin-bottom:24px;flex-wrap:wrap;}
+  .ic-badge{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:8px 16px;font-size:.85rem;font-weight:700;color:var(--ink);}
+  .ic-badge-dot{width:10px;height:10px;border-radius:50%;flex:none;}
+  .ic-badge-dot.interets{background:var(--accent-2);}
+  .ic-badge-dot.versements{background:var(--navy);}
+  .ic-chart-wrap{max-width:100%;margin:8px 0 0;}
+  .ic-sentence{margin-top:22px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;font-size:.9rem;color:var(--ink);line-height:1.55;}
+  .ic-sentence strong{color:var(--navy);}
+  body.presenting .ic-layout{grid-template-columns:1fr;}
+  body.presenting .ic-results-card{border:none;box-shadow:none;padding:0;}
+  body.presenting .ic-final-value{font-size:5.5rem;}
+  body.presenting .ic-final-sub{font-size:1.15rem;}
+  body.presenting .ic-badges{transform:scale(1.15);margin-top:6px;}
+  body.presenting .ic-sentence{font-size:1.15rem;text-align:center;max-width:720px;margin:26px auto 0;}
   .reference-panel{background:#fbf3e7;border:1px solid #eadfc7;border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;font-size:.85rem;color:#5b4a26;}
   .reference-panel h3{margin:0 0 8px;font-size:.9rem;color:#7a5b1c;}
   .reference-panel table{width:100%;border-collapse:collapse;margin-top:8px;}
@@ -316,7 +352,7 @@
     projetInvestissementLocatif: ["capacite-emprunt","rentabilite-locative","frais-notaire","pret-amortissement","scpi","lmnp-vs-nue"],
     projetVenteImmobiliere: ["plus-value-immo"],
     projetRachatAssuranceVie: ["fiscalite-assurance-vie","av-per-cto"],
-    projetPlacerEpargne: ["impact-frais","dca-vs-unique","scpi"],
+    projetPlacerEpargne: ["interets-composes","impact-frais","dca-vs-unique","scpi"],
     projetPreparerRetraite: ["pension-retraite","epargner-retraite","av-per-cto"],
     projetTransmission: ["succession","demembrement","ifi"]
   };
@@ -1239,7 +1275,88 @@
       }
     },
 
-    /* ---------- 15. Simulateur DCA vs versement unique ---------- */
+    /* ---------- 15. Calculateur d'intérêts composés ---------- */
+    {
+      id:"interets-composes", category:"epargne", status:"ready", icon:"📊",
+      name:"Calculateur d'intérêts composés",
+      desc:"Projette la croissance d'un capital avec versements mensuels réguliers, avec recalcul instantané et visualisation de la part des intérêts générés.",
+      fields:[
+        {id:"capitalInitial", label:"Capital initial", type:"number", suffix:"€", default:10000, step:500, clientField:"patrimoineFinancier",
+          info:"Le montant que vous investissez dès le départ, avant tout versement complémentaire."},
+        {id:"epargneMensuelle", label:"Épargne mensuelle", type:"number", suffix:"€", default:200, step:10,
+          info:"Le montant versé chaque mois en plus du capital initial, supposé constant sur toute la durée."},
+        {id:"horizonAnnees", label:"Horizon de placement", type:"number", suffix:"ans", default:20, step:1,
+          info:"La durée pendant laquelle le capital reste investi avant d'être retiré."},
+        {id:"tauxAnnuel", label:"Taux d'intérêt annuel", type:"number", suffix:"%", default:7, step:0.1,
+          info:"Le rendement annuel moyen espéré du placement, supposé constant (hors fiscalité et frais)."}
+      ],
+      compute:function(inputs){
+        var tauxMensuel = inputs.tauxAnnuel/100/12;
+        var n = Math.max(0, Math.round(inputs.horizonAnnees*12));
+        var totalVersements = inputs.capitalInitial + inputs.epargneMensuelle*n;
+        var capitalFinal;
+        if(tauxMensuel > 0){
+          var facteur = Math.pow(1+tauxMensuel, n);
+          capitalFinal = inputs.capitalInitial*facteur + inputs.epargneMensuelle*((facteur-1)/tauxMensuel);
+        } else {
+          capitalFinal = totalVersements;
+        }
+        var interetsGeneres = capitalFinal - totalVersements;
+
+        var labels = [], versementsCumules = [], valeurTotale = [];
+        for(var an=0; an<=inputs.horizonAnnees; an++){
+          var mois = an*12;
+          var f = tauxMensuel>0 ? Math.pow(1+tauxMensuel, mois) : 1;
+          var vTotal = tauxMensuel>0
+            ? inputs.capitalInitial*f + inputs.epargneMensuelle*((f-1)/tauxMensuel)
+            : inputs.capitalInitial + inputs.epargneMensuelle*mois;
+          labels.push(an);
+          versementsCumules.push(inputs.capitalInitial + inputs.epargneMensuelle*mois);
+          valeurTotale.push(vTotal);
+        }
+        var horizon = inputs.horizonAnnees;
+        var milieu = Math.round(horizon/2);
+
+        return {
+          keyFigures:[
+            {label:"Capital final", value: euro.format(capitalFinal)},
+            {label:"Intérêts générés", value: euro.format(interetsGeneres)},
+            {label:"Total versé", value: euro.format(totalVersements)}
+          ],
+          details:[
+            {label:"Capital initial", value: euro.format(inputs.capitalInitial)},
+            {label:"Épargne mensuelle", value: euro.format(inputs.epargneMensuelle)},
+            {label:"Durée", value: horizon + " ans"},
+            {label:"Taux annuel", value: pct(inputs.tauxAnnuel)}
+          ],
+          chart:{
+            type:"line",
+            labels: labels.map(function(a){ return String(a); }),
+            datasets:[
+              {label:"Versements cumulés", data: versementsCumules.map(Math.round), borderColor:"#122b46", backgroundColor:"rgba(18,43,70,0.15)", fill:"origin", tension:0.25, pointRadius:0},
+              {label:"Valeur totale (versements + intérêts)", data: valeurTotale.map(Math.round), borderColor:"#0f7a72", backgroundColor:"rgba(15,122,114,0.22)", fill:"-1", tension:0.25, pointRadius:0}
+            ],
+            options:{
+              scales:{
+                x:{ grid:{display:false}, ticks:{ autoSkip:false, maxRotation:0, callback:function(value, index, ticksArray){
+                  var n2 = ticksArray.length-1;
+                  if(index===0) return "Aujourd'hui";
+                  if(index===n2) return "dans " + horizon + " ans";
+                  if(index===Math.round(n2/2)) return milieu + " ans";
+                  return null;
+                }}},
+                y:{ ticks:{ callback:function(v){ return euro.format(v); } } }
+              },
+              plugins:{ tooltip:{ callbacks:{ label:function(ctx){ return ctx.dataset.label + " : " + euro.format(ctx.parsed.y); } } } }
+            }
+          },
+          warnings:["Hypothèse de rendement annuel constant, hors fiscalité et frais du support d'investissement — voir le calculateur \"Impact des frais cumulés\" pour un scénario avec frais de gestion."],
+          extra:{capitalFinal:capitalFinal, interetsGeneres:interetsGeneres, totalVersements:totalVersements}
+        };
+      }
+    },
+
+    /* ---------- 15bis. Simulateur DCA vs versement unique ---------- */
     {
       id:"dca-vs-unique", category:"epargne", status:"ready", icon:"📆",
       name:"Simulateur DCA vs versement unique",
@@ -1641,6 +1758,7 @@
 
   var TOOLS_BY_ID = {};
   TOOLS.forEach(function(t){ TOOLS_BY_ID[t.id] = t; });
+  TOOLS_BY_ID["interets-composes"].customRender = function(opts){ mountInteretsComposes(opts); };
 
   /* ============================ Generic form rendering ============================ */
   function fieldHTML(f, value){
@@ -1960,6 +2078,147 @@
     });
 
     if(prefill && opts.autoCompute){ runCompute(); }
+  }
+
+  /* ============================ Intérêts composés (rendu sur mesure, style Finary) ============================ */
+  function mountInteretsComposes(opts){
+    var tool = TOOLS_BY_ID["interets-composes"];
+    var main = document.getElementById("main");
+    var clients = getClients();
+    var selectedClientId = opts.clientId && getClientById(opts.clientId) ? opts.clientId : "";
+    var prefill = opts.prefill || (selectedClientId ? mapClientToInputs(getClientById(selectedClientId), tool) : {});
+
+    var clientOptionsHTML = '<option value="">— Aucun / autre —</option>' +
+      clients.map(function(c){ return '<option value="' + c.id + '" ' + (c.id===selectedClientId?"selected":"") + '>' + escapeHTML(clientFullName(c)) + '</option>'; }).join("");
+
+    function stepperField(f){
+      var val = prefill[f.id] !== undefined ? prefill[f.id] : f.default;
+      return '<div class="ic-field" data-field-wrap="' + f.id + '">' +
+        '<div class="ic-field-label">' + escapeHTML(f.label) +
+          '<span class="info-icon" tabindex="0">ⓘ<span class="info-tooltip">' + escapeHTML(f.info||"") + '</span></span>' +
+        '</div>' +
+        '<div class="stepper">' +
+          '<button type="button" class="stepper-btn" data-step="-1" data-target="f_' + f.id + '">−</button>' +
+          '<div class="input-suffix"><input type="number" id="f_' + f.id + '" value="' + escapeHTML(val) + '" step="' + f.step + '">' +
+            '<span class="suffix">' + escapeHTML(f.suffix||"") + '</span></div>' +
+          '<button type="button" class="stepper-btn" data-step="1" data-target="f_' + f.id + '">+</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    main.innerHTML = '<div class="container calc-page">' +
+      '<a href="#/" class="back-link">← Retour aux outils</a>' +
+      '<h1>' + escapeHTML(tool.name) + '</h1>' +
+      '<p class="tool-desc">' + escapeHTML(tool.desc) + '</p>' +
+      '<div class="client-select-bar">' +
+        '<div class="field"><label for="clientSelect">Client (pré-remplissage automatique)</label>' +
+        '<select id="clientSelect">' + clientOptionsHTML + '</select></div>' +
+        '<a href="#/clients/new" class="link-new-client">+ Nouveau client</a>' +
+      '</div>' +
+      '<div class="ic-layout">' +
+        '<div class="calc-form ic-inputs-card">' + tool.fields.map(stepperField).join("") + '</div>' +
+        '<div class="ic-results-card">' +
+          '<div class="ic-result">' +
+            '<div class="ic-final-value" id="icFinalValue"></div>' +
+            '<div class="ic-final-sub" id="icFinalSub"></div>' +
+            '<div class="ic-badges">' +
+              '<div class="ic-badge"><span class="ic-badge-dot interets"></span><span id="icBadgeInterets"></span></div>' +
+              '<div class="ic-badge"><span class="ic-badge-dot versements"></span><span id="icBadgeVersements"></span></div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="chart-wrap ic-chart-wrap" id="chartWrap"><canvas id="resultChart"></canvas></div>' +
+          '<p class="ic-sentence" id="icSentence"></p>' +
+        '</div>' +
+      '</div>' +
+      '<div class="actions-bar">' +
+        '<div class="field client-field"><label for="clientName">Nom du client (optionnel)</label>' +
+        '<input type="text" id="clientName" placeholder="ex. M. Dupont" value="' + (selectedClientId ? escapeHTML(clientFullName(getClientById(selectedClientId))) : "") + '"></div>' +
+        '<div class="actions-buttons">' +
+          '<button class="btn btn-outline" id="presentBtn" type="button">🖥 Mode présentation</button>' +
+          '<button class="btn btn-outline" id="pdfBtn" type="button">⤓ Exporter en PDF</button>' +
+          '<button class="btn btn-primary" id="saveBtn" type="button">💾 Enregistrer pour ce client</button>' +
+        '</div>' +
+        '<div class="save-msg" id="saveMsg"></div>' +
+      '</div>' +
+    '</div>';
+
+    var lastInputs = null, lastResult = null;
+
+    function currentInputs(){
+      var out = {};
+      tool.fields.forEach(function(f){ out[f.id] = parseFloat(document.getElementById("f_" + f.id).value) || 0; });
+      return out;
+    }
+
+    function recalc(){
+      lastInputs = currentInputs();
+      lastResult = tool.compute(lastInputs);
+      document.getElementById("icFinalValue").textContent = lastResult.extra.capitalFinal >= 0 ? euro.format(lastResult.extra.capitalFinal) : euro.format(0);
+      document.getElementById("icFinalSub").textContent = "après " + lastInputs.horizonAnnees + " an" + (lastInputs.horizonAnnees>1?"s":"");
+      document.getElementById("icBadgeInterets").textContent = "Intérêts : " + euro.format(lastResult.extra.interetsGeneres);
+      document.getElementById("icBadgeVersements").textContent = "Versements : " + euro.format(lastResult.extra.totalVersements);
+      document.getElementById("icSentence").innerHTML = "Avec un capital initial de <strong>" + euro.format(lastInputs.capitalInitial) + "</strong> et en investissant mensuellement <strong>" + euro.format(lastInputs.epargneMensuelle) + "</strong> pendant <strong>" + lastInputs.horizonAnnees + " ans</strong> à <strong>" + pct(lastInputs.tauxAnnuel) + "</strong>, vous obtenez un capital de <strong>" + euro.format(lastResult.extra.capitalFinal) + "</strong>.";
+      renderChart(lastResult.chart);
+    }
+
+    main.querySelectorAll(".stepper-btn").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var input = document.getElementById(btn.dataset.target);
+        var step = parseFloat(input.step) || 1;
+        var next = (parseFloat(input.value)||0) + step*parseFloat(btn.dataset.step);
+        input.value = Math.max(0, Math.round(next*100)/100);
+        recalc();
+      });
+    });
+    tool.fields.forEach(function(f){
+      document.getElementById("f_" + f.id).addEventListener("input", recalc);
+    });
+
+    main.querySelectorAll(".info-icon").forEach(function(icon){
+      icon.addEventListener("click", function(e){
+        e.stopPropagation();
+        var wasOpen = icon.classList.contains("open");
+        main.querySelectorAll(".info-icon.open").forEach(function(i){ i.classList.remove("open"); });
+        if(!wasOpen) icon.classList.add("open");
+      });
+    });
+    document.addEventListener("click", function(){ main.querySelectorAll(".info-icon.open").forEach(function(i){ i.classList.remove("open"); }); });
+
+    document.getElementById("clientSelect").addEventListener("change", function(e){
+      selectedClientId = e.target.value;
+      var client = selectedClientId ? getClientById(selectedClientId) : null;
+      var newPrefill = client ? mapClientToInputs(client, tool) : {};
+      tool.fields.forEach(function(f){
+        document.getElementById("f_" + f.id).value = newPrefill[f.id] !== undefined ? newPrefill[f.id] : f.default;
+      });
+      document.getElementById("clientName").value = client ? clientFullName(client) : "";
+      recalc();
+    });
+
+    document.getElementById("presentBtn").addEventListener("click", enterPresentationMode);
+    document.getElementById("pdfBtn").addEventListener("click", function(){
+      exportPDF(tool, lastInputs, lastResult, document.getElementById("clientName").value.trim());
+    });
+    document.getElementById("saveBtn").addEventListener("click", function(){
+      if(!lastResult) return;
+      var clientName = document.getElementById("clientName").value.trim();
+      var entry = {
+        id: "sim_" + Date.now() + "_" + Math.random().toString(36).slice(2,7),
+        toolId: tool.id,
+        toolName: tool.name,
+        clientId: selectedClientId || null,
+        clientName: clientName || "(sans nom)",
+        timestamp: new Date().toISOString(),
+        inputs: lastInputs,
+        keyFigures: lastResult.keyFigures
+      };
+      saveSimulation(entry);
+      var msg = document.getElementById("saveMsg");
+      msg.textContent = "Simulation enregistrée ✓";
+      setTimeout(function(){ msg.textContent = ""; }, 2500);
+    });
+
+    recalc();
   }
 
   /* ============================ Home view ============================ */
@@ -2353,7 +2612,8 @@
         var sim = getSimulations().filter(function(s){ return s.id === v.simId; })[0];
         if(sim) prefill = sim.inputs;
       }
-      mountCalculator(tool, {prefill: prefill, autoCompute: !!prefill, clientId: v.clientIdParam});
+      if(tool.customRender){ tool.customRender({prefill: prefill, autoCompute: !!prefill, clientId: v.clientIdParam}); }
+      else { mountCalculator(tool, {prefill: prefill, autoCompute: !!prefill, clientId: v.clientIdParam}); }
     } else if(v.name === "historique"){
       renderHistorique();
     } else if(v.name === "clients"){
