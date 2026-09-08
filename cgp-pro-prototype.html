@@ -80,6 +80,36 @@
   .form-section-title{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:18px 0 8px;grid-column:1/-1;}
   .form-section-title:first-child{margin-top:0;}
 
+  /* Comparaison de scénarios (composant générique, plusieurs calculateurs) */
+  .scenarios-wrap{display:flex;gap:16px;overflow-x:auto;padding-bottom:6px;margin-bottom:4px;}
+  .scenario-col{flex:1 1 280px;min-width:260px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
+  .scenario-col-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+  .scenario-badge{display:inline-block;font-size:.72rem;font-weight:800;letter-spacing:.03em;color:#fff;padding:4px 10px;border-radius:20px;}
+  .scenario-badge-A{background:#122b46;}
+  .scenario-badge-B{background:#9c7a3c;}
+  .scenario-badge-C{background:#0f7a72;}
+  .btn-scenario-remove{background:none;border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:.72rem;font-weight:600;color:var(--danger);cursor:pointer;font-family:inherit;}
+  .btn-scenario-remove:hover{border-color:var(--danger);}
+  .scenario-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap;}
+  .compare-table-wrap{overflow-x:auto;margin-bottom:20px;}
+  .compare-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+  .compare-table th, .compare-table td{padding:12px 16px;border-bottom:1px solid var(--border);text-align:center;white-space:nowrap;}
+  .compare-table th:first-child, .compare-table td:first-child{text-align:left;font-weight:600;white-space:normal;color:var(--ink);}
+  .compare-table thead th{background:var(--bg);}
+  .compare-table tr:last-child td{border-bottom:none;}
+  .compare-value{font-size:1.05rem;font-weight:800;color:var(--navy);}
+  .compare-diff{font-size:.78rem;font-weight:700;margin-top:2px;}
+  .compare-diff-positive{color:var(--accent-2);}
+  .compare-diff-negative{color:var(--danger);}
+  .compare-diff-neutral{color:var(--muted);font-weight:600;}
+  .compare-summaries{display:flex;flex-direction:column;gap:10px;margin-top:16px;}
+  .compare-summary-item{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
+  .compare-summary-item .summary-sentence{flex:1 1 320px;margin:0;}
+
+  @media (max-width:760px){
+    .scenario-col{min-width:85vw;}
+  }
+
   /* Client selector inside a calculator */
   .client-select-bar{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;}
   .client-select-bar .field{margin-bottom:0;flex:1 1 260px;}
@@ -295,6 +325,10 @@
     .print-chart{max-width:480px;display:block;margin:0 auto 18px;}
     .print-details table, .print-inputs table{width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:18px;}
     .print-details td, .print-inputs td{padding:6px 8px;border-bottom:1px solid #ddd;}
+    .print-compare-table th{padding:6px 8px;border-bottom:2px solid #999;text-align:center;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em;color:#555;}
+    .print-compare-table th:first-child{text-align:left;}
+    .print-compare-table td{text-align:center;}
+    .print-compare-table td:first-child{text-align:left;font-weight:600;}
     .print-footer{font-size:.72rem;color:#777;margin-top:20px;border-top:1px solid #ddd;padding-top:10px;}
 
     /* Rapport patrimonial complet (multi-sections) */
@@ -944,6 +978,12 @@
       id:"capacite-emprunt", category:"financement", status:"ready", icon:"🏦",
       name:"Capacité d'emprunt",
       desc:"Calcule la mensualité maximale et le montant empruntable à partir des revenus, charges, taux et durée saisis (taux d'endettement 35% par défaut).",
+      comparable: true,
+      compareMetrics:[
+        {key:"mensualiteMax", label:"Mensualité maximale", format:"euro", better:"lower"},
+        {key:"montantEmpruntable", label:"Montant empruntable", format:"euro", better:"higher"},
+        {key:"budgetTotal", label:"Budget total d'achat possible", format:"euro", better:"higher"}
+      ],
       fields:[
         {id:"revenuNet", label:"Revenus nets mensuels du foyer", type:"number", suffix:"€", default:3000, step:50, clientField:"revenusMensuelsNets"},
         {id:"revenusLocatifs", label:"Revenus locatifs perçus (optionnel)", type:"number", suffix:"€", default:0, step:50, help:"Pondérés à 70% dans le calcul, comme le font la plupart des banques.", clientField:"revenusLocatifsExistants"},
@@ -970,7 +1010,8 @@
               {label:"Charges déjà présentes", value: euro.format(inputs.chargesExistantes)}
             ],
             chart:null,
-            warnings:["Le taux d'endettement maximum est déjà atteint ou dépassé par les charges existantes : aucune capacité d'emprunt supplémentaire avec ces paramètres."]
+            warnings:["Le taux d'endettement maximum est déjà atteint ou dépassé par les charges existantes : aucune capacité d'emprunt supplémentaire avec ces paramètres."],
+            extra:{mensualiteMax:0, montantEmpruntable:0, budgetTotal: Math.max(0, inputs.apport||0)}
           };
         }
 
@@ -1003,7 +1044,8 @@
             labels:["Crédit (hors assurance)","Assurance emprunteur"],
             datasets:[{data:[mensualiteCredit, mensualiteAssurance], backgroundColor:["#122b46","#9c7a3c"]}]
           },
-          warnings:[]
+          warnings:[],
+          extra:{mensualiteMax:mensualiteMax, montantEmpruntable:capital, budgetTotal:budgetTotal}
         };
       }
     },
@@ -1290,6 +1332,12 @@
       id:"rentabilite-locative", category:"immobilier", status:"ready", icon:"🏠",
       name:"Rentabilité locative",
       desc:"Calcule le rendement brut et le rendement net d'un investissement locatif à partir du loyer, du prix d'achat, des charges, de la taxe foncière et du taux de vacance.",
+      comparable: true,
+      compareMetrics:[
+        {key:"rendementNet", label:"Rendement net", format:"pct", better:"higher"},
+        {key:"rendementBrut", label:"Rendement brut", format:"pct", better:"higher"},
+        {key:"cashflowMensuel", label:"Cashflow mensuel net", format:"euro2", better:"higher"}
+      ],
       fields:[
         {id:"prixAchat", label:"Prix d'achat du bien", type:"number", suffix:"€", default:200000, step:1000},
         {id:"fraisAcquisition", label:"Frais d'acquisition (notaire, travaux...)", type:"number", suffix:"€", default:15000, step:500},
@@ -1326,7 +1374,8 @@
             labels:["Loyer annuel brut","Charges + taxe foncière","Revenu net annuel"],
             datasets:[{label:"€ / an", data:[loyerAnnuelBrut, chargesTotales, revenuNetAnnuel], backgroundColor:["#122b46","#b3422c","#0f7a72"]}]
           },
-          warnings:[]
+          warnings:[],
+          extra:{rendementNet:rendementNet, rendementBrut:rendementBrut, cashflowMensuel:cashflowMensuel}
         };
       }
     },
@@ -1581,6 +1630,12 @@
       id:"fiscalite-assurance-vie", category:"epargne", status:"ready", icon:"🛡️",
       name:"Comparateur fiscalité assurance-vie",
       desc:"Calcule la fiscalité applicable à un rachat (prélèvements sociaux + IR ou PFU), en distinguant avant et après 8 ans, avec abattement annuel après 8 ans.",
+      comparable: true,
+      compareMetrics:[
+        {key:"net", label:"Net perçu après fiscalité", format:"euro", better:"higher"},
+        {key:"ps", label:"Prélèvements sociaux", format:"euro", better:"lower"},
+        {key:"ir", label:"Impôt sur le revenu", format:"euro", better:"lower"}
+      ],
       fields:[
         {id:"montantRachat", label:"Montant total du rachat", type:"number", suffix:"€", default:20000, step:500},
         {id:"montantGains", label:"Dont montant des gains (plus-value)", type:"number", suffix:"€", default:5000, step:100},
@@ -1627,7 +1682,8 @@
             labels:["Net perçu","Prélèvements sociaux","Impôt sur le revenu"],
             datasets:[{data:[net, f.ps, f.ir], backgroundColor:["#0f7a72","#9c7a3c","#b3422c"]}]
           },
-          warnings: warnings
+          warnings: warnings,
+          extra:{net:net, ps:f.ps, ir:f.ir}
         };
       }
     },
@@ -1637,6 +1693,12 @@
       id:"impact-frais", category:"epargne", status:"ready", icon:"📉",
       name:"Impact des frais cumulés",
       desc:"Compare sur 10, 20 et 30 ans le capital final d'un placement avec et sans frais, à partir d'un capital initial, d'un rendement annuel, de frais sur versement et de frais de gestion.",
+      comparable: true,
+      compareMetrics:[
+        {key:"capital30SansFrais", label:"Capital à 30 ans sans frais", format:"euro", better:"higher"},
+        {key:"capital30AvecFrais", label:"Capital à 30 ans avec tous les frais", format:"euro", better:"higher"},
+        {key:"ecart30", label:"Coût cumulé total des frais à 30 ans", format:"euro", better:"lower"}
+      ],
       fields:[
         {id:"capitalInitial", label:"Capital initial investi", type:"number", suffix:"€", default:50000, step:1000, clientField:"patrimoineFinancier"},
         {id:"versementMensuel", label:"Versement mensuel (optionnel)", type:"number", suffix:"€", default:0, step:50},
@@ -1689,7 +1751,8 @@
               {label:"Avec frais de gestion + frais sur versement", data:avecTousFrais, borderColor:"#b3422c", backgroundColor:"rgba(179,66,44,0.1)", tension:0.15}
             ]
           },
-          warnings:[]
+          warnings:[],
+          extra:{capital30SansFrais:m30.sans, capital30AvecFrais:m30.tous, ecart30:m30.ecart}
         };
       }
     },
@@ -2551,42 +2614,46 @@
   TOOLS_BY_ID["avis-imposition"].customRender = function(opts){ mountAvisImposition(opts); };
 
   /* ============================ Generic form rendering ============================ */
-  function fieldHTML(f, value){
+  // idPrefix (optionnel) permet de générer plusieurs instances du même champ avec des id DOM distincts —
+  // utilisé par le mode comparaison de scénarios (colonnes A/B/C du même outil sur une seule page).
+  function fieldHTML(f, value, idPrefix){
+    idPrefix = idPrefix || "";
     var val = value !== undefined && value !== null ? value : f.default;
     // visibleWhen accepte soit une condition unique {field,values}, soit un tableau de conditions (toutes requises, ET logique).
     var conditions = f.visibleWhen ? (Array.isArray(f.visibleWhen) ? f.visibleWhen : [f.visibleWhen]) : null;
     var wrapAttrs = 'class="field" data-field-wrap="' + f.id + '"' +
       (conditions ? " data-visible-when='" + JSON.stringify(conditions) + "'" : '');
+    var id = "f_" + idPrefix + f.id;
     if(f.type === "select"){
       var opts = f.options.map(function(o){
         return '<option value="' + escapeHTML(o.value) + '" ' + (String(o.value)===String(val)?"selected":"") + '>' + escapeHTML(o.label) + '</option>';
       }).join("");
-      return '<div ' + wrapAttrs + '><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
-        '<select id="f_' + f.id + '">' + opts + '</select>' +
+      return '<div ' + wrapAttrs + '><label for="' + id + '">' + escapeHTML(f.label) + '</label>' +
+        '<select id="' + id + '">' + opts + '</select>' +
         (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
     }
     if(f.type === "checkbox"){
       var checked = (value !== undefined && value !== null) ? !!value : !!f.default;
-      return '<div ' + wrapAttrs + '><label class="checkbox-inline"><input type="checkbox" id="f_' + f.id + '" ' + (checked?"checked":"") + '> ' + escapeHTML(f.label) + '</label>' +
+      return '<div ' + wrapAttrs + '><label class="checkbox-inline"><input type="checkbox" id="' + id + '" ' + (checked?"checked":"") + '> ' + escapeHTML(f.label) + '</label>' +
         (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
     }
     if(f.type === "text"){
-      return '<div ' + wrapAttrs + '><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
-        '<input type="text" id="f_' + f.id + '" value="' + escapeHTML(val||"") + '">' +
+      return '<div ' + wrapAttrs + '><label for="' + id + '">' + escapeHTML(f.label) + '</label>' +
+        '<input type="text" id="' + id + '" value="' + escapeHTML(val||"") + '">' +
         (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
     }
     if(f.type === "color"){
-      return '<div ' + wrapAttrs + '><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
-        '<input type="color" id="f_' + f.id + '" value="' + escapeHTML(val||"#9c7a3c") + '" style="height:42px;padding:4px;width:100%;">' +
+      return '<div ' + wrapAttrs + '><label for="' + id + '">' + escapeHTML(f.label) + '</label>' +
+        '<input type="color" id="' + id + '" value="' + escapeHTML(val||"#9c7a3c") + '" style="height:42px;padding:4px;width:100%;">' +
         (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
     }
     if(f.type === "textarea"){
-      return '<div ' + wrapAttrs + ' style="grid-column:1/-1;"><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
-        '<textarea id="f_' + f.id + '" rows="' + (f.rows||6) + '">' + escapeHTML(val||"") + '</textarea>' +
+      return '<div ' + wrapAttrs + ' style="grid-column:1/-1;"><label for="' + id + '">' + escapeHTML(f.label) + '</label>' +
+        '<textarea id="' + id + '" rows="' + (f.rows||6) + '">' + escapeHTML(val||"") + '</textarea>' +
         (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
     }
-    return '<div ' + wrapAttrs + '><label for="f_' + f.id + '">' + escapeHTML(f.label) + '</label>' +
-      '<div class="input-suffix"><input type="number" id="f_' + f.id + '" value="' + escapeHTML(val) + '" step="' + (f.step||"any") + '">' +
+    return '<div ' + wrapAttrs + '><label for="' + id + '">' + escapeHTML(f.label) + '</label>' +
+      '<div class="input-suffix"><input type="number" id="' + id + '" value="' + escapeHTML(val) + '" step="' + (f.step||"any") + '">' +
       '<span class="suffix">' + escapeHTML(f.suffix||"") + '</span></div>' +
       (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
   }
@@ -2727,10 +2794,11 @@
     return Object.keys(set).filter(function(id){ return TOOLS_BY_ID[id] && TOOLS_BY_ID[id].status === "ready"; });
   }
 
-  function readInputs(fields){
+  function readInputs(fields, idPrefix){
+    idPrefix = idPrefix || "";
     var out = {};
     fields.forEach(function(f){
-      var elm = document.getElementById("f_" + f.id);
+      var elm = document.getElementById("f_" + idPrefix + f.id);
       if(f.type === "select"){ out[f.id] = elm.value; }
       else if(f.type === "checkbox"){ out[f.id] = elm.checked; }
       else if(f.type === "text" || f.type === "color" || f.type === "textarea"){ out[f.id] = elm.value; }
@@ -3255,6 +3323,350 @@
     });
 
     if(prefill && opts.autoCompute){ runCompute(); }
+  }
+
+  /* ============================ Comparaison de scénarios (composant générique) ============================ */
+  // Active sur un outil via tool.comparable (+ tool.compareMetrics, optionnel, pour des écarts chiffrés
+  // colorés) : duplique tool.fields en 1 à 3 colonnes indépendantes (scénarios A/B/C) réutilisant fieldHTML/
+  // readInputs déjà rendus préfixables, calcule tool.compute() pour chacune, et affiche les résultats côte à
+  // côte. Pour étendre à un autre outil plus tard, il suffit d'ajouter ces propriétés à sa définition — ce
+  // composant ne connaît rien de spécifique aux 4 outils de départ.
+  var SCENARIO_LABELS = ["A", "B", "C"];
+  var SCENARIO_COLORS = {A:"#122b46", B:"#9c7a3c", C:"#0f7a72"};
+
+  function formatCompareValue(value, format){
+    if(format === "euro") return euro.format(value);
+    if(format === "euro2") return euro2.format(value);
+    if(format === "pct") return pct(value);
+    return String(value);
+  }
+  function formatCompareDiff(diff, format){
+    if(Math.abs(diff) < 0.005) return "identique";
+    var sign = diff > 0 ? "+" : "−";
+    if(format === "pct"){
+      return sign + Math.abs(diff).toLocaleString("fr-FR", {minimumFractionDigits:2, maximumFractionDigits:2}) + " pts";
+    }
+    return sign + formatCompareValue(Math.abs(diff), format);
+  }
+
+  function mountComparableCalculator(tool, opts){
+    var main = document.getElementById("main");
+    var clients = getClients();
+    var selectedClientId = opts.clientId && getClientById(opts.clientId) ? opts.clientId : "";
+    var basePrefill = opts.prefill || (selectedClientId ? mapClientToInputs(getClientById(selectedClientId), tool) : {});
+
+    // Chaque scénario ne garde que son label + les valeurs de pré-remplissage à afficher au (re)rendu du
+    // formulaire ; les valeurs "vivantes" résident dans le DOM entre deux rendus (comme mountCalculator).
+    var scenarios = [{label:"A", prefill: basePrefill}];
+    var lastResults = {}; // label -> {inputs, result}
+
+    var clientOptionsHTML = '<option value="">— Aucun / autre —</option>' +
+      clients.map(function(c){ return '<option value="' + c.id + '" ' + (c.id===selectedClientId?"selected":"") + '>' + escapeHTML(clientFullName(c)) + '</option>'; }).join("");
+
+    function snapshotCurrentValues(){
+      scenarios.forEach(function(sc){
+        var probe = document.getElementById("f_" + sc.label + "_" + tool.fields[0].id);
+        if(probe){ sc.prefill = readInputs(tool.fields, sc.label + "_"); }
+      });
+    }
+
+    function scenarioColumnHTML(sc){
+      return '<div class="scenario-col" data-scenario="' + sc.label + '">' +
+        (scenarios.length>1 ? '<div class="scenario-col-head"><span class="scenario-badge scenario-badge-' + sc.label + '">Scénario ' + sc.label + '</span>' +
+          (sc.label!=="A" ? '<button type="button" class="btn-scenario-remove" data-remove-scenario="' + sc.label + '">✕ Retirer ce scénario</button>' : '') +
+        '</div>' : '') +
+        '<div class="form-grid">' + tool.fields.map(function(f){ return fieldHTML(f, sc.prefill ? sc.prefill[f.id] : undefined, sc.label + "_"); }).join("") + '</div>' +
+      '</div>';
+    }
+
+    function actionsBarHTML(){
+      return '<div class="actions-bar">' +
+        '<div class="field client-field"><label for="clientName">Nom du client (optionnel)</label>' +
+        '<input type="text" id="clientName" placeholder="ex. M. Dupont" value="' + (selectedClientId ? escapeHTML(clientFullName(getClientById(selectedClientId))) : "") + '"></div>' +
+        '<div class="actions-buttons">' +
+          '<button class="btn btn-outline" id="presentBtn" type="button">🖥 Mode présentation</button>' +
+          '<button class="btn btn-outline" id="pdfBtn" type="button">⤓ Exporter en PDF</button>' +
+          '<button class="btn btn-primary" id="saveBtn" type="button">💾 Enregistrer pour ce client</button>' +
+        '</div>' +
+        '<div class="save-msg" id="saveMsg"></div>' +
+      '</div>';
+    }
+
+    function renderForm(){
+      main.innerHTML =
+        '<div class="container calc-page comparable-calc-page">' +
+          '<a href="#/" class="back-link">← Retour aux outils</a>' +
+          '<h1>' + escapeHTML(tool.name) + '</h1>' +
+          '<p class="tool-desc">' + escapeHTML(tool.desc) + '</p>' +
+          '<div class="client-select-bar">' +
+            '<div class="field"><label for="clientSelect">Client (pré-remplissage automatique — scénario A)</label>' +
+            '<select id="clientSelect">' + clientOptionsHTML + '</select></div>' +
+            '<a href="#/clients/new" class="link-new-client">+ Nouveau client</a>' +
+          '</div>' +
+          '<form id="calcForm" class="calc-form">' +
+            '<div class="scenarios-wrap" id="scenariosWrap">' + scenarios.map(scenarioColumnHTML).join("") + '</div>' +
+            '<div class="scenario-toolbar">' +
+              (scenarios.length<3 ? '<button type="button" class="btn btn-outline btn-sm" id="addScenarioBtn">+ Comparer un autre scénario</button>' : '<span></span>') +
+              '<button type="submit" class="btn btn-primary">Calculer</button>' +
+            '</div>' +
+          '</form>' +
+          (tool.referenceHTML ? '<div class="reference-panel tech-detail">' + tool.referenceHTML + '</div>' : '') +
+          '<div id="resultsArea" hidden></div>' +
+        '</div>';
+
+      var calcFormEl = document.getElementById("calcForm");
+      wireFieldVisibility(calcFormEl); // no-op tant qu'aucun compareMetrics-tool n'utilise visibleWhen (aucun des 4 de départ)
+
+      document.getElementById("clientSelect").addEventListener("change", function(e){
+        selectedClientId = e.target.value;
+        var client = selectedClientId ? getClientById(selectedClientId) : null;
+        var newPrefill = client ? mapClientToInputs(client, tool) : {};
+        var colA = main.querySelector('.scenario-col[data-scenario="A"] .form-grid');
+        colA.innerHTML = tool.fields.map(function(f){ return fieldHTML(f, newPrefill[f.id], "A_"); }).join("");
+        document.getElementById("resultsArea").hidden = true;
+      });
+
+      var addBtn = document.getElementById("addScenarioBtn");
+      if(addBtn){
+        addBtn.addEventListener("click", function(){
+          if(scenarios.length>=3) return;
+          snapshotCurrentValues();
+          var nextLabel = SCENARIO_LABELS[scenarios.length];
+          scenarios.push({label: nextLabel, prefill: Object.assign({}, scenarios[0].prefill)});
+          document.getElementById("resultsArea").hidden = true;
+          renderForm();
+        });
+      }
+      main.querySelectorAll("[data-remove-scenario]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          snapshotCurrentValues();
+          scenarios = scenarios.filter(function(sc){ return sc.label !== btn.dataset.removeScenario; });
+          document.getElementById("resultsArea").hidden = true;
+          renderForm();
+        });
+      });
+
+      calcFormEl.addEventListener("submit", function(e){ e.preventDefault(); computeAll(); });
+
+      if(opts.prefill && opts.autoCompute){ computeAll(); }
+    }
+
+    function computeAll(){
+      lastResults = {};
+      scenarios.forEach(function(sc){
+        var inputs = readInputs(tool.fields, sc.label + "_");
+        lastResults[sc.label] = {inputs: inputs, result: tool.compute(inputs)};
+      });
+      renderResults();
+    }
+
+    function renderResults(){
+      var resultsArea = document.getElementById("resultsArea");
+      resultsArea.hidden = false;
+
+      if(scenarios.length === 1){
+        var r = lastResults.A.result;
+        resultsArea.innerHTML =
+          '<hr class="sep">' +
+          '<div class="key-figures" id="keyFigures"></div>' +
+          '<div class="chart-wrap tech-detail" id="chartWrap"><canvas id="resultChart"></canvas></div>' +
+          '<div class="tech-detail" id="detailsArea"></div>' +
+          '<div id="summaryArea"></div>' +
+          '<div class="warnings" id="warningsArea"></div>' +
+          actionsBarHTML();
+        document.getElementById("keyFigures").innerHTML = r.keyFigures.map(function(k){
+          return '<div class="key-figure"><div class="value">' + escapeHTML(k.value) + '</div><div class="label">' + escapeHTML(k.label) + '</div></div>';
+        }).join("");
+        var details = r.details || [];
+        document.getElementById("detailsArea").innerHTML = details.length ?
+          '<table class="details-table">' + details.map(function(d){ return '<tr><td>' + escapeHTML(d.label) + '</td><td>' + escapeHTML(d.value) + '</td></tr>'; }).join("") + '</table>' : '';
+        document.getElementById("summaryArea").innerHTML = r.summaryHTML ? '<p class="summary-sentence">' + r.summaryHTML + '</p>' : '';
+        document.getElementById("warningsArea").innerHTML = (r.warnings||[]).map(function(w){ return '<div class="warning">' + escapeHTML(w) + '</div>'; }).join("");
+        renderChart(r.chart);
+      } else {
+        resultsArea.innerHTML =
+          '<hr class="sep">' +
+          '<div class="compare-keyfigures" id="compareKeyfigures"></div>' +
+          '<div class="chart-wrap tech-detail" id="chartWrap"><canvas id="resultChart"></canvas></div>' +
+          '<div class="compare-summaries" id="compareSummaries"></div>' +
+          '<div class="warnings" id="warningsArea"></div>' +
+          actionsBarHTML();
+        renderCompareKeyfigures();
+        renderCompareChart();
+        document.getElementById("compareSummaries").innerHTML = scenarios.map(function(sc){
+          var res = lastResults[sc.label].result;
+          return res.summaryHTML ? '<div class="compare-summary-item"><span class="scenario-badge scenario-badge-' + sc.label + '">Scénario ' + sc.label + '</span><p class="summary-sentence">' + res.summaryHTML + '</p></div>' : '';
+        }).join("");
+        var allWarnings = [];
+        scenarios.forEach(function(sc){ (lastResults[sc.label].result.warnings||[]).forEach(function(w){ if(allWarnings.indexOf(w)===-1) allWarnings.push(w); }); });
+        document.getElementById("warningsArea").innerHTML = allWarnings.map(function(w){ return '<div class="warning">' + escapeHTML(w) + '</div>'; }).join("");
+      }
+
+      wireActionsBar();
+    }
+
+    function renderCompareKeyfigures(){
+      var wrap = document.getElementById("compareKeyfigures");
+      var metrics = tool.compareMetrics || [];
+      var headHTML = '<tr><th></th>' + scenarios.map(function(sc){ return '<th><span class="scenario-badge scenario-badge-' + sc.label + '">Scénario ' + sc.label + '</span></th>'; }).join("") + '</tr>';
+
+      if(!metrics.length){
+        // Repli générique pour un futur outil comparable sans compareMetrics déclaré : keyFigures brutes,
+        // côte à côte, sans écart chiffré (on ne connaît pas leur sens higher/lower-is-better).
+        wrap.innerHTML = '<div class="compare-table-wrap"><table class="compare-table"><thead>' + headHTML + '</thead><tbody>' +
+          lastResults.A.result.keyFigures.map(function(k, i){
+            return '<tr><td>' + escapeHTML(k.label) + '</td>' + scenarios.map(function(sc){
+              var kf = lastResults[sc.label].result.keyFigures[i];
+              return '<td>' + escapeHTML(kf ? kf.value : "—") + '</td>';
+            }).join("") + '</tr>';
+          }).join("") + '</tbody></table></div>';
+        return;
+      }
+
+      wrap.innerHTML = '<div class="compare-table-wrap"><table class="compare-table"><thead>' + headHTML + '</thead><tbody>' +
+        metrics.map(function(m){
+          var aVal = lastResults.A.result.extra ? lastResults.A.result.extra[m.key] : undefined;
+          return '<tr><td>' + escapeHTML(m.label) + '</td>' +
+            scenarios.map(function(sc){
+              var e = lastResults[sc.label].result.extra;
+              var val = e ? e[m.key] : undefined;
+              if(val === undefined) return '<td>—</td>';
+              var cell = '<div class="compare-value">' + escapeHTML(formatCompareValue(val, m.format)) + '</div>';
+              if(sc.label !== "A" && aVal !== undefined){
+                var diff = val - aVal;
+                var favorable = (m.better==="higher" && diff>0) || (m.better==="lower" && diff<0);
+                var unfavorable = (m.better==="higher" && diff<0) || (m.better==="lower" && diff>0);
+                var cls = Math.abs(diff)<0.005 ? "neutral" : (favorable ? "positive" : (unfavorable ? "negative" : "neutral"));
+                cell += '<div class="compare-diff compare-diff-' + cls + '">' + escapeHTML(formatCompareDiff(diff, m.format)) + '</div>';
+              }
+              return '<td>' + cell + '</td>';
+            }).join("") +
+          '</tr>';
+        }).join("") + '</tbody></table></div>';
+    }
+
+    function renderCompareChart(){
+      var firstChart = lastResults.A.result.chart;
+      if(!firstChart){ renderChart(null); return; }
+      var chartDef;
+      if(firstChart.type === "line"){
+        // Superpose une courbe représentative par scénario (le dernier jeu de données du graphique d'origine
+        // — pour ces 4 outils, la trajectoire la plus complète/réaliste), une couleur par scénario.
+        var datasets = [];
+        scenarios.forEach(function(sc){
+          var c = lastResults[sc.label].result.chart;
+          if(!c || !c.datasets.length) return;
+          var ds = c.datasets[c.datasets.length-1];
+          datasets.push(Object.assign({}, ds, {
+            label: "Scénario " + sc.label + " — " + ds.label,
+            borderColor: SCENARIO_COLORS[sc.label],
+            backgroundColor: SCENARIO_COLORS[sc.label] + "22"
+          }));
+        });
+        chartDef = {type:"line", labels: firstChart.labels, datasets: datasets};
+      } else {
+        // Graphiques en barres/anneau : compare les mêmes catégories (déjà dans la même unité, propres à
+        // l'outil) entre scénarios plutôt que de mélanger des grandeurs hétérogènes (€, %) sur un même axe.
+        chartDef = {
+          type:"bar",
+          labels: firstChart.labels,
+          datasets: scenarios.map(function(sc){
+            var c = lastResults[sc.label].result.chart;
+            var data = c && c.datasets[0] ? c.datasets[0].data : [];
+            return {label:"Scénario " + sc.label, backgroundColor: SCENARIO_COLORS[sc.label], data: data};
+          })
+        };
+      }
+      renderChart(chartDef);
+    }
+
+    function wireActionsBar(){
+      document.getElementById("presentBtn").addEventListener("click", enterPresentationMode);
+      document.getElementById("pdfBtn").addEventListener("click", function(){
+        var clientName = document.getElementById("clientName").value.trim();
+        if(scenarios.length > 1){ exportComparisonPDF(tool, scenarios, lastResults, clientName); }
+        else { exportPDF(tool, lastResults.A.inputs, lastResults.A.result, clientName); }
+      });
+      document.getElementById("saveBtn").addEventListener("click", function(){
+        if(!lastResults.A) return;
+        var clientName = document.getElementById("clientName").value.trim();
+        var entry = {
+          id: "sim_" + Date.now() + "_" + Math.random().toString(36).slice(2,7),
+          toolId: tool.id,
+          toolName: tool.name,
+          clientId: selectedClientId || null,
+          clientName: clientName || "(sans nom)",
+          timestamp: new Date().toISOString(),
+          inputs: lastResults.A.inputs,
+          keyFigures: lastResults.A.result.keyFigures
+        };
+        saveSimulation(entry);
+        var msg = document.getElementById("saveMsg");
+        msg.textContent = "Simulation enregistrée ✓";
+        setTimeout(function(){ msg.textContent = ""; }, 2500);
+      });
+    }
+
+    renderForm();
+  }
+
+  // Export PDF en mode comparaison (≥2 scénarios) : mêmes classes/mentions/charte que l'export PDF simple,
+  // avec un tableau comparatif (une colonne par scénario, écart coloré textuellement vs A) et le graphique
+  // de comparaison déjà affiché à l'écran.
+  function exportComparisonPDF(tool, scenarios, lastResults, clientName){
+    var reportEl = document.getElementById("printReport");
+    var dateStr = new Date().toLocaleDateString("fr-FR", {year:"numeric", month:"long", day:"numeric"});
+    var chartImg = "";
+    var canvas = document.getElementById("resultChart");
+    if(canvas && lastResults.A.result.chart){
+      try{ chartImg = '<img src="' + canvas.toDataURL("image/png", 1.0) + '" class="print-chart">'; }
+      catch(e){ chartImg = ""; }
+    }
+
+    var metrics = tool.compareMetrics || [];
+    var rowsHTML;
+    if(metrics.length){
+      rowsHTML = metrics.map(function(m){
+        var aVal = lastResults.A.result.extra ? lastResults.A.result.extra[m.key] : undefined;
+        return '<tr><td>' + escapeHTML(m.label) + '</td>' + scenarios.map(function(sc){
+          var e = lastResults[sc.label].result.extra;
+          var val = e ? e[m.key] : undefined;
+          if(val === undefined) return '<td>—</td>';
+          var cell = escapeHTML(formatCompareValue(val, m.format));
+          if(sc.label !== "A" && aVal !== undefined){ cell += ' (' + escapeHTML(formatCompareDiff(val-aVal, m.format)) + ')'; }
+          return '<td>' + cell + '</td>';
+        }).join("") + '</tr>';
+      }).join("");
+    } else {
+      rowsHTML = lastResults.A.result.keyFigures.map(function(k, i){
+        return '<tr><td>' + escapeHTML(k.label) + '</td>' + scenarios.map(function(sc){
+          var kf = lastResults[sc.label].result.keyFigures[i];
+          return '<td>' + escapeHTML(kf ? kf.value : "—") + '</td>';
+        }).join("") + '</tr>';
+      }).join("");
+    }
+
+    reportEl.innerHTML =
+      printHeaderHTML(tool.name + " — Comparaison de scénarios") +
+      '<div class="print-meta">' +
+        (clientName ? '<div><strong>Client :</strong> ' + escapeHTML(clientName) + '</div>' : '') +
+        '<div><strong>Date :</strong> ' + dateStr + '</div>' +
+      '</div>' +
+      '<div class="print-details"><h3>Comparaison des scénarios</h3><table class="print-compare-table"><thead><tr><th></th>' +
+        scenarios.map(function(sc){ return '<th>Scénario ' + sc.label + '</th>'; }).join("") +
+      '</tr></thead>' + rowsHTML + '</table></div>' +
+      chartImg +
+      '<div class="print-details"><h3>Paramètres saisis</h3><table class="print-compare-table"><thead><tr><th></th>' +
+        scenarios.map(function(sc){ return '<th>Scénario ' + sc.label + '</th>'; }).join("") +
+      '</tr></thead>' +
+        tool.fields.map(function(f){
+          return '<tr><td>' + escapeHTML(f.label) + '</td>' + scenarios.map(function(sc){
+            return '<td>' + escapeHTML(formatInputForPrint(f, lastResults[sc.label].inputs[f.id])) + '</td>';
+          }).join("") + '</tr>';
+        }).join("") +
+      '</table></div>' +
+      '<div class="print-footer">' + escapeHTML(getLegalMention()) + '</div>';
+    window.print();
   }
 
   /* ============================ Intérêts composés (rendu sur mesure, style Finary) ============================ */
@@ -4839,6 +5251,7 @@
         if(sim) prefill = sim.inputs;
       }
       if(tool.customRender){ tool.customRender({prefill: prefill, autoCompute: !!prefill, clientId: v.clientIdParam}); }
+      else if(tool.comparable){ mountComparableCalculator(tool, {prefill: prefill, autoCompute: !!prefill, clientId: v.clientIdParam}); }
       else { mountCalculator(tool, {prefill: prefill, autoCompute: !!prefill, clientId: v.clientIdParam}); }
     } else if(v.name === "historique"){
       renderHistorique();
