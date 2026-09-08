@@ -2323,6 +2323,34 @@
     return out;
   }
 
+  // Nombre de parts fiscales estimé à partir du foyer : 1 part par adulte du foyer fiscal (2 si imposition
+  // commune) + 0,5 part pour chacun des 2 premiers enfants à charge + 1 part à partir du 3e (moitié en cas
+  // de garde alternée). Simplification (le rang retenu suit l'ordre de saisie, pas nécessairement l'ordre
+  // de naissance réel) : sert de point de départ pour le Simulateur d'avis d'imposition, ajustable ensuite.
+  function computePartsFiscalesEstimees(client){
+    var couple = client.statutCouple === "marie" || client.statutCouple === "pacse";
+    var partsAdultes = couple ? 2 : 1;
+    var partsEnfants = 0;
+    (client.enfants||[]).filter(function(e){ return e.aCharge; }).forEach(function(e, i){
+      var partPleine = (i+1) <= 2 ? 0.5 : 1;
+      partsEnfants += e.gardeAlternee ? partPleine/2 : partPleine;
+    });
+    return partsAdultes + partsEnfants;
+  }
+
+  // Estimation des paramètres du Simulateur d'avis d'imposition à partir des données déjà saisies dans la
+  // fiche client (revenus nets mensuels du foyer, statut du couple, enfants à charge) — pour permettre à la
+  // section "Impôt sur le revenu" du rapport de calculer un ordre de grandeur sans ressaisie préalable dans
+  // le simulateur dédié. Revenu net imposable approximé par 12 × revenus nets mensuels × 0,9 (abattement
+  // forfaitaire de 10%) : une simulation enregistrée à partir du vrai avis d'imposition reste plus précise.
+  function buildAvisImpositionInputsFromClient(client){
+    return {
+      revenuNetImposable: Math.round((client.revenusMensuelsNets||0)*12*0.9),
+      imposeCommun: client.statutCouple === "marie" || client.statutCouple === "pacse",
+      nombreParts: computePartsFiscalesEstimees(client)
+    };
+  }
+
   // Détermine, à partir des projets cochés et de quelques seuils de patrimoine, quels calculateurs
   // sont pertinents pour le Bilan patrimonial d'un client donné.
   function getTriggeredToolIds(client){
@@ -2556,15 +2584,26 @@
     // "Simulateur d'avis d'imposition" (avis-imposition). On réutilise sa dernière simulation enregistrée
     // pour ce client (tool.compute() rejoué sur les MÊMES inputs déjà validés/enregistrés, pas de logique
     // dupliquée) ; à défaut de simulation existante, on invite à la compléter d'abord.
+    // Impôt sur le revenu : ne recalcule jamais l'IR ici — seule source de vérité, le calculateur dédié
+    // "Simulateur d'avis d'imposition" (avis-imposition), toujours via son propre tool.compute(). Si une
+    // simulation a été enregistrée pour ce client, elle est rejouée telle quelle (précision maximale, basée
+    // sur le véritable avis d'imposition). Sinon, pas besoin de la remplir au préalable : le rapport calcule
+    // une estimation directement à partir des données déjà saisies dans la fiche du bilan (revenus nets
+    // mensuels, statut du couple, enfants à charge), avec un lien pour affiner si besoin.
     if(id === "impotRevenu"){
       var irTool = TOOLS_BY_ID["avis-imposition"];
+      if(!irTool || irTool.status !== "ready") return '<p class="print-freetext">Calculateur non disponible.</p>';
       var irSims = getSimulations().filter(function(s){ return s.clientId === client.id && s.toolId === "avis-imposition"; });
-      if(!irSims.length || !irTool || irTool.status !== "ready"){
-        return '<p class="print-freetext">Aucune simulation d\'avis d\'imposition enregistrée pour ce client. Complétez d\'abord le <a href="#/calc/avis-imposition?client=' + client.id + '">Simulateur d\'avis d\'imposition</a> pour ce client, puis régénérez le rapport.</p>';
+      var irNoteHTML, irResult;
+      if(irSims.length){
+        var lastIrSim = irSims[0]; // getSimulations() unshift => la plus récente est en tête
+        irResult = irTool.compute(lastIrSim.inputs);
+        irNoteHTML = '<p class="print-freetext" style="margin-top:0;">Basé sur la simulation d\'avis d\'imposition enregistrée le ' + new Date(lastIrSim.timestamp).toLocaleDateString("fr-FR") + '.</p>';
+      } else {
+        irResult = irTool.compute(buildAvisImpositionInputsFromClient(client));
+        irNoteHTML = '<p class="print-freetext" style="margin-top:0;">Estimation calculée automatiquement à partir des données déjà saisies dans le bilan (revenus nets mensuels, situation du couple, enfants à charge) — revenu net imposable et parts fiscales approximés, à vérifier avec le client. Aucune simulation d\'avis d\'imposition enregistrée pour ce client : pour un calcul plus précis à partir du véritable avis d\'imposition, complétez le <a href="#/calc/avis-imposition?client=' + client.id + '">Simulateur d\'avis d\'imposition</a> pour ce client, puis régénérez le rapport.</p>';
       }
-      var lastIrSim = irSims[0]; // getSimulations() unshift => la plus récente est en tête
-      var irResult = irTool.compute(lastIrSim.inputs);
-      return '<p class="print-freetext" style="margin-top:0;">Basé sur la simulation d\'avis d\'imposition enregistrée le ' + new Date(lastIrSim.timestamp).toLocaleDateString("fr-FR") + '.</p>' + rapportToolResultHTML(irResult);
+      return irNoteHTML + rapportToolResultHTML(irResult);
     }
 
     if(id === "diagnosticSuccessoral" || id === "diagnosticSuccessoralInverse"){
