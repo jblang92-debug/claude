@@ -1298,6 +1298,8 @@
         {id:"reliquatCumule5Ans", label:"Plafonds non utilisés des 5 années précédentes (cumul)", type:"number", suffix:"€", default:0, step:500,
           help:"Cumul simplifié, indiqué sur l'avis d'imposition (rubrique \"Plafond Épargne Retraite\"). Chaque reliquat annuel n'est reportable que 3 ans : vérifier la ventilation par année avant d'utiliser un reliquat ancien."},
         {id:"montantDejaVerse", label:"Montant déjà versé sur un PER cette année", type:"number", suffix:"€", default:0, step:500},
+        {id:"tmi", label:"Tranche marginale d'imposition (TMI) du foyer", type:"number", suffix:"%", default:30, step:1, clientField:"tmi",
+          help:"Un seul TMI par foyer fiscal, même en cas de mutualisation (imposition commune)."},
         {id:"mutualiser", label:"Marié(e) ou pacsé(e) — mutualiser le plafond avec le conjoint", type:"checkbox", default:false,
           help:"Les époux et partenaires de PACS soumis à imposition commune peuvent utiliser le plafond non consommé de l'autre (Art. 163 quatervicies I-A CGI)."},
         {id:"statutProfessionnelConjoint", label:"Statut professionnel du conjoint", type:"select", default:"salarie",
@@ -1373,23 +1375,44 @@
           ? {label:"Marge restante à verser", value: euro.format(margeRestante)}
           : {label:"Report des années précédentes", value: euro.format(plafondDisponibleTotal-plafondAnneeAffiche)};
 
+        var plafondMensuelLisse = plafondDisponibleTotal/12;
+        details.push({label:"Plafond mensuel lissé sur l'année (plafond disponible ÷ 12)", value: euro2.format(plafondMensuelLisse)});
+
+        // Économie d'impôt : l'année 1 mobilise tout le disponible (report inclus), les années suivantes
+        // ne reconduisent que le plafond annuel récurrent (hors report, à TMI et plafond constants).
+        var tmiTaux = inputs.tmi/100;
+        var economieAn1 = plafondDisponibleTotal*tmiTaux;
+        var economieAnnuelleRecurrente = plafondAnneeAffiche*tmiTaux;
+        function economieCumulee(nAnnees){ return economieAn1 + economieAnnuelleRecurrente*(nAnnees-1); }
+        var horizons = [1, 5, 10, 20];
+        var economies = horizons.map(economieCumulee);
+
+        details.push({label:"Économie d'impôt sur 1 an (TMI " + pct(inputs.tmi,0) + ")", value: euro.format(economies[0])});
+        details.push({label:"Économie d'impôt cumulée sur 5 ans", value: euro.format(economies[1])});
+        details.push({label:"Économie d'impôt cumulée sur 10 ans", value: euro.format(economies[2])});
+        details.push({label:"Économie d'impôt cumulée sur 20 ans", value: euro.format(economies[3])});
+
+        warnings.push("Projection d'économie d'impôt à TMI, revenus et plafond annuel constants dans le temps, sans capitalisation des sommes économisées (pas de rendement supposé) : une approximation, pas un engagement.");
+
         var sujet = inputs.mutualiser ? "vous et votre conjoint disposez ensemble" : "vous disposez";
         var summaryHTML = "Avec un statut " + labelStatut(inputs.statutProfessionnel).toLowerCase() +
           (inputs.mutualiser ? " et une mutualisation avec votre conjoint (" + labelStatut(inputs.statutProfessionnelConjoint).toLowerCase() + ")" : "") +
           ", " + sujet + " d'un plafond de déduction PER disponible de <strong>" + euro.format(plafondDisponibleTotal) + "</strong> cette année" +
-          (montantVerseTotal>0 ? ", dont <strong>" + euro.format(Math.max(0,margeRestante)) + "</strong> restent à verser au-delà des " + euro.format(montantVerseTotal) + " déjà versés" : "") + ".";
+          (montantVerseTotal>0 ? ", dont <strong>" + euro.format(Math.max(0,margeRestante)) + "</strong> restent à verser au-delà des " + euro.format(montantVerseTotal) + " déjà versés" : "") +
+          ". Soit environ <strong>" + euro2.format(plafondMensuelLisse) + "</strong> par mois lissé sur l'année, pour une économie d'impôt estimée à <strong>" + euro.format(economies[0]) + "</strong> cette année et <strong>" + euro.format(economies[2]) + "</strong> cumulée sur 10 ans à TMI constante.";
 
         return {
           keyFigures:[
             {label:"Plafond disponible total", value: euro.format(plafondDisponibleTotal)},
+            {label:"Plafond mensuel lissé", value: euro2.format(plafondMensuelLisse)},
             {label:"Plafond de l'année en cours", value: euro.format(plafondAnneeAffiche)},
             troisiemeFigure
           ],
           details: details,
           chart:{
-            type:"doughnut",
-            labels: inputs.mutualiser ? ["Vous","Conjoint"] : ["Plafond de l'année","Report des 5 années précédentes"],
-            datasets:[{data: inputs.mutualiser ? [plafondDisponibleMoi, plafondDisponibleConjoint] : [plafondMoi, inputs.reliquatCumule5Ans], backgroundColor:["#122b46","#9c7a3c"]}]
+            type:"bar",
+            labels:["1 an","5 ans","10 ans","20 ans"],
+            datasets:[{label:"Économie d'impôt cumulée (€)", data: economies.map(Math.round), backgroundColor:["#c9a87c","#9c7a3c","#0f7a72","#122b46"]}]
           },
           summaryHTML: summaryHTML,
           warnings: warnings
