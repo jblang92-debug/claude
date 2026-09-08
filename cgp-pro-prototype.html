@@ -528,12 +528,13 @@
     {id:"patrimoine", label:"Patrimoine", group:"analyse", defaultOn:true},
     {id:"budget", label:"Budget", group:"analyse", defaultOn:true, freeText:true},
     {id:"projectionBudgetaire", label:"Projection budgétaire", group:"analyse", defaultOn:true, freeText:true},
-    {id:"impotRevenu", label:"Impôt sur le revenu", group:"analyse", defaultOn:true, freeText:true},
+    {id:"impotRevenu", label:"Impôt sur le revenu", group:"analyse", defaultOn:true},
     {id:"ifiSection", label:"IFI", group:"analyse", defaultOn:true},
     {id:"pressionFiscale", label:"Pression fiscale", group:"analyse", defaultOn:true, freeText:true},
     {id:"retraiteSection", label:"Retraite", group:"analyse", defaultOn:true},
     {id:"prevoyance", label:"Prévoyance", group:"analyse", defaultOn:true, freeText:true},
     {id:"diagnosticSuccessoral", label:"Diagnostic successoral", group:"analyse", defaultOn:true},
+    {id:"diagnosticSuccessoralInverse", label:"Diagnostic successoral (ordre inversé)", group:"analyse", defaultOn:true},
 
     {id:"objectifsPreconisations", label:"Objectifs et préconisations", group:"objectifs", defaultOn:true, freeText:true,
       placeholder:"Objectifs exprimés par le client durant l'entretien (verbatims, formulation libre)..."},
@@ -1796,6 +1797,102 @@
         };
       }
     },
+    /* ---------- Simulateur d'avis d'imposition ---------- */
+    {
+      id:"avis-imposition", category:"epargne", status:"ready", icon:"🧾",
+      name:"Simulateur d'avis d'imposition",
+      desc:"Estime l'impôt sur le revenu du foyer (méthode du quotient familial, avec plafonnement et décote), selon le barème progressif — seul calculateur de l'impôt sur le revenu dans l'application ; les autres modules (Bilan patrimonial, comparateurs) réutilisent ce résultat au lieu de le recalculer.",
+      fields:[
+        {id:"revenuNetImposable", label:"Revenu net imposable annuel du foyer", type:"number", suffix:"€", default:30000, step:500,
+          help:"Figure sur l'avis d'imposition, ligne \"Revenu net imposable\" (après abattement de 10% sur salaires/pensions). À défaut d'avis disponible, base d'estimation à ajuster avec le client."},
+        {id:"imposeCommun", label:"Imposition commune (couple marié ou pacsé)", type:"checkbox", default:true,
+          help:"Les concubins ne sont pas imposés en commun (deux foyers fiscaux distincts) : décochez et simulez chaque personne séparément avec ses propres revenus et parts."},
+        {id:"nombreParts", label:"Nombre de parts fiscales du foyer", type:"number", default:2, step:0.5,
+          help:"Règle générale : 1 part par adulte du foyer fiscal + 0,5 part pour chacun des 2 premiers enfants à charge + 1 part à partir du 3ᵉ (moitié en cas de garde alternée). Cas particuliers (parent isolé, invalidité...) non couverts : ajustez manuellement."}
+      ],
+      referenceHTML:
+        '<h3>Barème retenu (2026, revenus 2025)</h3>' +
+        '<table>' +
+        '<tr><td>Jusqu\'à 11 600 €</td><td>0 %</td></tr>' +
+        '<tr><td>De 11 600 € à 29 579 €</td><td>11 %</td></tr>' +
+        '<tr><td>De 29 579 € à 84 577 €</td><td>30 %</td></tr>' +
+        '<tr><td>De 84 577 € à 181 917 €</td><td>41 %</td></tr>' +
+        '<tr><td>Au-delà de 181 917 €</td><td>45 %</td></tr>' +
+        '</table>' +
+        '<div class="ref-note">Décote (Art. 197 I 4° CGI) : céliba. si IR &lt; 1 982 € (897 € − 45,25 % × IR) ; couple si IR &lt; 3 277 € (1 483 € − 45,25 % × IR). Plafonnement du quotient familial (Art. 197 I 2° CGI) : avantage des parts au-delà de 1 part (céliba.) / 2 parts (couple) plafonné à 1 807 € par demi-part supplémentaire. Seuils revalorisés chaque année en loi de finances : à vérifier avant toute décision.</div>',
+      compute:function(inputs){
+        var BAREME = [
+          {upTo:11600, rate:0},{upTo:29579, rate:0.11},{upTo:84577, rate:0.30},{upTo:181917, rate:0.41},{upTo:Infinity, rate:0.45}
+        ];
+        function trancheDe(qf){
+          var precedent = 0;
+          for(var i=0;i<BAREME.length;i++){
+            if(qf <= BAREME[i].upTo) return {rate:BAREME[i].rate, upTo:BAREME[i].upTo};
+            precedent = BAREME[i].upTo;
+          }
+          return BAREME[BAREME.length-1];
+        }
+
+        var revenu = Math.max(0, inputs.revenuNetImposable||0);
+        var parts = Math.max(0.5, inputs.nombreParts||1);
+        var partsDeBase = inputs.imposeCommun ? 2 : 1;
+
+        var qf = revenu/parts;
+        var irAvantPlafonnement = computeBaremeProgressif(qf, BAREME)*parts;
+
+        var qfBase = revenu/partsDeBase;
+        var irBase = computeBaremeProgressif(qfBase, BAREME)*partsDeBase;
+        var demiPartsSupp = Math.max(0, (parts-partsDeBase)*2);
+        var plafondAvantage = demiPartsSupp*1807;
+        var avantageProcure = Math.max(0, irBase-irAvantPlafonnement);
+        var irApresPlafonnement = avantageProcure>plafondAvantage ? (irBase-plafondAvantage) : irAvantPlafonnement;
+
+        var seuilDecote = inputs.imposeCommun ? 3277 : 1982;
+        var montantDecoteBase = inputs.imposeCommun ? 1483 : 897;
+        var decote = irApresPlafonnement < seuilDecote ? Math.max(0, montantDecoteBase - irApresPlafonnement*0.4525) : 0;
+        var irNet = Math.max(0, irApresPlafonnement - decote);
+
+        var tranche = trancheDe(qf);
+        var tmi = tranche.rate*100;
+        var margeParPart = tranche.upTo===Infinity ? null : (tranche.upTo-qf);
+        var margeFoyer = margeParPart===null ? null : margeParPart*parts;
+        var rfrEstime = revenu/0.9;
+
+        var warnings = [
+          "Barème 2026 (revenus 2025) : tranches, décote et plafonnement du quotient familial sont revalorisés chaque année en loi de finances — vérifiez le barème en vigueur avant toute décision.",
+          "Calcul simplifié : hors crédits/réductions d'impôt, prélèvement à la source (avance déjà versée), revenus déjà taxés au PFU (calculés séparément dans les autres calculateurs), et cas particuliers (parent isolé, invalidité...).",
+          "Nombre de parts fiscales à vérifier avec le client : la règle standard appliquée ici ne couvre pas tous les cas particuliers.",
+          "En cas de concubinage, chaque personne du couple doit être imposée séparément (deux foyers fiscaux distincts) : ne cochez \"imposition commune\" que pour un couple marié ou pacsé."
+        ];
+        if(revenu>0 && irNet===0){ warnings.unshift("Foyer non imposable au barème avant prise en compte d'éventuels autres revenus ou crédits d'impôt."); }
+
+        var summaryHTML = "Pour un revenu net imposable de <strong>" + euro.format(revenu) + "</strong> réparti sur <strong>" + parts + " part(s)</strong>, l'impôt sur le revenu net est estimé à <strong>" + euro.format(irNet) + "</strong>, avec une tranche marginale d'imposition de <strong>" + pct(tmi,0) + "</strong>" +
+          (margeFoyer!==null ? ", et une marge de <strong>" + euro.format(margeFoyer) + "</strong> avant de basculer dans la tranche supérieure." : ", déjà dans la tranche marginale la plus élevée du barème.");
+
+        return {
+          keyFigures:[
+            {label:"Impôt net à payer", value: euro.format(irNet)},
+            {label:"TMI (taux marginal d'imposition)", value: pct(tmi,0)},
+            {label:"RFR estimé", value: euro.format(rfrEstime)},
+            margeFoyer!==null ? {label:"Marge avant tranche supérieure", value: euro.format(margeFoyer)} : {label:"Tranche marginale", value:"Déjà au taux maximal (45 %)"}
+          ],
+          details:[
+            {label:"Quotient familial (revenu ÷ parts)", value: euro.format(qf)},
+            {label:"Nombre de parts retenues", value: String(parts)},
+            {label:"IR avant plafonnement du quotient familial", value: euro.format(irAvantPlafonnement)},
+            {label:"IR sur la base de " + partsDeBase + " part(s) (sans les parts supplémentaires)", value: euro.format(irBase)},
+            {label:"Avantage procuré par les parts supplémentaires", value: euro.format(avantageProcure)},
+            {label:"Plafond de l'avantage (" + demiPartsSupp + " demi-part(s) × 1 807 €)", value: euro.format(plafondAvantage)},
+            {label:"IR après plafonnement du quotient familial", value: euro.format(irApresPlafonnement)},
+            {label:"Décote appliquée", value: euro.format(decote)},
+            {label:"Impôt net à payer", value: euro.format(irNet)}
+          ],
+          chart:null,
+          warnings: warnings,
+          summaryHTML: summaryHTML
+        };
+      }
+    },
 
     /* ---------- 16. Pension retraite estimée ---------- */
     {
@@ -2377,6 +2474,36 @@
     return img ? '<img src="' + img + '" class="print-chart">' : "";
   }
 
+  // Diagnostic successoral personnalisé : simule la transmission aux enfants à charge en supposant que
+  // l'un des deux adultes du foyer décède en premier (ordreInverse=false : adulte 1 ; true : adulte 2 —
+  // pertinent car la composition du patrimoine propre de chacun diffère souvent). Réutilise le calculateur
+  // "Droits de succession" (même compute(), pas de logique fiscale dupliquée) sur la part revenant à
+  // chaque enfant. Masse retenue = patrimoine propre du défunt + moitié de l'indivision (simplification :
+  // le conjoint survivant est exonéré, seule la transmission aux enfants est chiffrée ici).
+  function rapportDiagnosticSuccessoralHTML(client, ordreInverse){
+    var hasAdulte2 = !!(client.adultes && client.adultes[1]);
+    if(ordreInverse && !hasAdulte2){
+      return '<p class="print-freetext">Foyer à un seul adulte : le scénario "ordre inversé" (second adulte du couple décédant en premier) ne s\'applique pas ici.</p>';
+    }
+    var recap = computeRecapPatrimonial(client);
+    var ownerKey = ordreInverse ? "adulte2" : "adulte1";
+    var defuntLabel = recap.ownerLabels[ownerKey];
+    var masseDefunt = (recap.colTotals[ownerKey]||0) + (recap.colTotals.indivision||0)/2;
+    var intro = '<p><strong>Hypothèse : ' + escapeHTML(defuntLabel) + '</strong> décède en premier. Masse successorale retenue (patrimoine propre + moitié de l\'indivision) : <strong>' + euro.format(masseDefunt) + '</strong>. Conjoint survivant : exonération totale (Art. 796-0 bis CGI) — seule la transmission aux enfants est chiffrée ci-dessous.</p>';
+
+    var enfants = (client.enfants||[]).filter(function(e){ return e.aCharge; });
+    var succTool = TOOLS_BY_ID["succession"];
+    if(!enfants.length || !succTool || succTool.status !== "ready"){
+      return intro + '<p class="print-freetext">Aucun enfant à charge renseigné dans le foyer : la transmission aux enfants ne peut pas être simulée.</p>';
+    }
+
+    var partParEnfant = masseDefunt/enfants.length;
+    var result = succTool.compute({montantTransmis: partParEnfant, lienParente:"enfant"});
+    return intro +
+      '<p style="margin-bottom:10px;">Répartition à parts égales entre les <strong>' + enfants.length + ' enfant(s)</strong> à charge, soit ' + euro.format(partParEnfant) + ' par enfant :</p>' +
+      rapportToolResultHTML(result);
+  }
+
   // Contenu (hors titre) d'une section du rapport. Les sections adossées à un calculateur existant sont
   // calculées à partir de la fiche client (buildFullInputsFromClient) ; les autres affichent le texte libre
   // saisi dans l'écran de configuration (config.textes[id]), faute de calculateur dédié dans l'application.
@@ -2418,11 +2545,30 @@
         rapportPatrimoineChartImg(client);
     }
 
-    if(id === "ifiSection" || id === "retraiteSection" || id === "diagnosticSuccessoral"){
-      var toolId = id==="ifiSection" ? "ifi" : id==="retraiteSection" ? "pension-retraite" : "succession";
+    if(id === "ifiSection" || id === "retraiteSection"){
+      var toolId = id==="ifiSection" ? "ifi" : "pension-retraite";
       var tool = TOOLS_BY_ID[toolId];
       if(!tool || tool.status !== "ready") return '<p class="print-freetext">Calculateur non disponible.</p>';
       return rapportToolResultHTML(tool.compute(buildFullInputsFromClient(client, tool)));
+    }
+
+    // Impôt sur le revenu : ne recalcule jamais l'IR ici — seule source de vérité, le calculateur dédié
+    // "Simulateur d'avis d'imposition" (avis-imposition). On réutilise sa dernière simulation enregistrée
+    // pour ce client (tool.compute() rejoué sur les MÊMES inputs déjà validés/enregistrés, pas de logique
+    // dupliquée) ; à défaut de simulation existante, on invite à la compléter d'abord.
+    if(id === "impotRevenu"){
+      var irTool = TOOLS_BY_ID["avis-imposition"];
+      var irSims = getSimulations().filter(function(s){ return s.clientId === client.id && s.toolId === "avis-imposition"; });
+      if(!irSims.length || !irTool || irTool.status !== "ready"){
+        return '<p class="print-freetext">Aucune simulation d\'avis d\'imposition enregistrée pour ce client. Complétez d\'abord le <a href="#/calc/avis-imposition?client=' + client.id + '">Simulateur d\'avis d\'imposition</a> pour ce client, puis régénérez le rapport.</p>';
+      }
+      var lastIrSim = irSims[0]; // getSimulations() unshift => la plus récente est en tête
+      var irResult = irTool.compute(lastIrSim.inputs);
+      return '<p class="print-freetext" style="margin-top:0;">Basé sur la simulation d\'avis d\'imposition enregistrée le ' + new Date(lastIrSim.timestamp).toLocaleDateString("fr-FR") + '.</p>' + rapportToolResultHTML(irResult);
+    }
+
+    if(id === "diagnosticSuccessoral" || id === "diagnosticSuccessoralInverse"){
+      return rapportDiagnosticSuccessoralHTML(client, id === "diagnosticSuccessoralInverse");
     }
 
     if(id === "synthese"){
