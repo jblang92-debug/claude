@@ -82,6 +82,26 @@
   .client-tag{font-size:.7rem;font-weight:700;background:#eef1f5;color:var(--navy-2);padding:3px 9px;border-radius:20px;}
   .page-header-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
 
+  /* Foyer / actifs (composants réutilisables fiche client + bilan) */
+  .foyer-header{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;}
+  .foyer-header .foyer-adultes{font-weight:700;font-size:1rem;color:var(--navy);}
+  .foyer-header .foyer-meta{font-size:.82rem;color:var(--muted);margin-top:4px;}
+  .foyer-header .foyer-enfants{font-size:.82rem;color:var(--ink);margin-top:6px;}
+  .repeat-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;}
+  .repeat-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
+  .repeat-row input[type=text], .repeat-row input[type=number], .repeat-row input[type=date], .repeat-row select{width:auto;flex:1 1 130px;padding:8px 10px;font-size:.85rem;}
+  .repeat-row .checkbox-inline{flex:0 0 auto;font-size:.8rem;font-weight:600;white-space:nowrap;}
+  .repeat-row .btn-danger{flex:0 0 auto;}
+  .subsection-title{font-weight:700;font-size:.9rem;color:var(--navy);margin:22px 0 10px;}
+  .subsection-title:first-child{margin-top:0;}
+  .recap-table-wrap{overflow-x:auto;margin-top:10px;}
+  .recap-table{width:100%;border-collapse:collapse;font-size:.83rem;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+  .recap-table th, .recap-table td{padding:9px 12px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;}
+  .recap-table th:first-child, .recap-table td:first-child{text-align:left;font-weight:600;}
+  .recap-table thead th{background:var(--navy);color:#fff;font-weight:700;}
+  .recap-table tfoot td{font-weight:800;background:var(--bg);color:var(--navy);}
+  .recap-chart-wrap{max-width:340px;margin:20px auto 0;}
+
   /* Bilan patrimonial */
   .wizard-steps{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;}
   .wizard-step{flex:1 1 120px;text-align:center;padding:8px 6px;border-radius:8px;font-size:.75rem;font-weight:700;background:#eef1f5;color:var(--muted);}
@@ -303,8 +323,53 @@
 
   /* ============================ Clients ============================ */
   var CLIENTS_KEY = "cgppro_clients_v1";
+
+  var STATUTS_COUPLE = [
+    {value:"celibataire", label:"Célibataire"},
+    {value:"marie", label:"Marié(e)"},
+    {value:"pacse", label:"Pacsé(e)"},
+    {value:"concubinage", label:"Concubinage"}
+  ];
+  var REGIMES_MARIAGE = [
+    {value:"communaute", label:"Communauté (légale ou universelle)"},
+    {value:"separation_biens", label:"Séparation de biens"}
+  ];
+  var REGIMES_PACS = [
+    {value:"separation_patrimoines", label:"Séparation de patrimoines"},
+    {value:"indivision", label:"Indivision"}
+  ];
+  var CATEGORIES_ACTIF = [
+    {value:"usage", label:"Biens d'usage"},
+    {value:"immobilier_locatif", label:"Immobilier locatif"},
+    {value:"assurance_vie", label:"Assurance-vie"},
+    {value:"epargne_retraite", label:"Épargne retraite et salariale"},
+    {value:"epargne_long_terme", label:"Épargne long terme"},
+    {value:"disponibilites", label:"Disponibilités"},
+    {value:"autres", label:"Autres"}
+  ];
+  var MODES_DETENTION = [
+    {value:"PP", label:"Pleine propriété"},
+    {value:"NP", label:"Nue-propriété"},
+    {value:"USF", label:"Usufruit"}
+  ];
+  function labelFromList(list, value){ var f = list.filter(function(o){ return o.value===value; })[0]; return f ? f.label : value; }
+
+  // Migration douce : complète en mémoire (sans réécriture immédiate du localStorage) les fiches créées
+  // avant l'ajout du modèle foyer/actifs. Un ancien client sans "adultes" devient un foyer à un adulte
+  // reprenant son prénom/nom/âge ; les actifs sans propriétaire assigné basculent sur l'adulte 1.
+  function normalizeClient(c){
+    if(!c.adultes || !c.adultes.length){
+      c.adultes = [{prenom:c.prenom||"", nom:c.nom||"", age:(c.age!==undefined?c.age:null), profession:"", revenusPropres:0}];
+    }
+    if(!c.enfants) c.enfants = [];
+    if(!c.actifs) c.actifs = [];
+    c.actifs.forEach(function(a){ if(!a.proprietaire) a.proprietaire = "adulte1"; });
+    if(!c.statutCouple) c.statutCouple = "celibataire";
+    return c;
+  }
+
   function getClients(){
-    try{ return JSON.parse(localStorage.getItem(CLIENTS_KEY)) || []; }
+    try{ return (JSON.parse(localStorage.getItem(CLIENTS_KEY)) || []).map(normalizeClient); }
     catch(e){ return []; }
   }
   function getClientById(id){ return getClients().filter(function(c){ return c.id === id; })[0] || null; }
@@ -318,15 +383,48 @@
     var all = getClients().filter(function(c){ return c.id !== id; });
     localStorage.setItem(CLIENTS_KEY, JSON.stringify(all));
   }
-  function clientFullName(c){ return ((c.prenom||"") + " " + (c.nom||"")).trim() || "(sans nom)"; }
+  function clientFullName(c){
+    var noms = (c.adultes||[]).map(function(a){ return (a.prenom||"")+" "+(a.nom||""); }).map(function(s){ return s.trim(); }).filter(Boolean);
+    if(noms.length) return noms.join(" & ");
+    return ((c.prenom||"") + " " + (c.nom||"")).trim() || "(sans nom)";
+  }
+  // Nombre d'enfants fiscalement à charge du foyer — structure prête pour un futur calcul de quotient
+  // familial (IR) ou d'abattements de succession, non implémenté pour l'instant.
+  function nombreEnfantsACharge(client){
+    return (client.enfants||[]).filter(function(e){ return e.aCharge; }).length;
+  }
+  // Agrège les actifs d'un client en tableau croisé propriétaire × catégorie, avec totaux ligne/colonne.
+  function computeRecapPatrimonial(client){
+    var hasAdulte2 = !!(client.adultes && client.adultes[1]);
+    var owners = hasAdulte2 ? ["adulte1","adulte2","indivision"] : ["adulte1","indivision"];
+    var ownerLabels = {
+      adulte1: (client.adultes[0] && client.adultes[0].prenom) || "Adulte 1",
+      adulte2: hasAdulte2 ? ((client.adultes[1].prenom) || "Adulte 2") : "Adulte 2",
+      indivision: "Indivision"
+    };
+    var actifs = client.actifs || [];
+    var rows = CATEGORIES_ACTIF.map(function(cat){
+      var row = {categorie: cat.label, values:{}, total:0};
+      owners.forEach(function(o){
+        var sum = actifs.filter(function(a){ return a.categorie===cat.value && a.proprietaire===o; })
+          .reduce(function(s,a){ return s+(parseFloat(a.montant)||0); }, 0);
+        row.values[o] = sum;
+        row.total += sum;
+      });
+      return row;
+    });
+    var colTotals = {};
+    owners.forEach(function(o){ colTotals[o] = rows.reduce(function(s,r){ return s+r.values[o]; }, 0); });
+    var grandTotal = rows.reduce(function(s,r){ return s+r.total; }, 0);
+    return {owners:owners, ownerLabels:ownerLabels, rows:rows, colTotals:colTotals, grandTotal:grandTotal};
+  }
 
   // Champs de la fiche client. `clientField` sur un champ d'outil (voir TOOLS) référence l'id ci-dessous
-  // pour permettre le pré-remplissage automatique depuis la fiche.
+  // pour permettre le pré-remplissage automatique depuis la fiche. L'identité (prénom/nom/âge) et la
+  // composition du foyer (adultes/enfants) sont saisies via le composant mountFoyerEditor, pas ici.
   var CLIENT_FIELDS = [
-    {id:"prenom", label:"Prénom", type:"text", default:"", section:"Identité"},
-    {id:"nom", label:"Nom", type:"text", default:"", section:"Identité"},
-    {id:"age", label:"Âge", type:"number", suffix:"ans", default:45, step:1, section:"Identité"},
-    {id:"situationFamiliale", label:"Situation familiale", type:"select", default:"seul", section:"Identité", options:[
+    {id:"situationFamiliale", label:"Situation familiale (fiscalité assurance-vie)", type:"select", default:"seul", section:"Identité",
+      help:"Distinct du statut civil du foyer ci-dessus : sert uniquement au calcul des abattements d'assurance-vie.", options:[
       {value:"seul", label:"Célibataire / divorcé(e) / veuf(ve)"},
       {value:"couple", label:"Couple (marié, pacsé ou en concubinage)"}
     ]},
@@ -2460,6 +2558,252 @@
     document.getElementById("searchClient").addEventListener("input", function(e){ draw(e.target.value); });
   }
 
+  /* ============================ Composant réutilisable : composition du foyer ============================ */
+  // Monte l'éditeur adultes + enfants dans `container`, pré-rempli depuis `client`. Utilisé par la fiche
+  // client et par l'étape "Identité" du Bilan patrimonial. Retourne {getData()} pour récupérer l'état saisi.
+  function mountFoyerEditor(container, client){
+    var adulte1 = Object.assign({prenom:"", nom:"", age:null, profession:"", revenusPropres:0}, client.adultes && client.adultes[0]);
+    var hasAdulte2 = !!(client.adultes && client.adultes[1]);
+    var adulte2 = Object.assign({prenom:"", nom:"", age:null, profession:"", revenusPropres:0}, client.adultes && client.adultes[1]);
+    var statutCouple = client.statutCouple || "celibataire";
+    var regimeMatrimonial = client.regimeMatrimonial || "communaute";
+    var regimePacs = client.regimePacs || "separation_patrimoines";
+    var enfants = (client.enfants || []).map(function(e){ return Object.assign({prenom:"", age:null, aCharge:true, gardeAlternee:false}, e); });
+
+    function selectHTML(id, list, value){
+      return '<select id="' + id + '">' + list.map(function(o){ return '<option value="' + o.value + '" ' + (o.value===value?"selected":"") + '>' + escapeHTML(o.label) + '</option>'; }).join("") + '</select>';
+    }
+
+    function adulteBlockHTML(prefix, a, titre){
+      return '<div class="subsection-title">' + escapeHTML(titre) + '</div>' +
+        '<div class="form-grid">' +
+          '<div class="field"><label for="' + prefix + '_prenom">Prénom</label><input type="text" id="' + prefix + '_prenom" value="' + escapeHTML(a.prenom||"") + '"></div>' +
+          '<div class="field"><label for="' + prefix + '_nom">Nom</label><input type="text" id="' + prefix + '_nom" value="' + escapeHTML(a.nom||"") + '"></div>' +
+          '<div class="field"><label for="' + prefix + '_age">Âge</label><input type="number" id="' + prefix + '_age" value="' + (a.age!=null?a.age:"") + '" step="1"></div>' +
+          '<div class="field"><label for="' + prefix + '_profession">Profession</label><input type="text" id="' + prefix + '_profession" value="' + escapeHTML(a.profession||"") + '"></div>' +
+          '<div class="field"><label for="' + prefix + '_revenus">Revenus propres (nets mensuels)</label><div class="input-suffix"><input type="number" id="' + prefix + '_revenus" value="' + (a.revenusPropres||0) + '" step="50"><span class="suffix">€</span></div></div>' +
+        '</div>';
+    }
+
+    function render(){
+      container.innerHTML =
+        '<div class="subsection-title">Statut du couple</div>' +
+        '<div class="form-grid">' +
+          '<div class="field"><label for="foyer_statutCouple">Statut</label>' + selectHTML("foyer_statutCouple", STATUTS_COUPLE, statutCouple) + '</div>' +
+          '<div class="field" id="foyer_regimeMariageWrap" hidden><label for="foyer_regimeMariage">Régime matrimonial</label>' + selectHTML("foyer_regimeMariage", REGIMES_MARIAGE, regimeMatrimonial) + '</div>' +
+          '<div class="field" id="foyer_regimePacsWrap" hidden><label for="foyer_regimePacs">Régime du PACS</label>' + selectHTML("foyer_regimePacs", REGIMES_PACS, regimePacs) + '</div>' +
+        '</div>' +
+        adulteBlockHTML("foyer_a1", adulte1, "Adulte 1") +
+        '<div class="field" style="margin-top:14px;"><label class="checkbox-inline"><input type="checkbox" id="foyer_hasAdulte2" ' + (hasAdulte2?"checked":"") + '> Foyer à deux adultes</label></div>' +
+        '<div id="foyer_a2Wrap" ' + (hasAdulte2?"":"hidden") + '>' + adulteBlockHTML("foyer_a2", adulte2, "Adulte 2") + '</div>' +
+        '<div class="subsection-title">Enfants</div>' +
+        '<div class="repeat-list" id="foyer_enfantsList"></div>' +
+        '<button type="button" class="btn btn-outline btn-sm" id="foyer_addEnfant">+ Ajouter un enfant</button>';
+
+      function updateRegimeVisibility(){
+        var v = document.getElementById("foyer_statutCouple").value;
+        document.getElementById("foyer_regimeMariageWrap").hidden = v !== "marie";
+        document.getElementById("foyer_regimePacsWrap").hidden = v !== "pacse";
+      }
+      updateRegimeVisibility();
+      document.getElementById("foyer_statutCouple").addEventListener("change", updateRegimeVisibility);
+
+      document.getElementById("foyer_hasAdulte2").addEventListener("change", function(e){
+        document.getElementById("foyer_a2Wrap").hidden = !e.target.checked;
+      });
+
+      renderEnfants();
+      document.getElementById("foyer_addEnfant").addEventListener("click", function(){
+        enfants.push({prenom:"", age:null, aCharge:true, gardeAlternee:false});
+        renderEnfants();
+      });
+    }
+
+    function renderEnfants(){
+      var listEl = document.getElementById("foyer_enfantsList");
+      listEl.innerHTML = enfants.length ? enfants.map(function(e, i){
+        return '<div class="repeat-row">' +
+          '<input type="text" placeholder="Prénom" data-enfant-field="prenom" data-i="' + i + '" value="' + escapeHTML(e.prenom||"") + '">' +
+          '<input type="number" placeholder="Âge" data-enfant-field="age" data-i="' + i + '" value="' + (e.age!=null?e.age:"") + '" style="max-width:90px;">' +
+          '<label class="checkbox-inline"><input type="checkbox" data-enfant-field="aCharge" data-i="' + i + '" ' + (e.aCharge?"checked":"") + '> À charge fiscalement</label>' +
+          (e.aCharge ? '<label class="checkbox-inline"><input type="checkbox" data-enfant-field="gardeAlternee" data-i="' + i + '" ' + (e.gardeAlternee?"checked":"") + '> Garde alternée</label>' : '') +
+          '<button type="button" class="btn btn-danger btn-sm" data-remove-enfant="' + i + '">×</button>' +
+        '</div>';
+      }).join("") : '<p class="empty">Aucun enfant rattaché au foyer.</p>';
+
+      listEl.querySelectorAll("[data-enfant-field]").forEach(function(el){
+        el.addEventListener("change", function(){
+          var i = parseInt(el.dataset.i, 10);
+          var field = el.dataset.enfantField;
+          enfants[i][field] = el.type === "checkbox" ? el.checked : (el.type === "number" ? (parseFloat(el.value)||null) : el.value);
+          if(field === "aCharge"){ renderEnfants(); }
+        });
+      });
+      listEl.querySelectorAll("[data-remove-enfant]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          enfants.splice(parseInt(btn.dataset.removeEnfant, 10), 1);
+          renderEnfants();
+        });
+      });
+    }
+
+    render();
+
+    return {
+      getData: function(){
+        var a1 = {
+          prenom: document.getElementById("foyer_a1_prenom").value,
+          nom: document.getElementById("foyer_a1_nom").value,
+          age: parseFloat(document.getElementById("foyer_a1_age").value) || null,
+          profession: document.getElementById("foyer_a1_profession").value,
+          revenusPropres: parseFloat(document.getElementById("foyer_a1_revenus").value) || 0
+        };
+        var hasA2 = document.getElementById("foyer_hasAdulte2").checked;
+        var adultesOut = [a1];
+        if(hasA2){
+          adultesOut.push({
+            prenom: document.getElementById("foyer_a2_prenom").value,
+            nom: document.getElementById("foyer_a2_nom").value,
+            age: parseFloat(document.getElementById("foyer_a2_age").value) || null,
+            profession: document.getElementById("foyer_a2_profession").value,
+            revenusPropres: parseFloat(document.getElementById("foyer_a2_revenus").value) || 0
+          });
+        }
+        return {
+          statutCouple: document.getElementById("foyer_statutCouple").value,
+          regimeMatrimonial: document.getElementById("foyer_regimeMariage").value,
+          regimePacs: document.getElementById("foyer_regimePacs").value,
+          adultes: adultesOut,
+          enfants: enfants
+        };
+      }
+    };
+  }
+
+  /* ============================ Composant réutilisable : patrimoine détaillé (actifs) ============================ */
+  // Monte la liste d'actifs + tableau récapitulatif croisé + camembert par catégorie. Utilisé par la fiche
+  // client et par l'étape "Patrimoine" du Bilan patrimonial. Retourne {getData()}.
+  // getOwnersInfo() -> {hasAdulte2, prenom1, prenom2} pilote les libellés propriétaire (Adulte 1/2/Indivision).
+  // Par défaut, lit l'état figé de `client.adultes` au montage (cas du Bilan : le foyer a déjà été validé
+  // à une étape précédente, sur une autre page). La fiche client passe une version qui lit le DOM en direct,
+  // pour refléter immédiatement un changement de "Foyer à deux adultes" fait sur la même page.
+  function mountActifsEditor(container, client, getOwnersInfo){
+    var actifs = (client.actifs || []).map(function(a){ return Object.assign({libelle:"", montant:0, categorie:"disponibilites", proprietaire:"adulte1", modeDetention:"PP", dateAcquisition:"", notes:""}, a); });
+    var recapChartInstance = null;
+
+    getOwnersInfo = getOwnersInfo || function(){
+      return {
+        hasAdulte2: !!(client.adultes && client.adultes[1]),
+        prenom1: (client.adultes && client.adultes[0] && client.adultes[0].prenom) || "Adulte 1",
+        prenom2: (client.adultes && client.adultes[1] && client.adultes[1].prenom) || "Adulte 2"
+      };
+    };
+
+    function proprietaireOptions(){
+      var info = getOwnersInfo();
+      var opts = [{value:"adulte1", label: info.prenom1 || "Adulte 1"}];
+      if(info.hasAdulte2){ opts.push({value:"adulte2", label: info.prenom2 || "Adulte 2"}); }
+      opts.push({value:"indivision", label:"Indivision"});
+      return opts;
+    }
+
+    function render(){
+      container.innerHTML =
+        '<div class="subsection-title">Actifs détaillés</div>' +
+        '<div class="repeat-list" id="actifsList"></div>' +
+        '<button type="button" class="btn btn-outline btn-sm" id="actifs_add">+ Ajouter un actif</button>' +
+        '<div class="subsection-title">Récapitulatif du patrimoine</div>' +
+        '<div class="recap-table-wrap" id="recapTableWrap"></div>' +
+        '<div class="recap-chart-wrap"><canvas id="recapChart"></canvas></div>';
+
+      renderActifsList();
+      renderRecap();
+      document.getElementById("actifs_add").addEventListener("click", function(){
+        actifs.push({libelle:"", montant:0, categorie:"disponibilites", proprietaire:"adulte1", modeDetention:"PP", dateAcquisition:"", notes:""});
+        renderActifsList();
+        renderRecap();
+      });
+    }
+
+    function renderActifsList(){
+      var listEl = document.getElementById("actifsList");
+      var ownerOpts = proprietaireOptions();
+      listEl.innerHTML = actifs.length ? actifs.map(function(a, i){
+        return '<div class="repeat-row">' +
+          '<input type="text" placeholder="Libellé (ex. PEL, RP...)" data-actif-field="libelle" data-i="' + i + '" value="' + escapeHTML(a.libelle||"") + '" style="flex:2 1 160px;">' +
+          '<input type="number" placeholder="Montant €" data-actif-field="montant" data-i="' + i + '" value="' + (a.montant||0) + '" step="500">' +
+          '<select data-actif-field="categorie" data-i="' + i + '">' + CATEGORIES_ACTIF.map(function(o){ return '<option value="' + o.value + '" ' + (o.value===a.categorie?"selected":"") + '>' + escapeHTML(o.label) + '</option>'; }).join("") + '</select>' +
+          '<select data-actif-field="proprietaire" data-i="' + i + '">' + ownerOpts.map(function(o){ return '<option value="' + o.value + '" ' + (o.value===a.proprietaire?"selected":"") + '>' + escapeHTML(o.label) + '</option>'; }).join("") + '</select>' +
+          '<select data-actif-field="modeDetention" data-i="' + i + '">' + MODES_DETENTION.map(function(o){ return '<option value="' + o.value + '" ' + (o.value===a.modeDetention?"selected":"") + '>' + escapeHTML(o.label) + '</option>'; }).join("") + '</select>' +
+          '<input type="date" data-actif-field="dateAcquisition" data-i="' + i + '" value="' + (a.dateAcquisition||"") + '" style="flex:1 1 140px;">' +
+          '<input type="text" placeholder="Notes" data-actif-field="notes" data-i="' + i + '" value="' + escapeHTML(a.notes||"") + '" style="flex:2 1 160px;">' +
+          '<button type="button" class="btn btn-danger btn-sm" data-remove-actif="' + i + '">×</button>' +
+        '</div>';
+      }).join("") : '<p class="empty">Aucun actif détaillé pour l\'instant.</p>';
+
+      listEl.querySelectorAll("[data-actif-field]").forEach(function(el){
+        el.addEventListener("input", function(){
+          var i = parseInt(el.dataset.i, 10);
+          var field = el.dataset.actifField;
+          actifs[i][field] = el.type === "number" ? (parseFloat(el.value)||0) : el.value;
+          renderRecap();
+        });
+      });
+      listEl.querySelectorAll("[data-remove-actif]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          actifs.splice(parseInt(btn.dataset.removeActif, 10), 1);
+          renderActifsList();
+          renderRecap();
+        });
+      });
+    }
+
+    function renderRecap(){
+      var info = getOwnersInfo();
+      var tempClient = Object.assign({}, client, {
+        adultes: [
+          {prenom: info.prenom1 || "Adulte 1"},
+          info.hasAdulte2 ? {prenom: info.prenom2 || "Adulte 2"} : null
+        ].filter(Boolean),
+        actifs: actifs
+      });
+      var recap = computeRecapPatrimonial(tempClient);
+      var wrap = document.getElementById("recapTableWrap");
+      wrap.innerHTML = '<table class="recap-table"><thead><tr><th>Catégorie</th>' +
+        recap.owners.map(function(o){ return '<th>' + escapeHTML(recap.ownerLabels[o]) + '</th>'; }).join("") +
+        '<th>Total</th></tr></thead><tbody>' +
+        recap.rows.map(function(r){
+          return '<tr><td>' + escapeHTML(r.categorie) + '</td>' +
+            recap.owners.map(function(o){ return '<td>' + euro.format(r.values[o]) + '</td>'; }).join("") +
+            '<td>' + euro.format(r.total) + '</td></tr>';
+        }).join("") +
+        '</tbody><tfoot><tr><td>Total</td>' +
+        recap.owners.map(function(o){ return '<td>' + euro.format(recap.colTotals[o]) + '</td>'; }).join("") +
+        '<td>' + euro.format(recap.grandTotal) + '</td></tr></tfoot></table>';
+
+      if(typeof Chart !== "undefined"){
+        var ctx = document.getElementById("recapChart").getContext("2d");
+        if(recapChartInstance){ recapChartInstance.destroy(); }
+        var nonZero = recap.rows.filter(function(r){ return r.total>0; });
+        recapChartInstance = new Chart(ctx, {
+          type:"pie",
+          data:{
+            labels: nonZero.map(function(r){ return r.categorie; }),
+            datasets:[{data: nonZero.map(function(r){ return Math.round(r.total); }), backgroundColor:["#122b46","#9c7a3c","#0f7a72","#b3422c","#5b6b7c","#c9a87c","#1c3f63"]}]
+          },
+          options:{responsive:true, plugins:{legend:{position:"bottom", labels:{boxWidth:12, font:{size:10}}}}}
+        });
+      }
+    }
+
+    render();
+
+    return {
+      getData: function(){ return actifs; },
+      refreshOwners: function(){ renderActifsList(); renderRecap(); }
+    };
+  }
+
   /* ============================ Clients ============================ */
   var PROJET_LABELS = {
     projetAchatResidence:"Achat résidence principale",
@@ -2487,10 +2831,14 @@
     }
     list.innerHTML = clients.map(function(c){
       var tags = Object.keys(PROJET_LABELS).filter(function(k){ return c[k]; }).map(function(k){ return '<span class="client-tag">' + PROJET_LABELS[k] + '</span>'; }).join("");
+      var nbEnfants = (c.enfants||[]).length;
+      var nbACharge = nombreEnfantsACharge(c);
+      var composition = (c.adultes && c.adultes[1] ? "Couple" : "Personne seule") +
+        (nbEnfants ? " · " + nbEnfants + " enfant" + (nbEnfants>1?"s":"") + (nbACharge ? " (" + nbACharge + " à charge)" : "") : "");
       return '<div class="client-card">' +
         '<div>' +
           '<div class="client-card-name">' + escapeHTML(clientFullName(c)) + '</div>' +
-          '<div class="client-card-meta">' + euro.format(c.revenusMensuelsNets||0) + ' /mois · patrimoine financier ' + euro.format(c.patrimoineFinancier||0) + '</div>' +
+          '<div class="client-card-meta">' + composition + ' · ' + euro.format(c.revenusMensuelsNets||0) + ' /mois · patrimoine financier ' + euro.format(c.patrimoineFinancier||0) + '</div>' +
           (tags ? '<div class="client-tags">' + tags + '</div>' : '') +
         '</div>' +
         '<div class="sim-actions">' +
@@ -2514,7 +2862,7 @@
   function renderClientForm(clientId){
     var main = document.getElementById("main");
     var isNew = clientId === "new";
-    var client = isNew ? null : getClientById(clientId);
+    var client = isNew ? normalizeClient({}) : getClientById(clientId);
     if(!isNew && !client){ location.hash = "#/clients"; return; }
 
     var sections = [];
@@ -2525,19 +2873,40 @@
     main.innerHTML = '<div class="container client-form-page">' +
       '<a href="#/clients" class="back-link">← Retour aux clients</a>' +
       '<h1>' + (isNew ? "Nouveau client" : "Modifier " + escapeHTML(clientFullName(client))) + '</h1>' +
-      '<form id="clientForm" class="calc-form"><div class="form-grid">' +
-        sections.map(function(section){
-          return '<div class="form-section-title">' + escapeHTML(section) + '</div>' +
-            CLIENT_FIELDS.filter(function(f){ return f.section===section; })
-              .map(function(f){ return fieldHTML(f, client ? client[f.id] : undefined); }).join("");
-        }).join("") +
-      '</div><button type="submit" class="btn btn-primary">' + (isNew ? "Créer le client" : "Enregistrer les modifications") + '</button></form>' +
+      '<form id="clientForm" class="calc-form">' +
+        '<div class="form-section-title">Composition du foyer</div>' +
+        '<div id="foyerEditorContainer"></div>' +
+        '<div class="form-grid">' +
+          sections.map(function(section){
+            return '<div class="form-section-title">' + escapeHTML(section) + '</div>' +
+              CLIENT_FIELDS.filter(function(f){ return f.section===section; })
+                .map(function(f){ return fieldHTML(f, client[f.id]); }).join("");
+          }).join("") +
+        '</div>' +
+        '<div id="actifsEditorContainer" style="margin-top:6px;"></div>' +
+      '<button type="submit" class="btn btn-primary" style="margin-top:22px;">' + (isNew ? "Créer le client" : "Enregistrer les modifications") + '</button></form>' +
     '</div>';
+
+    var foyerEditor = mountFoyerEditor(document.getElementById("foyerEditorContainer"), client);
+    var actifsEditor = mountActifsEditor(document.getElementById("actifsEditorContainer"), client, function(){
+      return {
+        hasAdulte2: document.getElementById("foyer_hasAdulte2").checked,
+        prenom1: document.getElementById("foyer_a1_prenom").value,
+        prenom2: document.getElementById("foyer_a2_prenom").value
+      };
+    });
+    document.getElementById("foyer_hasAdulte2").addEventListener("change", function(){ actifsEditor.refreshOwners(); });
+    wireFieldVisibility(document.getElementById("clientForm"));
 
     document.getElementById("clientForm").addEventListener("submit", function(e){
       e.preventDefault();
       var values = readInputs(CLIENT_FIELDS);
-      var entry = Object.assign({}, client, values, {
+      var foyerData = foyerEditor.getData();
+      var entry = Object.assign({}, client, values, foyerData, {
+        actifs: actifsEditor.getData(),
+        prenom: foyerData.adultes[0].prenom,
+        nom: foyerData.adultes[0].nom,
+        age: foyerData.adultes[0].age,
         id: isNew ? ("client_" + Date.now() + "_" + Math.random().toString(36).slice(2,7)) : client.id,
         updatedAt: new Date().toISOString(),
         createdAt: isNew ? new Date().toISOString() : client.createdAt
@@ -2633,10 +3002,15 @@
         return;
       }
 
+      var isIdentite = sectionName === "Identité";
+      var isPatrimoine = sectionName === "Patrimoine";
       var stepFields = CLIENT_FIELDS.filter(function(f){ return f.section === sectionName; });
-      bodyHTML = '<div class="calc-form"><div class="form-grid">' +
-        stepFields.map(function(f){ return fieldHTML(f, wip[f.id]); }).join("") +
-      '</div></div>';
+
+      bodyHTML = '<div class="calc-form">' +
+        (isIdentite ? '<div id="bilanFoyerContainer"></div>' : '') +
+        (stepFields.length ? '<div class="form-grid">' + stepFields.map(function(f){ return fieldHTML(f, wip[f.id]); }).join("") + '</div>' : '') +
+        (isPatrimoine ? '<div id="bilanActifsContainer" style="margin-top:16px;"></div>' : '') +
+      '</div>';
 
       main.innerHTML = '<div class="container bilan-page">' +
         '<a href="#/clients" class="back-link">← Retour aux clients</a>' +
@@ -2649,15 +3023,31 @@
         '</div>' +
       '</div>';
 
+      var foyerEditor = isIdentite ? mountFoyerEditor(document.getElementById("bilanFoyerContainer"), wip) : null;
+      var actifsEditor = isPatrimoine ? mountActifsEditor(document.getElementById("bilanActifsContainer"), wip) : null;
+
+      function collectStepData(){
+        var data = readInputs(stepFields);
+        if(foyerEditor){
+          var foyerData = foyerEditor.getData();
+          Object.assign(data, foyerData);
+          data.prenom = foyerData.adultes[0].prenom;
+          data.nom = foyerData.adultes[0].nom;
+          data.age = foyerData.adultes[0].age;
+        }
+        if(actifsEditor){ data.actifs = actifsEditor.getData(); }
+        return data;
+      }
+
       if(currentStep>0){
         document.getElementById("bilanBackBtn").addEventListener("click", function(){
-          Object.assign(wip, readInputs(stepFields));
+          Object.assign(wip, collectStepData());
           currentStep--;
           renderStep();
         });
       }
       document.getElementById("bilanNextBtn").addEventListener("click", function(){
-        Object.assign(wip, readInputs(stepFields));
+        Object.assign(wip, collectStepData());
         saveClient(Object.assign({}, wip, {updatedAt:new Date().toISOString()}));
         currentStep++;
         renderStep();
