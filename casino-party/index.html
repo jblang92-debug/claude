@@ -761,7 +761,7 @@ const Slots3D = forwardRef(function Slots3D({ symbols }, ref) {
 });
 
 function SlotsScreen({ ctx }) {
-  const { current, settings, addSips, addGiven, registerLoss, registerNonLoss, setLog, pot, setPot, reportPunishment } = ctx;
+  const { current, settings, addSips, addGiven, registerLoss, registerNonLoss, setLog, pot, setPot, reportPunishment, triggerWin } = ctx;
   const [spinning, setSpinning] = useState(false);
   const [canDouble, setCanDouble] = useState(false);
   const [pendingAmount, setPendingAmount] = useState(0);
@@ -794,6 +794,7 @@ function SlotsScreen({ ctx }) {
       registerNonLoss(current.id);
       setLog(`JACKPOT ! ${current.name} vide le pot commun (${gain} gorgée${gain > 1 ? "s" : ""}) sur qui il veut${settings.culSecOn ? " — ou un cul sec direct." : "."}`);
       setPot(0);
+      triggerWin();
     } else if (twoSame) {
       const amt = isDouble ? pendingAmount * 2 : settings.sipBase;
       addSips(current.id, amt);
@@ -1317,7 +1318,7 @@ const Roulette3D = forwardRef(function Roulette3D({ segments }, ref) {
 });
 
 function RouletteScreen({ ctx }) {
-  const { current, players, settings, addSips, addGiven, swapSips, setActiveRule, registerLoss, registerNonLoss, setLog, reportPunishment, turnIndex } = ctx;
+  const { current, players, settings, addSips, addGiven, swapSips, setActiveRule, registerLoss, registerNonLoss, setLog, reportPunishment, turnIndex, triggerWin } = ctx;
   const [spinning, setSpinning] = useState(false);
   const [segResult, setSegResult] = useState(null);
   const [ruleDraft, setRuleDraft] = useState("");
@@ -1349,12 +1350,15 @@ function RouletteScreen({ ctx }) {
       addGiven(current.id, seg.amount);
       registerNonLoss(current.id);
       setLog(`${current.name} distribue ${seg.amount} gorgée(s) à qui il veut.`);
+      triggerWin();
     } else if (seg.effect === "everyone") {
       players.forEach((p) => addSips(p.id, seg.amount));
       setLog(`Tout le monde boit ${seg.amount} gorgée(s) !`);
+      triggerWin();
     } else if (seg.effect === "immune") {
       registerNonLoss(current.id);
       setLog(`${current.name} est immunisé — insensible au prochain "Duel" ou "Vol".`);
+      triggerWin();
     } else if (seg.effect === "vol") {
       const others = players.filter((p) => p.id !== current.id);
       const target = others[Math.floor(Math.random() * others.length)];
@@ -1637,7 +1641,7 @@ function ChipStack({ count, size = 20 }) {
 
 // ---------------- BLACKJACK ----------------
 function BlackjackScreen({ ctx }) {
-  const { current, players, currentIndex, settings, addSips, addGiven, registerLoss, registerNonLoss, setLog, reportPunishment } = ctx;
+  const { current, players, currentIndex, settings, addSips, addGiven, registerLoss, registerNonLoss, setLog, reportPunishment, triggerWin } = ctx;
   const queue = settings.banqueCommune ? players : [current];
   const [qIndex, setQIndex] = useState(0);
   const [dealerCards, setDealerCards] = useState([makeDeckCard(), makeDeckCard()]);
@@ -1678,6 +1682,7 @@ function BlackjackScreen({ ctx }) {
       registerNonLoss(activePlayer.id);
       setBanner({ type: "win", text: `Blackjack naturel !` });
       setLog(`${activePlayer.name} fait Blackjack (${pt}) contre la banque (${dt}) et distribue ${settings.culSecOn ? "un cul sec" : settings.sipBase * 3 + " gorgées"}.`);
+      triggerWin();
       return;
     }
     if (pt > 21) {
@@ -1695,6 +1700,7 @@ function BlackjackScreen({ ctx }) {
       addGiven(activePlayer.id, amt);
       setBanner({ type: "win", text: `Gagné ! ${pt} vs ${dt}` });
       setLog(`${activePlayer.name} gagne (${pt} contre ${dt}) et distribue ${amt} gorgée(s) à qui il veut.`);
+      triggerWin();
       return;
     }
     if (dt > pt) {
@@ -1833,7 +1839,7 @@ function bestHand(sevenCards) {
 }
 
 function PokerScreen({ ctx }) {
-  const { players, settings, addSips, addGiven, registerLoss, registerNonLoss, setLog } = ctx;
+  const { players, settings, addSips, addGiven, registerLoss, registerNonLoss, setLog, triggerWin } = ctx;
   const [hole, setHole] = useState(null); // { [playerId]: [card, card] }
   const [board, setBoard] = useState([]);
   const [street, setStreet] = useState("idle"); // idle | preflop | flop | turn | river | showdown
@@ -1905,6 +1911,7 @@ function PokerScreen({ ctx }) {
     const winnerNames = winners.map((w) => `${w.player.emoji} ${w.player.name}`).join(" & ");
     const loserNames = trueLosers.map((l) => `${l.player.emoji} ${l.player.name}`).join(", ");
     setLog(`Abattage ! ${winnerNames} gagne${winners.length > 1 ? "nt" : ""} avec ${HAND_NAMES[bestScore[0]]}. ${trueLosers.length ? `${loserNames} boi${trueLosers.length > 1 ? "vent" : "t"} ${mise} gorgée(s) chacun.` : ""}`);
+    if (trueLosers.length > 0) triggerWin();
   }
 
   const bettor = players[betIndex];
@@ -2361,6 +2368,100 @@ function ScoresScreen({ ctx }) {
   );
 }
 
+// ---------------- EFFETS D'IMPACT (gros gains) ----------------
+// Flash doré plein écran, très bref — se redéclenche à chaque nouvel incrément de `trigger`.
+function WinFlash({ trigger }) {
+  const [show, setShow] = useState(false);
+  const prevTrigger = useRef(trigger);
+  useEffect(() => {
+    if (trigger === prevTrigger.current) return;
+    prevTrigger.current = trigger;
+    setShow(true);
+    const t = setTimeout(() => setShow(false), 420);
+    return () => clearTimeout(t);
+  }, [trigger]);
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 39, pointerEvents: "none",
+      background: `radial-gradient(circle at 50% 32%, ${GOLD_LIGHT}66, transparent 62%)`,
+      opacity: show ? 1 : 0, transition: show ? "opacity .06s ease" : "opacity .45s ease",
+    }} />
+  );
+}
+
+// Pluie de pièces et confettis en canvas 2D (léger, pas besoin de Three.js pour ça).
+function WinBurst({ trigger }) {
+  const canvasRef = useRef(null);
+  const prevTrigger = useRef(trigger);
+
+  useEffect(() => {
+    if (trigger === prevTrigger.current) return;
+    prevTrigger.current = trigger;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx2d = canvas.getContext("2d");
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const W = window.innerWidth, H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const colors = [GOLD_LIGHT, GOLD, "#ffffff", RED_NEON, GREEN_OK];
+    const particles = [];
+    for (let i = 0; i < 80; i++) {
+      particles.push({
+        x: W / 2 + (Math.random() - 0.5) * 70,
+        y: H * 0.34,
+        vx: (Math.random() - 0.5) * 9,
+        vy: -Math.random() * 8 - 4,
+        size: 4 + Math.random() * 5,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 0.35,
+        life: 1,
+        isCoin: Math.random() > 0.5,
+      });
+    }
+
+    let raf, start = performance.now();
+    function frame(t) {
+      const elapsed = t - start;
+      ctx2d.clearRect(0, 0, W, H);
+      let alive = false;
+      particles.forEach((p) => {
+        if (p.life <= 0) return;
+        p.vy += 0.32;
+        p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        p.life -= 0.012;
+        if (p.life > 0) {
+          alive = true;
+          ctx2d.save();
+          ctx2d.globalAlpha = Math.max(0, p.life);
+          ctx2d.translate(p.x, p.y);
+          ctx2d.rotate(p.rot);
+          ctx2d.fillStyle = p.color;
+          if (p.isCoin) {
+            ctx2d.beginPath();
+            ctx2d.ellipse(0, 0, p.size, p.size * 0.62, 0, 0, Math.PI * 2);
+            ctx2d.fill();
+          } else {
+            ctx2d.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.5);
+          }
+          ctx2d.restore();
+        }
+      });
+      if (alive && elapsed < 2600) raf = requestAnimationFrame(frame);
+      else ctx2d.clearRect(0, 0, W, H);
+    }
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [trigger]);
+
+  return <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: 40, pointerEvents: "none" }} />;
+}
+
 function SettingsModal({ ctx }) {
   const { showSettings, setShowSettings, settings, setSettings } = ctx;
   if (!showSettings) return null;
@@ -2404,6 +2505,8 @@ function CasinoParty() {
   const [pot, setPot] = useState(0);
   const [activeRule, setActiveRule] = useState("");
   const [lastPunishment, setLastPunishment] = useState(null);
+  const [winBurst, setWinBurst] = useState(0);
+  function triggerWin() { setWinBurst((n) => n + 1); }
 
   function addPlayer() {
     const name = nameInput.trim();
@@ -2453,7 +2556,7 @@ function CasinoParty() {
     screen, setScreen, players, setPlayers, nameInput, setNameInput, addPlayer, removePlayer, cycleEmoji,
     turnIndex, current, currentIndex: turnIndex, nextTurn, settings, setSettings, showSettings, setShowSettings,
     log, setLog, addSips, addGiven, swapSips, registerLoss, registerNonLoss, pot, setPot, activeRule, setActiveRule,
-    lastPunishment, reportPunishment, convertPunishment,
+    lastPunishment, reportPunishment, convertPunishment, triggerWin,
   };
 
   // reset log when changing punishment tracking across turns
@@ -2473,6 +2576,8 @@ function CasinoParty() {
     <div style={{ minHeight: "100vh", background: NOIR, display: "flex", justifyContent: "center" }}>
       {content}
       <SettingsModal ctx={ctx} />
+      <WinFlash trigger={winBurst} />
+      <WinBurst trigger={winBurst} />
     </div>
   );
 }
