@@ -192,7 +192,20 @@
   .logo-preview{max-width:160px;max-height:80px;border:1px solid var(--border);border-radius:8px;padding:6px;background:#fff;display:block;margin-bottom:8px;}
   .brand-logo{max-height:34px;max-width:120px;display:block;border-radius:4px;}
 
+  /* Bandeau d'erreur de stockage (quota localStorage dépassé) */
+  .storage-error-banner{position:fixed;top:0;left:0;right:0;z-index:9999;background:#fbeceb;border-bottom:2px solid #d9534f;color:#7a2320;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:.85rem;line-height:1.5;box-shadow:var(--shadow);}
+  .storage-error-banner strong{color:#7a2320;}
+  .storage-error-banner button{flex:none;background:none;border:1px solid #d9534f;color:#7a2320;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:.85rem;line-height:1;}
+  .storage-error-banner button:hover{background:#d9534f;color:#fff;}
+  body:has(.storage-error-banner) .topbar{margin-top:48px;}
+  @media (max-width:700px){ .storage-error-banner{flex-direction:column;align-items:flex-start;} body:has(.storage-error-banner) .topbar{margin-top:88px;} }
+
   /* Legal footer */
+  .backup-card{margin-top:20px;padding:22px;}
+  .backup-title{font-size:1rem;margin:0 0 8px;color:var(--navy);}
+  .backup-desc{margin:0 0 16px;}
+  .backup-actions{display:flex;gap:10px;flex-wrap:wrap;}
+
   .legal-footer{max-width:960px;margin:0 auto;padding:18px 20px 40px;font-size:.72rem;color:var(--muted);text-align:center;line-height:1.5;}
   .legal-footer a{color:var(--navy-2);font-weight:600;text-decoration:none;}
   body.presenting .legal-footer{display:none;}
@@ -506,6 +519,32 @@
   }
 
   /* ============================ Local storage ============================ */
+  // Écriture protégée : si le stockage du navigateur est plein (quota dépassé) ou indisponible,
+  // l'exception est interceptée et un bandeau visible et persistant prévient l'utilisateur au lieu
+  // d'un échec silencieux qui laisserait croire que la donnée a bien été enregistrée alors qu'elle
+  // vient d'être perdue.
+  function persistToStorage(key, value){
+    try{
+      localStorage.setItem(key, value);
+      return true;
+    } catch(e){
+      showStorageErrorBanner();
+      return false;
+    }
+  }
+  function showStorageErrorBanner(){
+    if(document.getElementById("storageErrorBanner")) return;
+    var banner = document.createElement("div");
+    banner.id = "storageErrorBanner";
+    banner.className = "storage-error-banner";
+    banner.innerHTML =
+      '<span>⚠ Échec de l\'enregistrement : l\'espace de stockage du navigateur est plein (ou indisponible). ' +
+      'La dernière modification n\'a <strong>pas</strong> été sauvegardée. Libérez de la place — réduisez la taille du logo dans Paramètres, exportez puis supprimez d\'anciennes fiches — et réessayez.</span>' +
+      '<button type="button" id="storageErrorDismiss" aria-label="Fermer">✕</button>';
+    document.body.appendChild(banner);
+    document.getElementById("storageErrorDismiss").addEventListener("click", function(){ banner.remove(); });
+  }
+
   var STORAGE_KEY = "cgppro_simulations_v1";
   function getSimulations(){
     try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -514,11 +553,11 @@
   function saveSimulation(entry){
     var all = getSimulations();
     all.unshift(entry);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    return persistToStorage(STORAGE_KEY, JSON.stringify(all));
   }
   function deleteSimulation(id){
     var all = getSimulations().filter(function(s){ return s.id !== id; });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    return persistToStorage(STORAGE_KEY, JSON.stringify(all));
   }
 
   /* ============================ Clients ============================ */
@@ -592,11 +631,11 @@
     var all = getClients();
     var idx = all.findIndex(function(c){ return c.id === client.id; });
     if(idx >= 0){ all[idx] = client; } else { all.unshift(client); }
-    localStorage.setItem(CLIENTS_KEY, JSON.stringify(all));
+    return persistToStorage(CLIENTS_KEY, JSON.stringify(all));
   }
   function deleteClient(id){
     var all = getClients().filter(function(c){ return c.id !== id; });
-    localStorage.setItem(CLIENTS_KEY, JSON.stringify(all));
+    return persistToStorage(CLIENTS_KEY, JSON.stringify(all));
   }
   function clientFullName(c){
     var noms = (c.adultes||[]).map(function(a){ return (a.prenom||"")+" "+(a.nom||""); }).map(function(s){ return s.trim(); }).filter(Boolean);
@@ -747,7 +786,7 @@
     try{ return JSON.parse(localStorage.getItem(CABINET_KEY)) || {}; }
     catch(e){ return {}; }
   }
-  function saveCabinetProfile(profile){ localStorage.setItem(CABINET_KEY, JSON.stringify(profile)); }
+  function saveCabinetProfile(profile){ return persistToStorage(CABINET_KEY, JSON.stringify(profile)); }
 
   var LETTRE_COMMERCIALE_DEFAUT =
     "Madame, Monsieur,\n\n" +
@@ -3349,10 +3388,11 @@
         inputs: lastInputs,
         keyFigures: lastResult.keyFigures
       };
-      saveSimulation(entry);
       var msg = document.getElementById("saveMsg");
-      msg.textContent = "Simulation enregistrée ✓";
-      setTimeout(function(){ msg.textContent = ""; }, 2500);
+      if(saveSimulation(entry)){
+        msg.textContent = "Simulation enregistrée ✓";
+        setTimeout(function(){ msg.textContent = ""; }, 2500);
+      }
     });
 
     if(prefill && opts.autoCompute){ runCompute(); }
@@ -3637,10 +3677,11 @@
           inputs: lastResults.A.inputs,
           keyFigures: lastResults.A.result.keyFigures
         };
-        saveSimulation(entry);
         var msg = document.getElementById("saveMsg");
-        msg.textContent = "Simulation enregistrée ✓";
-        setTimeout(function(){ msg.textContent = ""; }, 2500);
+        if(saveSimulation(entry)){
+          msg.textContent = "Simulation enregistrée ✓";
+          setTimeout(function(){ msg.textContent = ""; }, 2500);
+        }
       });
     }
 
@@ -4071,10 +4112,11 @@
           inputs: lastResults.A.inputs,
           keyFigures: lastResults.A.result.keyFigures
         };
-        saveSimulation(entry);
         var msg = document.getElementById("saveMsg");
-        msg.textContent = "Simulation enregistrée ✓";
-        setTimeout(function(){ msg.textContent = ""; }, 2500);
+        if(saveSimulation(entry)){
+          msg.textContent = "Simulation enregistrée ✓";
+          setTimeout(function(){ msg.textContent = ""; }, 2500);
+        }
       });
     }
 
@@ -4536,18 +4578,19 @@
         inputs: lastInputs,
         keyFigures: lastResult.keyFigures
       };
-      saveSimulation(entry);
-      // Persiste aussi la ventilation par catégorie sur la fiche client (pas seulement dans l'historique),
-      // pour le pré-remplissage automatique des futures ouvertures de cet outil et du rapport patrimonial.
-      if(selectedClientId){
-        var clientToUpdate = getClientById(selectedClientId);
-        if(clientToUpdate){
-          saveClient(Object.assign({}, clientToUpdate, {revenusCategorises: state.revenusCategorises, updatedAt: new Date().toISOString()}));
-        }
-      }
       var msg = document.getElementById("saveMsg");
-      msg.textContent = "Simulation enregistrée ✓";
-      setTimeout(function(){ msg.textContent = ""; }, 2500);
+      if(saveSimulation(entry)){
+        // Persiste aussi la ventilation par catégorie sur la fiche client (pas seulement dans l'historique),
+        // pour le pré-remplissage automatique des futures ouvertures de cet outil et du rapport patrimonial.
+        if(selectedClientId){
+          var clientToUpdate = getClientById(selectedClientId);
+          if(clientToUpdate){
+            saveClient(Object.assign({}, clientToUpdate, {revenusCategorises: state.revenusCategorises, updatedAt: new Date().toISOString()}));
+          }
+        }
+        msg.textContent = "Simulation enregistrée ✓";
+        setTimeout(function(){ msg.textContent = ""; }, 2500);
+      }
     });
 
     recalc();
@@ -5146,8 +5189,10 @@
         updatedAt: new Date().toISOString(),
         createdAt: isNew ? new Date().toISOString() : client.createdAt
       });
-      saveClient(entry);
-      location.hash = "#/clients";
+      // En cas d'échec (quota localStorage dépassé), on reste volontairement sur le formulaire —
+      // toutes les valeurs saisies restent à l'écran — plutôt que de naviguer vers la liste en
+      // laissant croire que la fiche a été enregistrée alors qu'elle vient d'être perdue.
+      if(saveClient(entry)){ location.hash = "#/clients"; }
     });
 
     if(!isNew){
@@ -5438,6 +5483,16 @@
         CABINET_FIELDS.map(function(f){ return fieldHTML(f, profile[f.id]); }).join("") +
       '</div><button type="submit" class="btn btn-primary">Enregistrer</button></form>' +
       '<div class="save-msg" id="cabinetSaveMsg"></div>' +
+      '<div class="calc-form backup-card">' +
+        '<h2 class="backup-title">Sauvegarde des données</h2>' +
+        '<p class="tool-desc backup-desc">Toutes les données (fiches clients, simulations, paramètres du cabinet) sont stockées exclusivement dans ce navigateur — rien n\'est envoyé en ligne, mais rien n\'est sauvegardé ailleurs non plus. Exportez une sauvegarde régulièrement, et avant tout changement d\'ordinateur ou de navigateur.</p>' +
+        '<div class="backup-actions">' +
+          '<button type="button" class="btn btn-outline" id="exportBackupBtn">⬇ Exporter une sauvegarde (JSON)</button>' +
+          '<button type="button" class="btn btn-outline" id="importBackupBtn">⬆ Importer une sauvegarde</button>' +
+          '<input type="file" id="importBackupInput" accept="application/json,.json" hidden>' +
+        '</div>' +
+        '<div class="save-msg" id="backupMsg"></div>' +
+      '</div>' +
     '</div>';
 
     var logoDataUrl = profile.logo || null;
@@ -5458,11 +5513,75 @@
       e.preventDefault();
       var values = readInputs(CABINET_FIELDS);
       var newProfile = Object.assign({}, profile, values, {logo: logoDataUrl});
-      saveCabinetProfile(newProfile);
-      applyCabinetBranding();
       var msg = document.getElementById("cabinetSaveMsg");
-      msg.textContent = "Paramètres enregistrés ✓";
-      setTimeout(function(){ msg.textContent = ""; }, 2500);
+      if(saveCabinetProfile(newProfile)){
+        applyCabinetBranding();
+        msg.textContent = "Paramètres enregistrés ✓";
+        setTimeout(function(){ msg.textContent = ""; }, 2500);
+      }
+    });
+
+    // ---- Export / Import : sauvegarde manuelle de toutes les données locales (JSON téléchargeable) ----
+    document.getElementById("exportBackupBtn").addEventListener("click", function(){
+      var data = {
+        app: "CGP Pro",
+        formatVersion: 1,
+        exportedAt: new Date().toISOString(),
+        clients: getClients(),
+        simulations: getSimulations(),
+        cabinet: getCabinetProfile()
+      };
+      var blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "cgp-pro-sauvegarde-" + new Date().toISOString().slice(0,10) + ".json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById("importBackupBtn").addEventListener("click", function(){
+      document.getElementById("importBackupInput").click();
+    });
+    document.getElementById("importBackupInput").addEventListener("change", function(e){
+      var file = e.target.files[0];
+      if(!file) return;
+      var backupMsg = document.getElementById("backupMsg");
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        var data;
+        try{ data = JSON.parse(ev.target.result); }
+        catch(err){ backupMsg.textContent = "Fichier invalide : ce n'est pas un JSON valide."; e.target.value = ""; return; }
+        var looksValid = data && typeof data === "object" &&
+          Array.isArray(data.clients) && Array.isArray(data.simulations) && data.cabinet && typeof data.cabinet === "object";
+        if(!looksValid){
+          backupMsg.textContent = "Fichier invalide : ce n'est pas une sauvegarde CGP Pro reconnue.";
+          e.target.value = "";
+          return;
+        }
+        var summary = data.clients.length + " fiche(s) client, " + data.simulations.length + " simulation(s), paramètres du cabinet";
+        if(!confirm("Importer cette sauvegarde (" + summary + ") ?\n\nCela remplacera TOUTES les données actuellement enregistrées dans ce navigateur (fiches clients, simulations, paramètres du cabinet). Cette action est irréversible.")){
+          e.target.value = "";
+          return;
+        }
+        // On tente les 3 écritures même si l'une échoue (pas de court-circuit), pour sauver un maximum
+        // de la sauvegarde importée plutôt que de tout abandonner au premier quota dépassé.
+        var okClients = persistToStorage(CLIENTS_KEY, JSON.stringify(data.clients));
+        var okSims = persistToStorage(STORAGE_KEY, JSON.stringify(data.simulations));
+        var okCabinet = persistToStorage(CABINET_KEY, JSON.stringify(data.cabinet));
+        var ok = okClients && okSims && okCabinet;
+        e.target.value = "";
+        if(ok){
+          backupMsg.textContent = "Sauvegarde importée ✓ — rechargement...";
+          setTimeout(function(){ location.reload(); }, 900);
+        } else {
+          backupMsg.textContent = "Échec de l'import (voir le bandeau d'erreur ci-dessus).";
+        }
+      };
+      reader.onerror = function(){ backupMsg.textContent = "Impossible de lire ce fichier."; e.target.value = ""; };
+      reader.readAsText(file);
     });
   }
 
