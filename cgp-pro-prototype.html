@@ -217,6 +217,72 @@
   .legal-footer a{color:var(--navy-2);font-weight:600;text-decoration:none;}
   body.presenting .legal-footer{display:none;}
 
+  /* Agenda */
+  .agenda-toolbar{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
+  .agenda-toolbar-nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .agenda-nav-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--navy);font-size:1.1rem;cursor:pointer;line-height:1;}
+  .agenda-nav-btn:hover{border-color:var(--navy);background:#f7f9fb;}
+  .agenda-period-label{font-weight:700;color:var(--navy);}
+  .agenda-toolbar-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .agenda-view-switch{display:flex;gap:6px;}
+  .agenda-view-btn{background:#fff;border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:.8rem;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit;}
+  .agenda-view-btn:hover{border-color:var(--navy);color:var(--navy);}
+  .agenda-view-btn.active{background:var(--navy);border-color:var(--navy);color:#fff;}
+
+  .agenda-grid-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+  .agenda-grid-header{display:flex;border-bottom:1px solid var(--border);}
+  .agenda-time-labels-spacer{flex:0 0 56px;}
+  .agenda-day-header{flex:1;text-align:center;padding:10px 4px;border-left:1px solid var(--border);}
+  .agenda-day-header-name{font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);}
+  .agenda-day-header-num{font-size:1.1rem;font-weight:700;color:var(--ink);}
+  .agenda-day-header-num.today{color:#fff;background:var(--navy);border-radius:50%;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;}
+  .agenda-grid-body{display:flex;overflow-x:auto;}
+  .agenda-time-labels{flex:0 0 56px;}
+  .agenda-time-label{height:32px;font-size:.68rem;color:var(--muted);text-align:right;padding-right:8px;transform:translateY(-6px);}
+  .agenda-day-col{flex:1;min-width:110px;position:relative;border-left:1px solid var(--border);}
+  .agenda-slot{height:32px;border-bottom:1px dashed var(--border);cursor:pointer;}
+  .agenda-slot:hover{background:#f7f9fb;}
+  .agenda-rdv{position:absolute;left:2px;right:2px;border-radius:6px;padding:3px 6px;overflow:hidden;cursor:pointer;color:#fff;font-size:.68rem;line-height:1.3;z-index:2;box-shadow:var(--shadow);}
+  .agenda-rdv-time{font-weight:700;}
+  .agenda-rdv-client{font-weight:600;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;}
+  .agenda-rdv-objet{opacity:.85;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;}
+  .rdv-prospect{background:var(--accent-2);}
+  .rdv-client{background:var(--navy);}
+
+  .agenda-month-weekdays{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:8px 0;}
+  .agenda-month-grid{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--border);border-left:1px solid var(--border);}
+  .agenda-month-cell{min-height:96px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:6px;cursor:pointer;background:var(--card);}
+  .agenda-month-cell:hover{background:#f7f9fb;}
+  .agenda-month-cell.outside{background:var(--bg);color:var(--muted);}
+  .agenda-month-cell.today .agenda-month-daynum{color:#fff;background:var(--navy);border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:.78rem;}
+  .agenda-month-daynum{font-size:.82rem;font-weight:700;margin-bottom:4px;}
+  .agenda-month-chips{display:flex;flex-direction:column;gap:3px;}
+  .agenda-chip{border-radius:5px;padding:2px 6px;color:#fff;font-size:.66rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+
+  .agenda-list-row{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--border);border-left:4px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:10px;flex-wrap:wrap;cursor:pointer;}
+  .agenda-list-row.rdv-prospect{border-left-color:var(--accent-2);}
+  .agenda-list-row.rdv-client{border-left-color:var(--navy);}
+  .agenda-list-row.past{opacity:.6;}
+  .agenda-list-date{font-weight:700;color:var(--navy);flex:0 0 auto;min-width:150px;}
+  .agenda-list-time{color:var(--ink);font-weight:600;}
+  .agenda-list-client{color:var(--ink);}
+  .agenda-list-objet{color:var(--muted);}
+
+  .agenda-mode-tabs{display:flex;gap:8px;margin:4px 0 16px;}
+  .agenda-mode-tab{background:#fff;border:1px solid var(--border);border-radius:20px;padding:7px 16px;font-size:.82rem;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit;}
+  .agenda-mode-tab:hover{border-color:var(--navy);color:var(--navy);}
+  .agenda-mode-tab.active{background:var(--navy);border-color:var(--navy);color:#fff;}
+  .agenda-form-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap;}
+  .agenda-form-actions-left, .agenda-form-actions-right{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .form-error{color:var(--danger);font-size:.82rem;margin-top:4px;}
+  .agenda-quick-link{display:inline-block;margin:10px 0;font-size:.85rem;color:var(--navy-2);font-weight:600;text-decoration:none;}
+  .agenda-quick-link:hover{text-decoration:underline;}
+
+  @media (max-width:760px){
+    .agenda-day-col{min-width:80px;}
+    .agenda-month-cell{min-height:64px;}
+  }
+
   /* Intérêts composés (Finary-style, thème clair) */
   .ic-layout{display:grid;grid-template-columns:360px 1fr;gap:24px;align-items:start;}
   @media (max-width:800px){ .ic-layout{grid-template-columns:1fr;} }
@@ -491,6 +557,7 @@
         <a href="#/clients" class="nav-link">Clients</a>
         <a href="#/bilan" class="nav-link">Bilan patrimonial</a>
         <a href="#/historique" class="nav-link">Historique</a>
+        <a href="#/agenda" class="nav-link">Agenda</a>
         <a href="#/parametres" class="nav-link">Paramètres</a>
       </nav>
     </div>
@@ -613,6 +680,24 @@
     return d.toLocaleDateString("fr-FR", {year:"numeric", month:"long", day:"numeric"});
   }
 
+  // Date -> "YYYY-MM-DD" en heure LOCALE (jamais Date.toISOString(), qui bascule sur UTC et peut décaler
+  // le jour d'un cran selon le fuseau horaire — critique ici puisque l'agenda navigue jour par jour).
+  function localISODate(d){
+    var y = d.getFullYear(), m = d.getMonth()+1, day = d.getDate();
+    return y + "-" + (m<10?"0":"")+m + "-" + (day<10?"0":"")+day;
+  }
+  function addDays(d, n){ var r = new Date(d); r.setDate(r.getDate()+n); r.setHours(0,0,0,0); return r; }
+  function addMonths(d, n){ var r = new Date(d.getFullYear(), d.getMonth()+n, 1); return r; }
+  // Lundi comme premier jour de semaine (convention française).
+  function startOfWeek(d){
+    var r = new Date(d); r.setHours(0,0,0,0);
+    var day = r.getDay(); // 0=dimanche..6=samedi
+    var diff = (day===0 ? -6 : 1-day);
+    r.setDate(r.getDate()+diff);
+    return r;
+  }
+  function capitalizeFirst(s){ return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
   // Migration douce : complète en mémoire (sans réécriture immédiate du localStorage) les fiches créées
   // avant l'ajout du modèle foyer/actifs. Un ancien client sans "adultes" devient un foyer à un adulte
   // reprenant son prénom/nom/âge ; les actifs sans propriétaire assigné basculent sur l'adulte 1.
@@ -626,9 +711,10 @@
     if(!c.statutCouple) c.statutCouple = "celibataire";
     if(!c.revenusCategorises) c.revenusCategorises = defaultRevenusCategorises();
     if(!c.historique) c.historique = [];
-    // Rétrocompatibilité : les fiches créées avant l'ajout de la section "Besoins patrimoniaux" reçoivent
-    // les valeurs par défaut de ces 15 champs plutôt que undefined (formulaire, badges, export/import).
-    CLIENT_FIELDS.filter(function(f){ return f.section === "Besoins patrimoniaux"; }).forEach(function(f){
+    // Rétrocompatibilité générique : toute fiche créée avant l'ajout d'un champ CLIENT_FIELDS (Besoins
+    // patrimoniaux, Coordonnées, futurs champs...) reçoit sa valeur par défaut plutôt que undefined,
+    // sans liste à maintenir à la main (formulaire, badges, agenda, export/import).
+    CLIENT_FIELDS.forEach(function(f){
       if(c[f.id] === undefined) c[f.id] = f.default;
     });
     return c;
@@ -649,6 +735,70 @@
     var all = getClients().filter(function(c){ return c.id !== id; });
     return persistToStorage(CLIENTS_KEY, JSON.stringify(all));
   }
+
+  /* ============================ Agenda / rendez-vous ============================ */
+  var RDV_KEY = "cgppro_rdv_v1";
+  function normalizeRdv(r){
+    if(!r.heureFin) r.heureFin = r.heureDebut || "09:00";
+    if(!r.objet) r.objet = "";
+    return r;
+  }
+  function getRdvs(){
+    try{ return (JSON.parse(localStorage.getItem(RDV_KEY)) || []).map(normalizeRdv); }
+    catch(e){ return []; }
+  }
+  function getRdvById(id){ return getRdvs().filter(function(r){ return r.id === id; })[0] || null; }
+  function saveRdv(rdv){
+    var all = getRdvs();
+    var idx = all.findIndex(function(r){ return r.id === rdv.id; });
+    if(idx >= 0){ all[idx] = rdv; } else { all.unshift(rdv); }
+    return persistToStorage(RDV_KEY, JSON.stringify(all));
+  }
+  function deleteRdv(id){
+    var all = getRdvs().filter(function(r){ return r.id !== id; });
+    return persistToStorage(RDV_KEY, JSON.stringify(all));
+  }
+  // Couleur dérivée du statut ACTUEL du client lié (pas figée à la création du RDV) : si un prospect
+  // devient client entre-temps, ses rendez-vous passés et à venir reflètent la réalité à jour.
+  function rdvColorClass(rdv){
+    var client = getClientById(rdv.clientId);
+    var statut = client ? client.statutProspectClient : "prospect";
+    return statut === "client" ? "rdv-client" : "rdv-prospect";
+  }
+
+  // Grille horaire des vues Jour/Semaine : 8h-20h par tranches de 30 min.
+  var AGENDA_HOUR_START = 8, AGENDA_HOUR_END = 20, AGENDA_SLOT_MIN = 30, AGENDA_SLOT_HEIGHT = 32;
+  var AGENDA_SLOTS_PER_DAY = (AGENDA_HOUR_END - AGENDA_HOUR_START) * 60 / AGENDA_SLOT_MIN;
+  function agendaSlotTimes(){
+    var out = [];
+    for(var i=0; i<AGENDA_SLOTS_PER_DAY; i++){
+      var totalMin = AGENDA_HOUR_START*60 + i*AGENDA_SLOT_MIN;
+      var h = Math.floor(totalMin/60), m = totalMin%60;
+      out.push((h<10?"0":"")+h + ":" + (m<10?"0":"")+m);
+    }
+    return out;
+  }
+  function agendaMinutesSinceStart(hhmm){
+    var p = (hhmm||"00:00").split(":");
+    return (parseInt(p[0],10)||0)*60 + (parseInt(p[1],10)||0) - AGENDA_HOUR_START*60;
+  }
+  function agendaTopPx(hhmm){ return Math.max(0, agendaMinutesSinceStart(hhmm) / AGENDA_SLOT_MIN * AGENDA_SLOT_HEIGHT); }
+  function agendaHeightPx(heureDebut, heureFin){
+    var h = (agendaMinutesSinceStart(heureFin) - agendaMinutesSinceStart(heureDebut)) / AGENDA_SLOT_MIN * AGENDA_SLOT_HEIGHT;
+    return Math.max(18, h - 2);
+  }
+  function agendaAddMinutes(hhmm, addMin){
+    var p = hhmm.split(":");
+    var total = Math.min((parseInt(p[0],10)||0)*60 + (parseInt(p[1],10)||0) + addMin, AGENDA_HOUR_END*60);
+    var h = Math.floor(total/60), m = total%60;
+    return (h<10?"0":"")+h + ":" + (m<10?"0":"")+m;
+  }
+  function weekDatesFrom(anchor){
+    var start = startOfWeek(anchor), out = [];
+    for(var i=0; i<7; i++){ out.push(addDays(start, i)); }
+    return out;
+  }
+
   function clientFullName(c){
     var noms = (c.adultes||[]).map(function(a){ return (a.prenom||"")+" "+(a.nom||""); }).map(function(s){ return s.trim(); }).filter(Boolean);
     if(noms.length) return noms.join(" & ");
@@ -702,10 +852,25 @@
     {prefix:"Enrichissement", label:"Enrichissement"}
   ];
 
+  var CIVILITES = [{value:"m", label:"M."}, {value:"mme", label:"Mme"}];
+  // Statut commercial du contact — notamment utilisé par le module Agenda : un "Nouveau contact" posé en
+  // rendez-vous crée une fiche avec ce statut à "prospect" par défaut, et la couleur des blocs de RDV dans
+  // le calendrier est dérivée de ce champ (dynamiquement, pas figée à la création du rendez-vous).
+  var STATUTS_PROSPECT_CLIENT = [{value:"prospect", label:"Prospect"}, {value:"client", label:"Client"}];
+
   // Champs de la fiche client. `clientField` sur un champ d'outil (voir TOOLS) référence l'id ci-dessous
   // pour permettre le pré-remplissage automatique depuis la fiche. L'identité (prénom/nom/âge) et la
   // composition du foyer (adultes/enfants) sont saisies via le composant mountFoyerEditor, pas ici.
   var CLIENT_FIELDS = [
+    {id:"civilite", label:"Civilité", type:"select", default:"m", options:CIVILITES, section:"Coordonnées"},
+    {id:"telephoneMobile", label:"Téléphone mobile", type:"text", default:"", section:"Coordonnées"},
+    {id:"telephoneFixe", label:"Téléphone fixe", type:"text", default:"", section:"Coordonnées"},
+    {id:"email", label:"Email", type:"text", default:"", section:"Coordonnées"},
+    {id:"adresse", label:"Adresse", type:"text", default:"", section:"Coordonnées"},
+    {id:"codePostal", label:"Code postal", type:"text", default:"", section:"Coordonnées"},
+    {id:"ville", label:"Ville", type:"text", default:"", section:"Coordonnées"},
+    {id:"statutProspectClient", label:"Statut", type:"select", default:"prospect", options:STATUTS_PROSPECT_CLIENT, section:"Coordonnées"},
+
     {id:"situationFamiliale", label:"Situation familiale (fiscalité assurance-vie)", type:"select", default:"seul", section:"Identité",
       help:"Distinct du statut civil du foyer ci-dessus : sert uniquement au calcul des abattements d'assurance-vie.", options:[
       {value:"seul", label:"Célibataire / divorcé(e) / veuf(ve)"},
@@ -4661,6 +4826,18 @@
         }
       });
     });
+    // Rendez-vous de l'agenda du jour ou à venir (les passés ne sont pas des "actions à venir" — laissés
+    // à la vue Liste de l'agenda pour ne pas noyer ce widget avec l'historique complet des RDV passés).
+    var todayIso = localISODate(new Date());
+    getRdvs().filter(function(r){ return r.date >= todayIso; }).forEach(function(r){
+      var client = getClientById(r.clientId);
+      actions.push({
+        clientId: r.clientId,
+        clientName: client ? clientFullName(client) : "(contact supprimé)",
+        date: r.date,
+        texte: r.heureDebut + (r.objet ? " — " + r.objet : "")
+      });
+    });
     actions.sort(function(a,b){ return a.date.localeCompare(b.date); });
     return actions;
   }
@@ -5208,6 +5385,7 @@
       '<a href="#/clients" class="back-link">← Retour aux clients</a>' +
       '<h1>' + (isNew ? "Nouveau client" : "Modifier " + escapeHTML(clientFullName(client))) + '</h1>' +
       (!isNew ? besoinsPrioriteBadgesHTML(client) : "") +
+      (!isNew ? '<a class="agenda-quick-link" href="#/agenda?client=' + client.id + '">📅 Voir les rendez-vous de ce client</a>' : "") +
       (!isNew ? '<div class="client-tabs">' +
         '<button type="button" class="client-tab-btn ' + (activeTab==="fiche"?"active":"") + '" data-tab="fiche">Fiche client</button>' +
         '<button type="button" class="client-tab-btn ' + (activeTab==="historique"?"active":"") + '" data-tab="historique">Historique des échanges</button>' +
@@ -5557,7 +5735,7 @@
       '<div class="save-msg" id="cabinetSaveMsg"></div>' +
       '<div class="calc-form backup-card">' +
         '<h2 class="backup-title">Sauvegarde des données</h2>' +
-        '<p class="tool-desc backup-desc">Toutes les données (fiches clients, simulations, paramètres du cabinet) sont stockées exclusivement dans ce navigateur — rien n\'est envoyé en ligne, mais rien n\'est sauvegardé ailleurs non plus. Exportez une sauvegarde régulièrement, et avant tout changement d\'ordinateur ou de navigateur.</p>' +
+        '<p class="tool-desc backup-desc">Toutes les données (fiches clients, simulations, rendez-vous, paramètres du cabinet) sont stockées exclusivement dans ce navigateur — rien n\'est envoyé en ligne, mais rien n\'est sauvegardé ailleurs non plus. Exportez une sauvegarde régulièrement, et avant tout changement d\'ordinateur ou de navigateur.</p>' +
         '<div class="backup-actions">' +
           '<button type="button" class="btn btn-outline" id="exportBackupBtn">⬇ Exporter une sauvegarde (JSON)</button>' +
           '<button type="button" class="btn btn-outline" id="importBackupBtn">⬆ Importer une sauvegarde</button>' +
@@ -5601,7 +5779,8 @@
         exportedAt: new Date().toISOString(),
         clients: getClients(),
         simulations: getSimulations(),
-        cabinet: getCabinetProfile()
+        cabinet: getCabinetProfile(),
+        rdvs: getRdvs()
       };
       var blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
       var url = URL.createObjectURL(blob);
@@ -5633,17 +5812,22 @@
           e.target.value = "";
           return;
         }
-        var summary = data.clients.length + " fiche(s) client, " + data.simulations.length + " simulation(s), paramètres du cabinet";
-        if(!confirm("Importer cette sauvegarde (" + summary + ") ?\n\nCela remplacera TOUTES les données actuellement enregistrées dans ce navigateur (fiches clients, simulations, paramètres du cabinet). Cette action est irréversible.")){
+        // Rétrocompatibilité : une sauvegarde faite avant l'ajout de l'agenda n'a pas de clé "rdvs" —
+        // ce n'est pas un fichier invalide, on importe simplement un agenda vide.
+        var rdvsToImport = Array.isArray(data.rdvs) ? data.rdvs : [];
+        var summary = data.clients.length + " fiche(s) client, " + data.simulations.length + " simulation(s), " +
+          rdvsToImport.length + " rendez-vous, paramètres du cabinet";
+        if(!confirm("Importer cette sauvegarde (" + summary + ") ?\n\nCela remplacera TOUTES les données actuellement enregistrées dans ce navigateur (fiches clients, simulations, rendez-vous, paramètres du cabinet). Cette action est irréversible.")){
           e.target.value = "";
           return;
         }
-        // On tente les 3 écritures même si l'une échoue (pas de court-circuit), pour sauver un maximum
+        // On tente les 4 écritures même si l'une échoue (pas de court-circuit), pour sauver un maximum
         // de la sauvegarde importée plutôt que de tout abandonner au premier quota dépassé.
         var okClients = persistToStorage(CLIENTS_KEY, JSON.stringify(data.clients));
         var okSims = persistToStorage(STORAGE_KEY, JSON.stringify(data.simulations));
         var okCabinet = persistToStorage(CABINET_KEY, JSON.stringify(data.cabinet));
-        var ok = okClients && okSims && okCabinet;
+        var okRdvs = persistToStorage(RDV_KEY, JSON.stringify(rdvsToImport));
+        var ok = okClients && okSims && okCabinet && okRdvs;
         e.target.value = "";
         if(ok){
           backupMsg.textContent = "Sauvegarde importée ✓ — rechargement...";
@@ -5655,6 +5839,397 @@
       reader.onerror = function(){ backupMsg.textContent = "Impossible de lire ce fichier."; e.target.value = ""; };
       reader.readAsText(file);
     });
+  }
+
+  /* ============================ Agenda (page) ============================ */
+  function renderAgenda(filterClientId){
+    var main = document.getElementById("main");
+    var filterClient = filterClientId ? getClientById(filterClientId) : null;
+    var state = {
+      view: filterClient ? "liste" : "semaine",
+      currentDate: new Date(),
+      formOpen: false,
+      formEditId: null,
+      formPrefill: null,
+      clientMode: "existant",
+      clientFilterText: ""
+    };
+
+    function periodLabel(){
+      if(state.view === "jour"){ return capitalizeFirst(state.currentDate.toLocaleDateString("fr-FR", {weekday:"long", year:"numeric", month:"long", day:"numeric"})); }
+      if(state.view === "semaine"){
+        var start = startOfWeek(state.currentDate), end = addDays(start, 6);
+        var sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+        var fmt1 = start.toLocaleDateString("fr-FR", sameMonth ? {day:"numeric"} : {day:"numeric", month:"long"});
+        var fmt2 = end.toLocaleDateString("fr-FR", {day:"numeric", month:"long", year:"numeric"});
+        return "Semaine du " + fmt1 + " au " + fmt2;
+      }
+      if(state.view === "mois"){ return capitalizeFirst(state.currentDate.toLocaleDateString("fr-FR", {month:"long", year:"numeric"})); }
+      return "Tous les rendez-vous" + (filterClient ? " — " + clientFullName(filterClient) : "");
+    }
+
+    function navigate(dir){
+      if(state.view === "jour"){ state.currentDate = addDays(state.currentDate, dir); }
+      else if(state.view === "semaine"){ state.currentDate = addDays(state.currentDate, dir*7); }
+      else if(state.view === "mois"){ state.currentDate = addMonths(state.currentDate, dir); }
+      render();
+    }
+
+    function toolbarHTML(){
+      var views = [{id:"jour",label:"Jour"},{id:"semaine",label:"Semaine"},{id:"mois",label:"Mois"},{id:"liste",label:"Liste"}];
+      return '<div class="agenda-toolbar">' +
+        '<div class="agenda-toolbar-nav">' +
+          (state.view !== "liste" ?
+            '<button type="button" class="btn btn-outline btn-sm" id="agendaTodayBtn">Aujourd\'hui</button>' +
+            '<button type="button" class="agenda-nav-btn" id="agendaPrevBtn" aria-label="Précédent">‹</button>' +
+            '<button type="button" class="agenda-nav-btn" id="agendaNextBtn" aria-label="Suivant">›</button>'
+            : '') +
+          '<span class="agenda-period-label">' + escapeHTML(periodLabel()) + '</span>' +
+        '</div>' +
+        '<div class="agenda-toolbar-actions">' +
+          '<div class="agenda-view-switch">' +
+            views.map(function(v){ return '<button type="button" class="agenda-view-btn' + (state.view===v.id?" active":"") + '" data-agenda-view="' + v.id + '">' + v.label + '</button>'; }).join("") +
+          '</div>' +
+          '<button type="button" class="btn btn-primary btn-sm" id="agendaNewBtn">+ Nouveau rendez-vous</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function rdvBadgeName(rdv){
+      var client = getClientById(rdv.clientId);
+      return client ? clientFullName(client) : "(contact supprimé)";
+    }
+
+    function dayColumnHTML(date){
+      var iso = localISODate(date);
+      var rdvsForDay = getRdvs().filter(function(r){ return r.date === iso; });
+      var slotsHTML = agendaSlotTimes().map(function(t){
+        return '<div class="agenda-slot" data-date="' + iso + '" data-time="' + t + '"></div>';
+      }).join("");
+      var blocksHTML = rdvsForDay.map(function(r){
+        var top = agendaTopPx(r.heureDebut), h = agendaHeightPx(r.heureDebut, r.heureFin);
+        return '<div class="agenda-rdv ' + rdvColorClass(r) + '" style="top:' + top + 'px;height:' + h + 'px;" data-rdv-id="' + r.id + '">' +
+          '<div class="agenda-rdv-time">' + escapeHTML(r.heureDebut) + '–' + escapeHTML(r.heureFin) + '</div>' +
+          '<div class="agenda-rdv-client">' + escapeHTML(rdvBadgeName(r)) + '</div>' +
+          (r.objet ? '<div class="agenda-rdv-objet">' + escapeHTML(r.objet) + '</div>' : '') +
+        '</div>';
+      }).join("");
+      return '<div class="agenda-day-col" data-date="' + iso + '">' + slotsHTML + blocksHTML + '</div>';
+    }
+
+    function gridViewHTML(dates){
+      var todayIso = localISODate(new Date());
+      return '<div class="agenda-grid-wrap">' +
+        '<div class="agenda-grid-header"><div class="agenda-time-labels-spacer"></div>' +
+          dates.map(function(d){
+            var iso = localISODate(d);
+            return '<div class="agenda-day-header"><div class="agenda-day-header-name">' + escapeHTML(d.toLocaleDateString("fr-FR",{weekday:"short"})) + '</div>' +
+              '<div class="agenda-day-header-num' + (iso===todayIso?" today":"") + '">' + d.getDate() + '</div></div>';
+          }).join("") +
+        '</div>' +
+        '<div class="agenda-grid-body">' +
+          '<div class="agenda-time-labels">' + agendaSlotTimes().map(function(t,i){ return '<div class="agenda-time-label">' + (i%2===0?t:"") + '</div>'; }).join("") + '</div>' +
+          dates.map(dayColumnHTML).join("") +
+        '</div>' +
+      '</div>';
+    }
+
+    function monthViewHTML(){
+      var year = state.currentDate.getFullYear(), month = state.currentDate.getMonth();
+      var gridStart = startOfWeek(new Date(year, month, 1));
+      var lastOfMonth = new Date(year, month+1, 0);
+      var days = [];
+      var cursor = gridStart;
+      do{ days.push(cursor); cursor = addDays(cursor, 1); } while(days.length % 7 !== 0 || days[days.length-1] <= lastOfMonth);
+      var todayIso = localISODate(new Date());
+      var allRdvs = getRdvs();
+      var weekDayNames = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+      return '<div class="agenda-month">' +
+        '<div class="agenda-month-weekdays">' + weekDayNames.map(function(n){ return '<div>' + n + '</div>'; }).join("") + '</div>' +
+        '<div class="agenda-month-grid">' +
+          days.map(function(d){
+            var iso = localISODate(d);
+            var inMonth = d.getMonth() === month;
+            var rdvsForDay = allRdvs.filter(function(r){ return r.date === iso; }).sort(function(a,b){ return a.heureDebut.localeCompare(b.heureDebut); });
+            return '<div class="agenda-month-cell' + (inMonth?"":" outside") + (iso===todayIso?" today":"") + '" data-date="' + iso + '">' +
+              '<div class="agenda-month-daynum">' + d.getDate() + '</div>' +
+              '<div class="agenda-month-chips">' +
+                rdvsForDay.map(function(r){
+                  return '<div class="agenda-chip ' + rdvColorClass(r) + '" data-rdv-id="' + r.id + '">' + escapeHTML(r.heureDebut) + ' ' + escapeHTML(rdvBadgeName(r)) + '</div>';
+                }).join("") +
+              '</div>' +
+            '</div>';
+          }).join("") +
+        '</div>' +
+      '</div>';
+    }
+
+    function listViewHTML(){
+      var rdvs = getRdvs().filter(function(r){ return !filterClient || r.clientId === filterClient.id; })
+        .slice().sort(function(a,b){ return (a.date+a.heureDebut).localeCompare(b.date+b.heureDebut); });
+      if(!rdvs.length){ return '<p class="empty">Aucun rendez-vous' + (filterClient ? " pour ce client" : "") + '.</p>'; }
+      var todayIso = localISODate(new Date());
+      return '<div class="agenda-list">' +
+        rdvs.map(function(r){
+          return '<div class="agenda-list-row ' + rdvColorClass(r) + (r.date<todayIso?" past":"") + '" data-rdv-id="' + r.id + '">' +
+            '<span class="agenda-list-date">' + formatDateFr(r.date) + '</span>' +
+            '<span class="agenda-list-time">' + escapeHTML(r.heureDebut) + '–' + escapeHTML(r.heureFin) + '</span>' +
+            '<span class="agenda-list-client">' + escapeHTML(rdvBadgeName(r)) + '</span>' +
+            (r.objet ? '<span class="agenda-list-objet">' + escapeHTML(r.objet) + '</span>' : '') +
+          '</div>';
+        }).join("") +
+      '</div>';
+    }
+
+    function clientModeBodyHTML(editing){
+      if(editing){
+        var current = getClientById(editing.clientId);
+        return '<div class="field"><label for="rdvClientSelect">Client</label><select id="rdvClientSelect">' +
+          getClients().map(function(c){ return '<option value="' + c.id + '" ' + (c.id===editing.clientId?"selected":"") + '>' + escapeHTML(clientFullName(c)) + '</option>'; }).join("") +
+          '</select></div>';
+      }
+      if(state.clientMode === "existant"){
+        var filterText = (state.clientFilterText||"").toLowerCase();
+        var clients = getClients();
+        var filtered = filterText ? clients.filter(function(c){ return clientFullName(c).toLowerCase().indexOf(filterText) !== -1; }) : clients;
+        var pf = state.formPrefill || {};
+        return '<div class="field"><label for="rdvClientFilter">Rechercher un client</label>' +
+            '<input type="text" id="rdvClientFilter" placeholder="Tapez un nom..." value="' + escapeHTML(state.clientFilterText||"") + '"></div>' +
+          '<div class="field"><label for="rdvClientSelect">Client</label><select id="rdvClientSelect">' +
+            '<option value="">— Choisir —</option>' +
+            filtered.map(function(c){ return '<option value="' + c.id + '" ' + (c.id===pf.clientId?"selected":"") + '>' + escapeHTML(clientFullName(c)) + '</option>'; }).join("") +
+          '</select>' +
+          (clients.length && !filtered.length ? '<div class="help">Aucun client ne correspond à cette recherche.</div>' : '') +
+          '</div>';
+      }
+      return '<div class="form-grid">' +
+        '<div class="field"><label for="rdvCivilite">Civilité</label><select id="rdvCivilite">' + CIVILITES.map(function(o){ return '<option value="' + o.value + '">' + escapeHTML(o.label) + '</option>'; }).join("") + '</select></div>' +
+        '<div class="field"><label for="rdvNom">Nom</label><input type="text" id="rdvNom"></div>' +
+        '<div class="field"><label for="rdvPrenom">Prénom</label><input type="text" id="rdvPrenom"></div>' +
+        '<div class="field"><label for="rdvTelMobile">Téléphone mobile</label><input type="text" id="rdvTelMobile"></div>' +
+        '<div class="field"><label for="rdvTelFixe">Téléphone fixe</label><input type="text" id="rdvTelFixe"></div>' +
+        '<div class="field"><label for="rdvEmail">Email</label><input type="text" id="rdvEmail"></div>' +
+        '<div class="field"><label for="rdvAdresse">Adresse</label><input type="text" id="rdvAdresse"></div>' +
+        '<div class="field"><label for="rdvCodePostal">Code postal</label><input type="text" id="rdvCodePostal"></div>' +
+        '<div class="field"><label for="rdvVille">Ville</label><input type="text" id="rdvVille"></div>' +
+        '<div class="field"><label for="rdvStatut">Statut</label><select id="rdvStatut">' + STATUTS_PROSPECT_CLIENT.map(function(o){ return '<option value="' + o.value + '">' + escapeHTML(o.label) + '</option>'; }).join("") + '</select></div>' +
+      '</div>';
+    }
+
+    function formHTML(){
+      var editing = state.formEditId ? getRdvById(state.formEditId) : null;
+      var pf = state.formPrefill || {};
+      var dateVal = editing ? editing.date : (pf.date || localISODate(state.currentDate));
+      var heureDebutVal = editing ? editing.heureDebut : (pf.heureDebut || "09:00");
+      var heureFinVal = editing ? editing.heureFin : (pf.heureFin || agendaAddMinutes(heureDebutVal, 60));
+      var objetVal = editing ? editing.objet : "";
+
+      return '<div class="calc-form agenda-form">' +
+        '<h2 class="backup-title">' + (editing ? "Modifier le rendez-vous" : "Nouveau rendez-vous") + '</h2>' +
+        '<div class="form-grid">' +
+          '<div class="field"><label for="rdvDate">Date</label><input type="date" id="rdvDate" value="' + escapeHTML(dateVal) + '"></div>' +
+          '<div class="field"><label for="rdvHeureDebut">Heure de début</label><input type="time" id="rdvHeureDebut" value="' + escapeHTML(heureDebutVal) + '"></div>' +
+          '<div class="field"><label for="rdvHeureFin">Heure de fin</label><input type="time" id="rdvHeureFin" value="' + escapeHTML(heureFinVal) + '"></div>' +
+        '</div>' +
+        (editing ? '' :
+          '<div class="agenda-mode-tabs">' +
+            '<button type="button" class="agenda-mode-tab' + (state.clientMode==="existant"?" active":"") + '" data-client-mode="existant">Client existant</button>' +
+            '<button type="button" class="agenda-mode-tab' + (state.clientMode==="nouveau"?" active":"") + '" data-client-mode="nouveau">Nouveau contact</button>' +
+          '</div>'
+        ) +
+        '<div id="rdvClientModeBody">' + clientModeBodyHTML(editing) + '</div>' +
+        '<div class="field"><label for="rdvObjet">Objet / notes du rendez-vous</label><input type="text" id="rdvObjet" value="' + escapeHTML(objetVal) + '" placeholder="ex. Point patrimonial annuel"></div>' +
+        '<div class="form-error" id="rdvFormError"></div>' +
+        '<div class="agenda-form-actions">' +
+          (editing ?
+            '<div class="agenda-form-actions-left">' +
+              '<a href="#/clients/' + editing.clientId + '" class="btn btn-outline">Accéder à la fiche client</a>' +
+              '<button type="button" class="btn btn-danger btn-sm" id="rdvDeleteBtn">Supprimer</button>' +
+            '</div>'
+            : '<span></span>') +
+          '<div class="agenda-form-actions-right">' +
+            '<button type="button" class="btn btn-outline" id="rdvCancelBtn">Annuler</button>' +
+            '<button type="button" class="btn btn-primary" id="rdvSaveBtn">Enregistrer</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function refreshClientOptions(){
+      var selectEl = document.getElementById("rdvClientSelect");
+      var filterEl = document.getElementById("rdvClientFilter");
+      if(!selectEl || !filterEl) return;
+      state.clientFilterText = filterEl.value;
+      var currentVal = selectEl.value;
+      var filterText = state.clientFilterText.toLowerCase();
+      var clients = getClients();
+      var filtered = filterText ? clients.filter(function(c){ return clientFullName(c).toLowerCase().indexOf(filterText) !== -1; }) : clients;
+      selectEl.innerHTML = '<option value="">— Choisir —</option>' +
+        filtered.map(function(c){ return '<option value="' + c.id + '" ' + (c.id===currentVal?"selected":"") + '>' + escapeHTML(clientFullName(c)) + '</option>'; }).join("");
+      var helpEl = selectEl.parentNode.querySelector(".help");
+      if(clients.length && !filtered.length && !helpEl){
+        selectEl.insertAdjacentHTML("afterend", '<div class="help">Aucun client ne correspond à cette recherche.</div>');
+      } else if(helpEl && (filtered.length || !clients.length)){
+        helpEl.remove();
+      }
+    }
+
+    function switchClientMode(mode){
+      state.clientMode = mode;
+      state.formPrefill = Object.assign({}, state.formPrefill, {clientId: null});
+      document.getElementById("rdvClientModeBody").innerHTML = clientModeBodyHTML(null);
+      wireClientModeBody();
+    }
+
+    function wireClientModeBody(){
+      var filterEl = document.getElementById("rdvClientFilter");
+      if(filterEl){ filterEl.addEventListener("input", refreshClientOptions); }
+    }
+
+    function onSaveRdv(){
+      var errEl = document.getElementById("rdvFormError");
+      errEl.textContent = "";
+      var dateVal = document.getElementById("rdvDate").value;
+      var heureDebutVal = document.getElementById("rdvHeureDebut").value;
+      var heureFinVal = document.getElementById("rdvHeureFin").value;
+      var objetVal = document.getElementById("rdvObjet").value.trim();
+      if(!dateVal || !heureDebutVal || !heureFinVal){ errEl.textContent = "Date, heure de début et heure de fin sont obligatoires."; return; }
+      if(heureFinVal <= heureDebutVal){ errEl.textContent = "L'heure de fin doit être après l'heure de début."; return; }
+
+      var editing = state.formEditId ? getRdvById(state.formEditId) : null;
+      var clientId;
+      if(editing || state.clientMode === "existant"){
+        clientId = document.getElementById("rdvClientSelect").value;
+        if(!clientId){ errEl.textContent = "Choisissez un client existant, ou basculez sur \"Nouveau contact\"."; return; }
+      } else {
+        var nom = document.getElementById("rdvNom").value.trim();
+        var prenom = document.getElementById("rdvPrenom").value.trim();
+        if(!nom && !prenom){ errEl.textContent = "Indiquez au moins un nom ou un prénom pour le nouveau contact."; return; }
+        var newClient = normalizeClient({
+          id: "client_" + Date.now() + "_" + Math.random().toString(36).slice(2,7),
+          adultes: [{prenom:prenom, nom:nom, age:null, profession:"", revenusPropres:0}],
+          prenom:prenom, nom:nom, age:null,
+          civilite: document.getElementById("rdvCivilite").value,
+          telephoneMobile: document.getElementById("rdvTelMobile").value.trim(),
+          telephoneFixe: document.getElementById("rdvTelFixe").value.trim(),
+          email: document.getElementById("rdvEmail").value.trim(),
+          adresse: document.getElementById("rdvAdresse").value.trim(),
+          codePostal: document.getElementById("rdvCodePostal").value.trim(),
+          ville: document.getElementById("rdvVille").value.trim(),
+          statutProspectClient: document.getElementById("rdvStatut").value,
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+        });
+        // Si l'enregistrement du nouveau contact échoue (quota localStorage dépassé, déjà signalé par le
+        // bandeau global), on n'enchaîne surtout pas sur un rendez-vous pointant vers un client fantôme.
+        if(!saveClient(newClient)){ errEl.textContent = "Échec de l'enregistrement du nouveau contact (voir le bandeau ci-dessus)."; return; }
+        clientId = newClient.id;
+      }
+
+      var rdv = {
+        id: editing ? editing.id : ("rdv_" + Date.now() + "_" + Math.random().toString(36).slice(2,7)),
+        date: dateVal, heureDebut: heureDebutVal, heureFin: heureFinVal,
+        clientId: clientId, objet: objetVal,
+        createdAt: editing ? editing.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      if(saveRdv(rdv)){
+        state.currentDate = new Date(dateVal + "T00:00:00");
+        closeForm();
+      } else {
+        errEl.textContent = "Échec de l'enregistrement du rendez-vous (voir le bandeau ci-dessus).";
+      }
+    }
+
+    function onDeleteRdv(){
+      if(!state.formEditId) return;
+      if(!confirm("Supprimer ce rendez-vous ?")) return;
+      if(deleteRdv(state.formEditId)){ closeForm(); }
+    }
+
+    function openForm(rdvId, prefill){
+      state.formOpen = true;
+      state.formEditId = rdvId;
+      state.formPrefill = prefill;
+      state.clientMode = "existant";
+      state.clientFilterText = "";
+      render();
+    }
+    function closeForm(){
+      state.formOpen = false;
+      state.formEditId = null;
+      state.formPrefill = null;
+      render();
+    }
+
+    function wireToolbarEvents(){
+      var todayBtn = document.getElementById("agendaTodayBtn");
+      if(todayBtn){ todayBtn.addEventListener("click", function(){ state.currentDate = new Date(); render(); }); }
+      var prevBtn = document.getElementById("agendaPrevBtn");
+      if(prevBtn){ prevBtn.addEventListener("click", function(){ navigate(-1); }); }
+      var nextBtn = document.getElementById("agendaNextBtn");
+      if(nextBtn){ nextBtn.addEventListener("click", function(){ navigate(1); }); }
+      main.querySelectorAll("[data-agenda-view]").forEach(function(btn){
+        btn.addEventListener("click", function(){ state.view = btn.dataset.agendaView; render(); });
+      });
+      document.getElementById("agendaNewBtn").addEventListener("click", function(){
+        openForm(null, {date: localISODate(state.currentDate), heureDebut:"09:00", heureFin:"10:00"});
+      });
+    }
+
+    function wireViewEvents(){
+      main.querySelectorAll(".agenda-slot").forEach(function(el){
+        el.addEventListener("click", function(){
+          openForm(null, {date: el.dataset.date, heureDebut: el.dataset.time, heureFin: agendaAddMinutes(el.dataset.time, 60)});
+        });
+      });
+      main.querySelectorAll(".agenda-month-cell").forEach(function(el){
+        el.addEventListener("click", function(e){
+          if(e.target.closest("[data-rdv-id]")) return;
+          openForm(null, {date: el.dataset.date, heureDebut:"09:00", heureFin:"10:00"});
+        });
+      });
+      main.querySelectorAll("[data-rdv-id]").forEach(function(el){
+        el.addEventListener("click", function(e){
+          e.stopPropagation();
+          openForm(el.dataset.rdvId, null);
+        });
+      });
+    }
+
+    function wireFormEvents(){
+      document.getElementById("rdvCancelBtn").addEventListener("click", closeForm);
+      document.getElementById("rdvSaveBtn").addEventListener("click", onSaveRdv);
+      var delBtn = document.getElementById("rdvDeleteBtn");
+      if(delBtn){ delBtn.addEventListener("click", onDeleteRdv); }
+      main.querySelectorAll("[data-client-mode]").forEach(function(btn){
+        btn.addEventListener("click", function(){ switchClientMode(btn.dataset.clientMode); });
+      });
+      wireClientModeBody();
+    }
+
+    function render(){
+      main.innerHTML = '<div class="container agenda-page">' +
+        '<a href="#/" class="back-link">← Retour aux outils</a>' +
+        '<h1>Agenda</h1>' +
+        (state.formOpen ? '' : toolbarHTML()) +
+        '<div id="agendaBody"></div>' +
+      '</div>';
+
+      var body = document.getElementById("agendaBody");
+      if(state.formOpen){
+        body.innerHTML = formHTML();
+        wireFormEvents();
+      } else {
+        if(state.view === "jour"){ body.innerHTML = gridViewHTML([state.currentDate]); }
+        else if(state.view === "semaine"){ body.innerHTML = gridViewHTML(weekDatesFrom(state.currentDate)); }
+        else if(state.view === "mois"){ body.innerHTML = monthViewHTML(); }
+        else { body.innerHTML = listViewHTML(); }
+        wireToolbarEvents();
+        wireViewEvents();
+      }
+    }
+
+    render();
   }
 
   /* ============================ Mentions légales ============================ */
@@ -5698,6 +6273,7 @@
     else if(parts[0] === "bilan" && parts[1] && parts[2] === "rapport") result = {name:"bilan-rapport", clientId:parts[1]};
     else if(parts[0] === "bilan" && parts[1]) result = {name:"bilan", clientId:parts[1]};
     else if(parts[0] === "bilan") result = {name:"bilan-picker"};
+    else if(parts[0] === "agenda") result = {name:"agenda"};
     else if(parts[0] === "parametres") result = {name:"parametres"};
     else if(parts[0] === "mentions-legales") result = {name:"mentions"};
     else result = {name:"home"};
@@ -5731,6 +6307,8 @@
       renderBilan(v.clientId);
     } else if(v.name === "bilan-rapport"){
       renderRapportConfig(v.clientId);
+    } else if(v.name === "agenda"){
+      renderAgenda(v.clientIdParam);
     } else if(v.name === "parametres"){
       renderParametres();
     } else if(v.name === "mentions"){
