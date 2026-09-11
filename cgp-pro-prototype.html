@@ -147,6 +147,15 @@
   .pipeline-row-arrow{color:var(--muted);}
   .pipeline-sign-btn{flex-shrink:0;white-space:nowrap;}
 
+  .corbeille-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;}
+  .corbeille-section h3{font-size:.9rem;margin:0 0 12px;color:var(--navy);display:flex;align-items:center;gap:8px;}
+  .corbeille-rows{display:flex;flex-direction:column;gap:6px;}
+  .corbeille-row{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--bg);border-radius:8px;padding:10px 12px;flex-wrap:wrap;}
+  .corbeille-row-info{flex:1;min-width:180px;}
+  .corbeille-row-title{font-size:.85rem;font-weight:700;color:var(--ink);}
+  .corbeille-row-subtitle{font-size:.75rem;color:var(--muted);margin-top:2px;}
+  .corbeille-row-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;}
+
   /* Onglets de la fiche client (Fiche client / Historique des échanges) */
   .client-tabs{display:flex;gap:22px;border-bottom:1px solid var(--border);margin:18px 0 22px;}
   .client-tab-btn{background:none;border:none;padding:10px 2px;font-size:.9rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;font-family:inherit;}
@@ -639,18 +648,41 @@
     document.getElementById("storageErrorDismiss").addEventListener("click", function(){ banner.remove(); });
   }
 
+  // Délai avant purge définitive d'un élément mis à la corbeille (clients et simulations) — passé ce
+  // délai, purgeExpiredTrash() (appelée à l'ouverture de la Corbeille) le retire définitivement.
+  var TRASH_RETENTION_DAYS = 30;
+
   var STORAGE_KEY = "cgppro_simulations_v1";
-  function getSimulations(){
+  // getSimulationsRaw() renvoie TOUT (y compris les simulations à la corbeille) — réservé à la Corbeille
+  // et à la sauvegarde JSON. getSimulations(), utilisée partout ailleurs dans l'app, masque les éléments
+  // à la corbeille pour qu'ils se comportent comme réellement supprimés en dehors de la Corbeille.
+  function getSimulationsRaw(){
     try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
     catch(e){ return []; }
   }
+  function getSimulations(){
+    return getSimulationsRaw().filter(function(s){ return !s.deletedAt; });
+  }
   function saveSimulation(entry){
-    var all = getSimulations();
+    var all = getSimulationsRaw();
     all.unshift(entry);
     return persistToStorage(STORAGE_KEY, JSON.stringify(all));
   }
+  // Suppression douce : la simulation part à la corbeille (deletedAt) au lieu d'être retirée du tableau.
   function deleteSimulation(id){
-    var all = getSimulations().filter(function(s){ return s.id !== id; });
+    var all = getSimulationsRaw();
+    var idx = all.findIndex(function(s){ return s.id === id; });
+    if(idx >= 0){ all[idx].deletedAt = new Date().toISOString(); }
+    return persistToStorage(STORAGE_KEY, JSON.stringify(all));
+  }
+  function restoreSimulation(id){
+    var all = getSimulationsRaw();
+    var idx = all.findIndex(function(s){ return s.id === id; });
+    if(idx >= 0){ delete all[idx].deletedAt; }
+    return persistToStorage(STORAGE_KEY, JSON.stringify(all));
+  }
+  function purgeSimulation(id){
+    var all = getSimulationsRaw().filter(function(s){ return s.id !== id; });
     return persistToStorage(STORAGE_KEY, JSON.stringify(all));
   }
 
@@ -784,20 +816,57 @@
     return c;
   }
 
-  function getClients(){
+  // getClientsRaw() renvoie TOUT (y compris les fiches à la corbeille) — réservé à la Corbeille et à la
+  // sauvegarde JSON. getClients(), utilisée partout ailleurs (listes, agenda, pipeline, auto-remplissage...),
+  // masque les fiches à la corbeille pour qu'elles se comportent comme réellement supprimées en dehors de
+  // la Corbeille — getClientById() en hérite donc naturellement (un client à la corbeille redevient
+  // "introuvable" ailleurs, comme un client réellement supprimé, jusqu'à sa restauration).
+  function getClientsRaw(){
     try{ return (JSON.parse(localStorage.getItem(CLIENTS_KEY)) || []).map(normalizeClient); }
     catch(e){ return []; }
   }
+  function getClients(){
+    return getClientsRaw().filter(function(c){ return !c.deletedAt; });
+  }
   function getClientById(id){ return getClients().filter(function(c){ return c.id === id; })[0] || null; }
   function saveClient(client){
-    var all = getClients();
+    var all = getClientsRaw();
     var idx = all.findIndex(function(c){ return c.id === client.id; });
     if(idx >= 0){ all[idx] = client; } else { all.unshift(client); }
     return persistToStorage(CLIENTS_KEY, JSON.stringify(all));
   }
+  // Suppression douce : la fiche part à la corbeille (deletedAt) au lieu d'être retirée du tableau.
   function deleteClient(id){
-    var all = getClients().filter(function(c){ return c.id !== id; });
+    var all = getClientsRaw();
+    var idx = all.findIndex(function(c){ return c.id === id; });
+    if(idx >= 0){ all[idx].deletedAt = new Date().toISOString(); }
     return persistToStorage(CLIENTS_KEY, JSON.stringify(all));
+  }
+  function restoreClient(id){
+    var all = getClientsRaw();
+    var idx = all.findIndex(function(c){ return c.id === id; });
+    if(idx >= 0){ delete all[idx].deletedAt; }
+    return persistToStorage(CLIENTS_KEY, JSON.stringify(all));
+  }
+  function purgeClient(id){
+    var all = getClientsRaw().filter(function(c){ return c.id !== id; });
+    return persistToStorage(CLIENTS_KEY, JSON.stringify(all));
+  }
+
+  // Retire définitivement les éléments à la corbeille depuis plus de TRASH_RETENTION_DAYS jours.
+  // Appelée à l'ouverture de la Corbeille uniquement (pas à chaque lecture) : cohérent avec la philosophie
+  // de l'app (pas de réécriture du stockage en dehors d'une action explicite de l'utilisateur).
+  function purgeExpiredTrash(){
+    var cutoff = Date.now() - TRASH_RETENTION_DAYS*24*60*60*1000;
+    var isExpired = function(item){ return item.deletedAt && new Date(item.deletedAt).getTime() < cutoff; };
+
+    var clients = getClientsRaw();
+    var keptClients = clients.filter(function(c){ return !isExpired(c); });
+    if(keptClients.length !== clients.length){ persistToStorage(CLIENTS_KEY, JSON.stringify(keptClients)); }
+
+    var sims = getSimulationsRaw();
+    var keptSims = sims.filter(function(s){ return !isExpired(s); });
+    if(keptSims.length !== sims.length){ persistToStorage(STORAGE_KEY, JSON.stringify(keptSims)); }
   }
 
   /* ============================ Agenda / rendez-vous ============================ */
@@ -5127,7 +5196,7 @@
       });
       list.querySelectorAll("[data-del]").forEach(function(b){
         b.addEventListener("click", function(){
-          if(confirm("Supprimer cette simulation ?")){
+          if(confirm("Supprimer cette simulation ? Elle sera déplacée dans la Corbeille (récupérable pendant 30 jours).")){
             deleteSimulation(b.dataset.del);
             renderHistorique();
           }
@@ -5581,7 +5650,7 @@
 
       list.querySelectorAll("[data-del]").forEach(function(b){
         b.addEventListener("click", function(){
-          if(confirm("Supprimer cette fiche client ? Les simulations déjà enregistrées ne seront pas supprimées.")){
+          if(confirm("Supprimer cette fiche client ? Elle sera déplacée dans la Corbeille (récupérable pendant 30 jours). Les simulations déjà enregistrées ne seront pas supprimées.")){
             deleteClient(b.dataset.del);
             allClients = getClients();
             renderList();
@@ -5957,6 +6026,8 @@
   function renderParametres(){
     var main = document.getElementById("main");
     var profile = getCabinetProfile();
+    var trashCount = getClientsRaw().filter(function(c){ return c.deletedAt; }).length +
+      getSimulationsRaw().filter(function(s){ return s.deletedAt; }).length;
 
     main.innerHTML = '<div class="container parametres-page">' +
       '<a href="#/" class="back-link">← Retour aux outils</a>' +
@@ -5981,6 +6052,13 @@
           '<input type="file" id="importBackupInput" accept="application/json,.json" hidden>' +
         '</div>' +
         '<div class="save-msg" id="backupMsg"></div>' +
+      '</div>' +
+      '<div class="calc-form backup-card">' +
+        '<h2 class="backup-title">Corbeille' + (trashCount ? ' <span class="pipeline-count">' + trashCount + '</span>' : '') + '</h2>' +
+        '<p class="tool-desc backup-desc">Les fiches clients et simulations supprimées passent d\'abord par la corbeille, récupérables pendant 30 jours avant purge définitive.</p>' +
+        '<div class="backup-actions">' +
+          '<a class="btn btn-outline" href="#/corbeille">🗑 Ouvrir la corbeille' + (trashCount ? ' (' + trashCount + ')' : '') + '</a>' +
+        '</div>' +
       '</div>' +
     '</div>';
 
@@ -6016,8 +6094,8 @@
         app: "CGP Pro",
         formatVersion: 1,
         exportedAt: new Date().toISOString(),
-        clients: getClients(),
-        simulations: getSimulations(),
+        clients: getClientsRaw(), // inclut la corbeille : une sauvegarde ne doit pas faire perdre ce qui y est encore récupérable
+        simulations: getSimulationsRaw(),
         cabinet: getCabinetProfile(),
         rdvs: getRdvs()
       };
@@ -6078,6 +6156,77 @@
       reader.onerror = function(){ backupMsg.textContent = "Impossible de lire ce fichier."; e.target.value = ""; };
       reader.readAsText(file);
     });
+  }
+
+  /* ============================ Corbeille ============================ */
+  function renderCorbeille(){
+    purgeExpiredTrash(); // purge silencieuse des éléments expirés avant d'afficher la liste
+    var main = document.getElementById("main");
+
+    function daysLeft(deletedAt){
+      var elapsedDays = Math.floor((Date.now() - new Date(deletedAt).getTime()) / (24*60*60*1000));
+      return Math.max(0, TRASH_RETENTION_DAYS - elapsedDays);
+    }
+
+    function rowHTML(id, kind, title, subtitle, deletedAt){
+      return '<div class="corbeille-row">' +
+        '<div class="corbeille-row-info">' +
+          '<div class="corbeille-row-title">' + escapeHTML(title) + '</div>' +
+          '<div class="corbeille-row-subtitle">' + escapeHTML(subtitle) + ' · supprimé le ' + formatDateFr(deletedAt.slice(0,10)) + ' · purge définitive dans ' + daysLeft(deletedAt) + ' j.</div>' +
+        '</div>' +
+        '<div class="corbeille-row-actions">' +
+          '<button type="button" class="btn btn-outline btn-sm" data-restore="' + id + '" data-kind="' + kind + '">↺ Restaurer</button>' +
+          '<button type="button" class="btn btn-danger btn-sm" data-purge="' + id + '" data-kind="' + kind + '">✕ Supprimer définitivement</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function render(){
+      var trashedClients = getClientsRaw().filter(function(c){ return c.deletedAt; })
+        .sort(function(a,b){ return new Date(b.deletedAt) - new Date(a.deletedAt); });
+      var trashedSims = getSimulationsRaw().filter(function(s){ return s.deletedAt; })
+        .sort(function(a,b){ return new Date(b.deletedAt) - new Date(a.deletedAt); });
+
+      main.innerHTML = '<div class="container corbeille-page">' +
+        '<a href="#/parametres" class="back-link">← Retour aux paramètres</a>' +
+        '<h1>Corbeille</h1>' +
+        '<p class="tool-desc">Les fiches clients et simulations supprimées restent ici ' + TRASH_RETENTION_DAYS + ' jours avant purge définitive et automatique.</p>' +
+        '<div class="corbeille-section">' +
+          '<h3>Fiches clients <span class="pipeline-count">' + trashedClients.length + '</span></h3>' +
+          (trashedClients.length ?
+            '<div class="corbeille-rows">' + trashedClients.map(function(c){
+              return rowHTML(c.id, "client", clientFullName(c), c.ville || "—", c.deletedAt);
+            }).join("") + '</div>'
+            : '<p class="empty">Aucune fiche client à la corbeille.</p>') +
+        '</div>' +
+        '<div class="corbeille-section">' +
+          '<h3>Simulations <span class="pipeline-count">' + trashedSims.length + '</span></h3>' +
+          (trashedSims.length ?
+            '<div class="corbeille-rows">' + trashedSims.map(function(s){
+              return rowHTML(s.id, "sim", s.toolName || s.toolId, s.clientName || "(sans nom)", s.deletedAt);
+            }).join("") + '</div>'
+            : '<p class="empty">Aucune simulation à la corbeille.</p>') +
+        '</div>' +
+      '</div>';
+
+      main.querySelectorAll("[data-restore]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          if(btn.getAttribute("data-kind") === "client"){ restoreClient(btn.getAttribute("data-restore")); }
+          else { restoreSimulation(btn.getAttribute("data-restore")); }
+          render();
+        });
+      });
+      main.querySelectorAll("[data-purge]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          if(!confirm("Supprimer définitivement cet élément ? Cette action est irréversible.")) return;
+          if(btn.getAttribute("data-kind") === "client"){ purgeClient(btn.getAttribute("data-purge")); }
+          else { purgeSimulation(btn.getAttribute("data-purge")); }
+          render();
+        });
+      });
+    }
+
+    render();
   }
 
   /* ============================ Agenda (page) ============================ */
@@ -6643,6 +6792,7 @@
     else if(parts[0] === "bilan") result = {name:"bilan-picker"};
     else if(parts[0] === "agenda") result = {name:"agenda"};
     else if(parts[0] === "pipeline") result = {name:"pipeline"};
+    else if(parts[0] === "corbeille") result = {name:"corbeille"};
     else if(parts[0] === "parametres") result = {name:"parametres"};
     else if(parts[0] === "mentions-legales") result = {name:"mentions"};
     else result = {name:"home"};
@@ -6680,6 +6830,8 @@
       renderAgenda(v.clientIdParam);
     } else if(v.name === "pipeline"){
       renderPipeline();
+    } else if(v.name === "corbeille"){
+      renderCorbeille();
     } else if(v.name === "parametres"){
       renderParametres();
     } else if(v.name === "mentions"){
