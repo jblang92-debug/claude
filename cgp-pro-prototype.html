@@ -78,6 +78,13 @@
   .checkbox-inline{display:flex;align-items:center;gap:8px;font-size:.88rem;font-weight:600;color:var(--ink);cursor:pointer;}
   .checkbox-inline input{width:auto;}
   .form-section-title{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:18px 0 8px;grid-column:1/-1;}
+  .form-theme-title{font-size:.82rem;font-weight:700;color:var(--navy);margin:16px 0 8px;grid-column:1/-1;}
+  .besoins-priorite-badges{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 20px;}
+  .priorite-badge{font-size:.72rem;font-weight:700;padding:5px 12px;border-radius:20px;color:#fff;white-space:nowrap;}
+  .priorite-badge-non_prioritaire{background:var(--muted);}
+  .priorite-badge-a_surveiller{background:var(--navy-2);}
+  .priorite-badge-important{background:var(--accent);}
+  .priorite-badge-prioritaire{background:var(--danger);}
   .form-section-title:first-child{margin-top:0;}
 
   /* Comparaison de scénarios (composant générique, plusieurs calculateurs) */
@@ -619,6 +626,11 @@
     if(!c.statutCouple) c.statutCouple = "celibataire";
     if(!c.revenusCategorises) c.revenusCategorises = defaultRevenusCategorises();
     if(!c.historique) c.historique = [];
+    // Rétrocompatibilité : les fiches créées avant l'ajout de la section "Besoins patrimoniaux" reçoivent
+    // les valeurs par défaut de ces 15 champs plutôt que undefined (formulaire, badges, export/import).
+    CLIENT_FIELDS.filter(function(f){ return f.section === "Besoins patrimoniaux"; }).forEach(function(f){
+      if(c[f.id] === undefined) c[f.id] = f.default;
+    });
     return c;
   }
 
@@ -673,6 +685,23 @@
     return {owners:owners, ownerLabels:ownerLabels, rows:rows, colTotals:colTotals, grandTotal:grandTotal};
   }
 
+  var NIVEAUX_PRIORITE_BESOIN = [
+    {value:"non_prioritaire", label:"Non prioritaire"},
+    {value:"a_surveiller", label:"À surveiller"},
+    {value:"important", label:"Important"},
+    {value:"prioritaire", label:"Prioritaire"}
+  ];
+  // Les 5 piliers classiques du conseil en gestion de patrimoine, utilisés par la section "Besoins
+  // patrimoniaux" de CLIENT_FIELDS ci-dessous et par les badges de synthèse de la fiche client
+  // (besoinsPrioriteBadgesHTML) : prefix -> identifiants besoin<Prefix>Priorite/Situation/Attentes.
+  var BESOINS_THEMES = [
+    {prefix:"Transmission", label:"Transmission"},
+    {prefix:"Protection", label:"Protection de la famille"},
+    {prefix:"Retraite", label:"Retraite"},
+    {prefix:"Fiscalite", label:"Fiscalité"},
+    {prefix:"Enrichissement", label:"Enrichissement"}
+  ];
+
   // Champs de la fiche client. `clientField` sur un champ d'outil (voir TOOLS) référence l'id ci-dessous
   // pour permettre le pré-remplissage automatique depuis la fiche. L'identité (prénom/nom/âge) et la
   // composition du foyer (adultes/enfants) sont saisies via le composant mountFoyerEditor, pas ici.
@@ -686,6 +715,30 @@
     {id:"tmi", label:"Tranche marginale d'imposition (TMI)", type:"number", suffix:"%", default:30, step:1, section:"Identité"},
     {id:"adresseFiscale", label:"Adresse fiscale du foyer (optionnel)", type:"text", default:"", section:"Identité",
       help:"Utilisée uniquement pour l'export complet du Simulateur d'avis d'imposition."},
+
+    // Les 5 piliers classiques du conseil en gestion de patrimoine : niveau de priorité pour le client,
+    // situation actuelle et attentes exprimées en RDV. Distinct des checkboxes "Projets en cours"
+    // ci-dessous (un projet concret à chiffrer) : ici on qualifie un besoin structurel, pas un projet.
+    {id:"besoinTransmissionPriorite", label:"Niveau de priorité", type:"select", default:"non_prioritaire", options:NIVEAUX_PRIORITE_BESOIN, section:"Besoins patrimoniaux", theme:"Transmission"},
+    {id:"besoinTransmissionSituation", label:"Situation actuelle / ce qui existe déjà", type:"textarea", default:"", rows:3, section:"Besoins patrimoniaux", theme:"Transmission"},
+    {id:"besoinTransmissionAttentes", label:"Attentes et objectifs exprimés par le client", type:"textarea", default:"", rows:3, section:"Besoins patrimoniaux", theme:"Transmission"},
+
+    {id:"besoinProtectionPriorite", label:"Niveau de priorité", type:"select", default:"non_prioritaire", options:NIVEAUX_PRIORITE_BESOIN, section:"Besoins patrimoniaux", theme:"Protection de la famille"},
+    {id:"besoinProtectionSituation", label:"Situation actuelle / ce qui existe déjà", type:"textarea", default:"", rows:3, section:"Besoins patrimoniaux", theme:"Protection de la famille"},
+    {id:"besoinProtectionAttentes", label:"Attentes et objectifs exprimés par le client", type:"textarea", default:"", rows:3, section:"Besoins patrimoniaux", theme:"Protection de la famille"},
+
+    {id:"besoinRetraitePriorite", label:"Niveau de priorité", type:"select", default:"non_prioritaire", options:NIVEAUX_PRIORITE_BESOIN, section:"Besoins patrimoniaux", theme:"Retraite"},
+    {id:"besoinRetraiteSituation", label:"Situation actuelle / ce qui existe déjà", type:"textarea", default:"", rows:3, section:"Besoins patrimoniaux", theme:"Retraite"},
+    {id:"besoinRetraiteAttentes", label:"Attentes et objectifs exprimés par le client", type:"textarea", default:"", rows:3, section:"Besoins patrimoniaux", theme:"Retraite"},
+
+    {id:"besoinFiscalitePriorite", label:"Niveau de priorité", type:"select", default:"non_prioritaire", options:NIVEAUX_PRIORITE_BESOIN, section:"Besoins patrimoniaux", theme:"Fiscalité"},
+    {id:"besoinFiscaliteSituation", label:"Situation actuelle / ce qui existe déjà", type:"textarea", default:"", rows:3, section:"Besoins patrimoniaux", theme:"Fiscalité"},
+    {id:"besoinFiscaliteAttentes", label:"Attentes et objectifs exprimés par le client", type:"textarea", default:"", rows:3, section:"Besoins patrimoniaux", theme:"Fiscalité"},
+
+    {id:"besoinEnrichissementPriorite", label:"Niveau de priorité", type:"select", default:"non_prioritaire", options:NIVEAUX_PRIORITE_BESOIN, section:"Besoins patrimoniaux", theme:"Enrichissement"},
+    {id:"besoinEnrichissementSituation", label:"Situation actuelle / ce qui existe déjà", type:"textarea", default:"", rows:3, section:"Besoins patrimoniaux", theme:"Enrichissement"},
+    {id:"besoinEnrichissementAttentes", label:"Attentes et objectifs exprimés par le client", type:"textarea", default:"", rows:3, section:"Besoins patrimoniaux", theme:"Enrichissement"},
+
     {id:"revenusMensuelsNets", label:"Revenus nets mensuels du foyer", type:"number", suffix:"€", default:0, step:100, section:"Revenus & charges"},
     {id:"revenusLocatifsExistants", label:"Revenus locatifs déjà perçus", type:"number", suffix:"€", default:0, step:50, section:"Revenus & charges"},
     {id:"chargesMensuellesCredits", label:"Mensualités de crédits en cours", type:"number", suffix:"€", default:0, step:50, section:"Revenus & charges"},
@@ -5128,6 +5181,16 @@
     });
   }
 
+  // Coup d'œil rapide en RDV : un badge coloré par pilier selon son niveau de priorité pour ce client.
+  function besoinsPrioriteBadgesHTML(client){
+    return '<div class="besoins-priorite-badges">' +
+      BESOINS_THEMES.map(function(t){
+        var val = client["besoin" + t.prefix + "Priorite"] || "non_prioritaire";
+        return '<span class="priorite-badge priorite-badge-' + val + '">' + escapeHTML(t.label) + ' : ' + escapeHTML(labelFromList(NIVEAUX_PRIORITE_BESOIN, val)) + '</span>';
+      }).join("") +
+    '</div>';
+  }
+
   function renderClientForm(clientId, initialTab){
     var main = document.getElementById("main");
     var isNew = clientId === "new";
@@ -5144,6 +5207,7 @@
     main.innerHTML = '<div class="container client-form-page">' +
       '<a href="#/clients" class="back-link">← Retour aux clients</a>' +
       '<h1>' + (isNew ? "Nouveau client" : "Modifier " + escapeHTML(clientFullName(client))) + '</h1>' +
+      (!isNew ? besoinsPrioriteBadgesHTML(client) : "") +
       (!isNew ? '<div class="client-tabs">' +
         '<button type="button" class="client-tab-btn ' + (activeTab==="fiche"?"active":"") + '" data-tab="fiche">Fiche client</button>' +
         '<button type="button" class="client-tab-btn ' + (activeTab==="historique"?"active":"") + '" data-tab="historique">Historique des échanges</button>' +
@@ -5154,9 +5218,17 @@
           '<div id="foyerEditorContainer"></div>' +
           '<div class="form-grid">' +
             sections.map(function(section){
-              return '<div class="form-section-title">' + escapeHTML(section) + '</div>' +
-                CLIENT_FIELDS.filter(function(f){ return f.section===section; })
-                  .map(function(f){ return fieldHTML(f, client[f.id]); }).join("");
+              var lastTheme = null;
+              var fieldsHTML = CLIENT_FIELDS.filter(function(f){ return f.section===section; })
+                .map(function(f){
+                  var themeHeader = "";
+                  if(f.theme && f.theme !== lastTheme){
+                    themeHeader = '<div class="form-theme-title">' + escapeHTML(f.theme) + '</div>';
+                    lastTheme = f.theme;
+                  }
+                  return themeHeader + fieldHTML(f, client[f.id]);
+                }).join("");
+              return '<div class="form-section-title">' + escapeHTML(section) + '</div>' + fieldsHTML;
             }).join("") +
           '</div>' +
           '<div id="actifsEditorContainer" style="margin-top:6px;"></div>' +
