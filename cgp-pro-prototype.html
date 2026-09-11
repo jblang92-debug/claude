@@ -1409,6 +1409,12 @@
       id:"pret-amortissement", category:"financement", status:"ready", icon:"📅",
       name:"Prêt immobilier — tableau d'amortissement",
       desc:"Calcule la mensualité et l'échéancier annuel complet (capital remboursé / intérêts payés / capital restant dû) d'un prêt à taux fixe et échéances constantes.",
+      comparable: true,
+      compareMetrics:[
+        {key:"mensualiteTotale", label:"Mensualité totale", format:"euro2", better:"lower"},
+        {key:"coutTotalCredit", label:"Coût total du crédit", format:"euro", better:"lower"},
+        {key:"coutTotalPret", label:"Coût total du prêt", format:"euro", better:"lower"}
+      ],
       fields:[
         {id:"capitalEmprunte", label:"Capital emprunté", type:"number", suffix:"€", default:200000, step:1000},
         {id:"tauxInteret", label:"Taux d'intérêt annuel (hors assurance)", type:"number", suffix:"%", default:3.8, step:0.01},
@@ -1463,7 +1469,8 @@
             ],
             options:{scales:{x:{stacked:true}, y:{stacked:true}}}
           },
-          warnings:["Échéancier à mensualité et taux constants (hors modulation, remboursement anticipé ou taux variable). Assurance calculée sur le capital initial : certains contrats la calculent sur le capital restant dû, ce qui réduit son coût total."]
+          warnings:["Échéancier à mensualité et taux constants (hors modulation, remboursement anticipé ou taux variable). Assurance calculée sur le capital initial : certains contrats la calculent sur le capital restant dû, ce qui réduit son coût total."],
+          extra:{mensualiteTotale:mensualiteTotale, coutTotalCredit:coutTotalCredit, coutTotalPret: inputs.capitalEmprunte+coutTotalCredit}
         };
       }
     },
@@ -1473,6 +1480,11 @@
       id:"taux-fixe-variable", category:"financement", status:"ready", icon:"⚖️",
       name:"Comparateur taux fixe vs variable",
       desc:"Compare le coût total d'un prêt à taux fixe et d'un prêt à taux variable capé, selon une hypothèse d'évolution annuelle du taux (durée conservée, mensualité recalculée chaque année).",
+      comparable: true,
+      compareMetrics:[
+        {key:"totalFixe", label:"Coût total — taux fixe", format:"euro", better:"lower"},
+        {key:"totalVariable", label:"Coût total — taux variable", format:"euro", better:"lower"}
+      ],
       fields:[
         {id:"capitalEmprunte", label:"Capital emprunté", type:"number", suffix:"€", default:200000, step:1000},
         {id:"dureeAnnees", label:"Durée du prêt", type:"number", suffix:"ans", default:20, step:1},
@@ -1529,7 +1541,8 @@
               {label:"Mensualité taux variable (hypothèse)", data: mensualitesParAnnee.map(function(m){ return Math.round(m); }), borderColor:"#b3422c", backgroundColor:"rgba(179,66,44,0.1)", tension:0}
             ]
           },
-          warnings:["Le taux variable réel dépend de l'évolution d'un indice de marché (ex. Euribor), qui ne peut pas être prédit : ceci est une simulation sous hypothèse, pas une prévision. Le taux fixe élimine ce risque mais part généralement d'un niveau plus élevé que le taux variable initial."]
+          warnings:["Le taux variable réel dépend de l'évolution d'un indice de marché (ex. Euribor), qui ne peut pas être prédit : ceci est une simulation sous hypothèse, pas une prévision. Le taux fixe élimine ce risque mais part généralement d'un niveau plus élevé que le taux variable initial."],
+          extra:{totalFixe:totalFixe, totalVariable:totalVariable}
         };
       }
     },
@@ -1539,6 +1552,12 @@
       id:"rachat-credit", category:"financement", status:"ready", icon:"🔄",
       name:"Calculateur de rachat de crédit",
       desc:"Compare le coût de poursuivre les crédits actuels au coût d'un rachat/regroupement à un nouveau taux et une nouvelle durée.",
+      comparable: true,
+      compareMetrics:[
+        {key:"nouvelleMensualite", label:"Nouvelle mensualité", format:"euro2", better:"lower"},
+        {key:"gainMensuel", label:"Gain mensuel de trésorerie", format:"euro2", better:"higher"},
+        {key:"gainTotal", label:"Gain total sur la durée", format:"euro", better:"higher"}
+      ],
       fields:[
         {id:"mensualitesActuelles", label:"Total des mensualités actuelles", type:"number", suffix:"€", default:1400, step:50, clientField:"chargesMensuellesCredits"},
         {id:"capitalRestantDu", label:"Capital restant dû total (tous crédits)", type:"number", suffix:"€", default:180000, step:1000, clientField:"dettesImmobilieres"},
@@ -1573,7 +1592,8 @@
             labels:["Poursuite des crédits actuels","Rachat de crédit"],
             datasets:[{label:"Coût total (€)", data:[Math.round(coutActuelSiPoursuite), Math.round(coutNouveau)], backgroundColor:["#5b6b7c","#0f7a72"]}]
           },
-          warnings:["Un rachat qui allonge la durée totale d'endettement réduit la mensualité mais peut augmenter le coût total du crédit malgré un taux plus bas : comparez toujours le coût total, pas seulement la mensualité."]
+          warnings:["Un rachat qui allonge la durée totale d'endettement réduit la mensualité mais peut augmenter le coût total du crédit malgré un taux plus bas : comparez toujours le coût total, pas seulement la mensualité."],
+          extra:{nouvelleMensualite:nouvelleMensualite, gainMensuel:gainMensuel, gainTotal:gainTotal}
         };
       }
     },
@@ -1583,6 +1603,12 @@
       id:"apport-optimal", category:"financement", status:"ready", icon:"💰",
       name:"Simulateur d'apport optimal",
       desc:"Détermine l'apport personnel nécessaire pour financer un projet immobilier compte tenu d'une mensualité maximale, d'un taux et d'une durée.",
+      comparable: true,
+      compareMetrics:[
+        {key:"apportNecessaire", label:"Apport personnel nécessaire", format:"euro", better:"lower"},
+        {key:"montantTotalNecessaire", label:"Montant total du projet", format:"euro"},
+        {key:"tauxApport", label:"Taux d'apport", format:"pct", better:"lower"}
+      ],
       fields:[
         {id:"prixBien", label:"Prix du bien (frais inclus)", type:"number", suffix:"€", default:280000, step:1000},
         {id:"fraisAcquisitionPct", label:"Frais d'acquisition additionnels (notaire, garantie...)", type:"number", suffix:"%", default:8, step:0.5},
@@ -1619,7 +1645,8 @@
             labels:["Financé par emprunt","Apport personnel"],
             datasets:[{data:[montantEmprunte, apportNecessaire], backgroundColor:["#122b46","#9c7a3c"]}]
           },
-          warnings:["Ne tient pas compte du taux d'endettement maximum (35%) ni des revenus de l'emprunteur : à croiser avec le calculateur \"Capacité d'emprunt\" pour vérifier que la mensualité retenue est finançable."]
+          warnings:["Ne tient pas compte du taux d'endettement maximum (35%) ni des revenus de l'emprunteur : à croiser avec le calculateur \"Capacité d'emprunt\" pour vérifier que la mensualité retenue est finançable."],
+          extra:{apportNecessaire:apportNecessaire, montantTotalNecessaire:montantTotalNecessaire, tauxApport:tauxApport}
         };
       }
     },
@@ -1629,6 +1656,11 @@
       id:"frais-notaire", category:"financement", status:"ready", icon:"🧾",
       name:"Frais de notaire (ancien vs neuf)",
       desc:"Estime et compare les frais d'acquisition (droits d'enregistrement, émoluments du notaire, contribution de sécurité immobilière, débours) entre un bien ancien et un bien neuf.",
+      comparable: true,
+      compareMetrics:[
+        {key:"totalAncien", label:"Frais de notaire — ancien", format:"euro", better:"lower"},
+        {key:"totalNeuf", label:"Frais de notaire — neuf", format:"euro", better:"lower"}
+      ],
       fields:[
         {id:"prixBien", label:"Prix du bien (hors frais)", type:"number", suffix:"€", default:250000, step:1000},
         {id:"tauxDepartemental", label:"Taux des droits départementaux (ancien)", type:"select", default:"5.80665", options:[
@@ -1676,7 +1708,8 @@
             labels:["Ancien","Neuf"],
             datasets:[{label:"Frais de notaire (€)", data:[Math.round(totalAncien), Math.round(totalNeuf)], backgroundColor:["#122b46","#0f7a72"]}]
           },
-          warnings:["Estimation basée sur le barème dégressif des émoluments de notaire et les droits de mutation en vigueur ; ces taux sont révisés périodiquement par arrêté. Hors TVA sur le prix (déjà incluse dans le prix d'un bien neuf), hors frais annexes (garantie, courtage). À confirmer avec le notaire avant tout engagement."]
+          warnings:["Estimation basée sur le barème dégressif des émoluments de notaire et les droits de mutation en vigueur ; ces taux sont révisés périodiquement par arrêté. Hors TVA sur le prix (déjà incluse dans le prix d'un bien neuf), hors frais annexes (garantie, courtage). À confirmer avec le notaire avant tout engagement."],
+          extra:{totalAncien:totalAncien, totalNeuf:totalNeuf}
         };
       }
     },
@@ -1739,6 +1772,11 @@
       id:"scpi", category:"immobilier", status:"ready", icon:"🏢",
       name:"Simulateur SCPI",
       desc:"Projette le revenu (net de fiscalité en détention directe) d'un investissement en SCPI selon le mode de détention, à partir d'une hypothèse de taux de distribution.",
+      comparable: true,
+      compareMetrics:[
+        {key:"revenuAnnuelBrut", label:"Revenu annuel brut estimé", format:"euro", better:"higher"},
+        {key:"netAnnuelIndicatif", label:"Revenu (ou cashflow) net annuel indicatif", format:"euro", better:"higher"}
+      ],
       fields:[
         {id:"montantInvesti", label:"Montant investi", type:"number", suffix:"€", default:100000, step:1000},
         {id:"tauxDistribution", label:"Taux de distribution annuel (hypothèse)", type:"number", suffix:"%", default:4.5, step:0.1, help:"Taux cible/historique de la SCPI : ce n'est jamais une garantie, il varie chaque année."},
@@ -1766,7 +1804,8 @@
             ],
             details:[{label:"Montant investi", value: euro.format(inputs.montantInvesti)}],
             chart:null,
-            warnings: warnings
+            warnings: warnings,
+            extra:{revenuAnnuelBrut:revenuAnnuelBrut, netAnnuelIndicatif:revenuAnnuelBrut}
           };
         }
 
@@ -1797,7 +1836,8 @@
               labels:["Revenu annuel brut","Coût annuel du crédit","Cashflow net (hors levier fiscal)"],
               datasets:[{label:"€ / an", data:[Math.round(revenuAnnuelBrut), Math.round(mensualiteCreditAnnuelle), Math.round(cashflowAnnuelApresImpot)], backgroundColor:["#122b46","#b3422c","#0f7a72"]}]
             },
-            warnings: warnings
+            warnings: warnings,
+            extra:{revenuAnnuelBrut:revenuAnnuelBrut, netAnnuelIndicatif:cashflowAnnuelApresImpot}
           };
         }
 
@@ -1817,7 +1857,8 @@
             labels:["Revenu net","Impôt et prélèvements sociaux"],
             datasets:[{data:[revenuNetFiscal, revenuAnnuelBrut-revenuNetFiscal], backgroundColor:["#0f7a72","#b3422c"]}]
           },
-          warnings: warnings
+          warnings: warnings,
+          extra:{revenuAnnuelBrut:revenuAnnuelBrut, netAnnuelIndicatif:revenuNetFiscal}
         };
       }
     },
@@ -1827,6 +1868,11 @@
       id:"lmnp-vs-nue", category:"immobilier", status:"ready", icon:"🛋️",
       name:"Comparateur LMNP vs location nue",
       desc:"Compare le revenu net décaissé entre location meublée (LMNP, micro-BIC ou réel avec amortissement) et location nue (micro-foncier ou réel), en retenant le régime le plus favorable pour chacune.",
+      comparable: true,
+      compareMetrics:[
+        {key:"lmnpNet", label:"LMNP — net décaissé", format:"euro", better:"higher"},
+        {key:"nueNet", label:"Location nue — net décaissé", format:"euro", better:"higher"}
+      ],
       fields:[
         {id:"loyerAnnuelBrut", label:"Loyer annuel brut (hors charges)", type:"number", suffix:"€", default:12000, step:200},
         {id:"chargesAnnuelles", label:"Charges annuelles réelles (copro, entretien, assurance, gestion...)", type:"number", suffix:"€", default:2000, step:100},
@@ -1881,7 +1927,8 @@
             labels:["LMNP micro-BIC","LMNP réel","Nue micro-foncier","Nue réel"],
             datasets:[{label:"Net décaissé (€/an)", data:[netLmnpMicro,netLmnpReel,netNueMicro,netNueReel].map(Math.round), backgroundColor:["#9c7a3c","#122b46","#c9a87c","#0f7a72"]}]
           },
-          warnings:["Comparaison simplifiée : ne modélise pas le report de déficit foncier/BIC sur les années suivantes, la CFE (LMNP), ni la reprise d'amortissement à la revente (le LMNP réel diffère l'impôt, il ne l'annule pas forcément à long terme). Amortissement en ligne droite simplifié (un seul taux, sans distinguer structure/mobilier/équipements)."]
+          warnings:["Comparaison simplifiée : ne modélise pas le report de déficit foncier/BIC sur les années suivantes, la CFE (LMNP), ni la reprise d'amortissement à la revente (le LMNP réel diffère l'impôt, il ne l'annule pas forcément à long terme). Amortissement en ligne droite simplifié (un seul taux, sans distinguer structure/mobilier/équipements)."],
+          extra:{lmnpNet: meilleurLmnp.net, nueNet: meilleurNue.net}
         };
       }
     },
@@ -1890,6 +1937,11 @@
       id:"plus-value-immo", category:"immobilier", status:"ready", icon:"📈",
       name:"Plus-value immobilière",
       desc:"Calcule l'impôt sur la plus-value de cession (IR 19% + prélèvements sociaux 17,2% + surtaxe éventuelle), avec abattements pour durée de détention (exonération IR à 22 ans, PS à 30 ans).",
+      comparable: true,
+      compareMetrics:[
+        {key:"totalImpot", label:"Impôt total sur la plus-value", format:"euro", better:"lower"},
+        {key:"net", label:"Montant net après impôt", format:"euro", better:"higher"}
+      ],
       fields:[
         {id:"prixVente", label:"Prix de vente", type:"number", suffix:"€", default:350000, step:1000},
         {id:"prixAchat", label:"Prix d'acquisition initial", type:"number", suffix:"€", default:200000, step:1000},
@@ -1914,7 +1966,8 @@
             ],
             details:[{label:"Motif", value:"Résidence principale : exonération totale (Art. 150 U II-1° CGI)"}],
             chart:null,
-            warnings: warnings
+            warnings: warnings,
+            extra:{totalImpot: 0, net: inputs.prixVente}
           };
         }
 
@@ -1974,7 +2027,8 @@
             labels:["Net perçu","Impôt sur le revenu","Prélèvements sociaux","Surtaxe"],
             datasets:[{data:[net, impotIR, prelevSociaux, surtaxe], backgroundColor:["#0f7a72","#b3422c","#9c7a3c","#5b6b7c"]}]
           },
-          warnings: warnings
+          warnings: warnings,
+          extra:{totalImpot: totalImpot, net: net}
         };
       }
     },
@@ -2116,6 +2170,12 @@
       id:"av-per-cto", category:"epargne", status:"ready", icon:"🔀",
       name:"Comparateur assurance-vie vs PER vs CTO",
       desc:"Compare le bilan net global entre assurance-vie, PER (sortie en capital) et compte-titres ordinaire, pour un même capital versé et un même gain — y compris l'économie d'impôt à l'entrée du PER si les versements sont déductibles.",
+      comparable: true,
+      compareMetrics:[
+        {key:"netAV", label:"Net perçu — Assurance-vie", format:"euro", better:"higher"},
+        {key:"netCTO", label:"Net perçu — CTO", format:"euro", better:"higher"},
+        {key:"netPERGlobal", label:"PER — bilan global", format:"euro", better:"higher"}
+      ],
       fields:[
         {id:"capitalVerse", label:"Capital versé (total des versements)", type:"number", suffix:"€", default:50000, step:1000},
         {id:"gains", label:"Gains (plus-value) au moment de la sortie", type:"number", suffix:"€", default:20000, step:500},
@@ -2177,7 +2237,8 @@
             labels:["Assurance-vie","CTO","PER — sortie seule","PER — bilan global"],
             datasets:[{label:"Net perçu (€)", data:[Math.round(netAV), Math.round(netCTO), Math.round(netPERSortie), Math.round(netPERGlobal)], backgroundColor:["#0f7a72","#122b46","#c9a87c","#9c7a3c"]}]
           },
-          warnings: warnings
+          warnings: warnings,
+          extra:{netAV:netAV, netCTO:netCTO, netPERGlobal:netPERGlobal}
         };
       }
     },
@@ -2187,6 +2248,12 @@
       id:"plafond-per", category:"epargne", status:"ready", icon:"🧮",
       name:"Simulateur de plafond PER",
       desc:"Calcule le plafond de déduction fiscale disponible pour des versements sur un Plan d'Épargne Retraite (PER), selon le statut professionnel, avec mutualisation possible entre conjoints ou partenaires de PACS.",
+      comparable: true,
+      compareMetrics:[
+        {key:"plafondDisponibleTotal", label:"Plafond disponible total", format:"euro", better:"higher"},
+        {key:"plafondMensuelLisse", label:"Plafond mensuel lissé", format:"euro2", better:"higher"},
+        {key:"economieAn1", label:"Économie d'impôt sur 1 an", format:"euro", better:"higher"}
+      ],
       fields:[
         {id:"statutProfessionnel", label:"Statut professionnel", type:"select", default:"salarie", options:[
           {value:"salarie", label:"Salarié"},
@@ -2318,7 +2385,8 @@
             datasets:[{label:"Économie d'impôt cumulée (€)", data: economies.map(Math.round), backgroundColor:["#c9a87c","#9c7a3c","#0f7a72","#122b46"]}]
           },
           summaryHTML: summaryHTML,
-          warnings: warnings
+          warnings: warnings,
+          extra:{plafondDisponibleTotal:plafondDisponibleTotal, plafondMensuelLisse:plafondMensuelLisse, economieAn1: economies[0]}
         };
       }
     },
@@ -2416,6 +2484,12 @@
       id:"dca-vs-unique", category:"epargne", status:"ready", icon:"📆",
       name:"Simulateur DCA vs versement unique",
       desc:"Compare la valeur finale et la trajectoire d'un versement unique et d'un investissement programmé (DCA), sous une hypothèse de marché constant et sous un scénario de baisse au démarrage.",
+      comparable: true,
+      compareMetrics:[
+        {key:"crashUnique", label:"Versement unique — avec baisse au démarrage", format:"euro", better:"higher"},
+        {key:"crashDca", label:"DCA — avec baisse au démarrage", format:"euro", better:"higher"},
+        {key:"constantUnique", label:"Versement unique — scénario constant", format:"euro", better:"higher"}
+      ],
       fields:[
         {id:"montantTotal", label:"Montant total à investir", type:"number", suffix:"€", default:60000, step:1000},
         {id:"dureeDCA", label:"Durée d'investissement programmé (DCA)", type:"number", suffix:"mois", default:12, step:1},
@@ -2477,7 +2551,8 @@
               {label:"DCA (avec baisse au démarrage)", data: crash.trajDCA.map(Math.round), borderColor:"#0f7a72", backgroundColor:"rgba(15,122,114,0.08)", tension:0.1}
             ]
           },
-          warnings:["Deux scénarios déterministes, pas une simulation de marché réelle (pas de volatilité aléatoire ni de rebond partiel) : ils illustrent un principe, pas une prévision. Scénario constant : sous rendement positif constant, le versement unique reste toujours au moins aussi favorable que le DCA, puisqu'il est investi plus longtemps — ce n'est pas un argument contre le DCA. Scénario avec baisse au démarrage : montre au contraire l'intérêt réel du DCA, qui n'a pas encore investi tout le capital au moment du creux et limite ainsi la perte, contrairement au versement unique qui encaisse la baisse en totalité dès le premier jour."]
+          warnings:["Deux scénarios déterministes, pas une simulation de marché réelle (pas de volatilité aléatoire ni de rebond partiel) : ils illustrent un principe, pas une prévision. Scénario constant : sous rendement positif constant, le versement unique reste toujours au moins aussi favorable que le DCA, puisqu'il est investi plus longtemps — ce n'est pas un argument contre le DCA. Scénario avec baisse au démarrage : montre au contraire l'intérêt réel du DCA, qui n'a pas encore investi tout le capital au moment du creux et limite ainsi la perte, contrairement au versement unique qui encaisse la baisse en totalité dès le premier jour."],
+          extra:{crashUnique: crash.unique, crashDca: crash.dca, constantUnique: constant.unique}
         };
       }
     },
@@ -2645,6 +2720,12 @@
       id:"pension-retraite", category:"retraite", status:"ready", icon:"👴",
       name:"Pension retraite estimée",
       desc:"Estimation simplifiée de la pension retraite selon le régime (salarié privé, fonction publique, indépendant, profession libérale, agricole), à partir de données de carrière déjà connues (relevé de carrière).",
+      comparable: true,
+      compareMetrics:[
+        {key:"pensionMensuelleTotale", label:"Pension mensuelle totale estimée", format:"euro2", better:"higher"},
+        {key:"pensionBaseMensuelle", label:"Dont pension de base (mensuelle)", format:"euro2"},
+        {key:"tauxRemplacement", label:"Taux de remplacement", format:"pct", better:"higher"}
+      ],
       fields:[
         {id:"regimeRetraite", label:"Régime de retraite", type:"select", default:"salarie_prive", options:[
           {value:"salarie_prive", label:"Salarié du privé (régime général + Agirc-Arrco)"},
@@ -2742,7 +2823,12 @@
             labels:[labelBase, labelComplementaire],
             datasets:[{data:[pensionBaseAnnuelle, pensionComplementaireAnnuelle], backgroundColor:["#122b46","#9c7a3c"]}]
           },
-          warnings: warnings
+          warnings: warnings,
+          extra:{
+            pensionMensuelleTotale: pensionTotaleAnnuelle/12,
+            pensionBaseMensuelle: pensionBaseAnnuelle/12,
+            tauxRemplacement: tauxRemplacement===null ? undefined : tauxRemplacement
+          }
         };
       }
     },
@@ -2752,6 +2838,11 @@
       id:"epargner-retraite", category:"retraite", status:"ready", icon:"🐖",
       name:"Combien épargner pour ma retraite",
       desc:"Calcule le versement mensuel nécessaire pour atteindre un capital cible à la retraite, compte tenu de l'épargne déjà constituée et d'une hypothèse de rendement.",
+      comparable: true,
+      compareMetrics:[
+        {key:"versementMensuel", label:"Versement mensuel nécessaire", format:"euro2", better:"lower"},
+        {key:"totalVerse", label:"Total des versements", format:"euro", better:"lower"}
+      ],
       fields:[
         {id:"capitalCible", label:"Capital cible à la retraite", type:"number", suffix:"€", default:300000, step:5000},
         {id:"epargneExistante", label:"Épargne déjà constituée pour ce projet", type:"number", suffix:"€", default:30000, step:1000, clientField:"patrimoineFinancier"},
@@ -2787,7 +2878,8 @@
             labels:["Épargne existante (valorisée)","Versements futurs","Intérêts générés sur les versements"],
             datasets:[{data:[valeurFutureExistante, totalVerse, Math.max(0,inputs.capitalCible-valeurFutureExistante-totalVerse)], backgroundColor:["#9c7a3c","#122b46","#0f7a72"]}]
           },
-          warnings:["Hypothèse de rendement constant sur toute la durée (aucune volatilité modélisée) : un placement réel fluctue, notamment sur des supports actions. Hors fiscalité et frais du support d'épargne utilisé (voir le calculateur \"Impact des frais cumulés\")."]
+          warnings:["Hypothèse de rendement constant sur toute la durée (aucune volatilité modélisée) : un placement réel fluctue, notamment sur des supports actions. Hors fiscalité et frais du support d'épargne utilisé (voir le calculateur \"Impact des frais cumulés\")."],
+          extra:{versementMensuel:versementMensuel, totalVerse:totalVerse}
         };
       }
     },
@@ -2797,6 +2889,11 @@
       id:"ifi", category:"transmission", status:"ready", icon:"🏛️",
       name:"Simulateur d'IFI",
       desc:"Calcule l'impôt sur la fortune immobilière selon le barème progressif (Art. 977 CGI), avec l'abattement de 30% sur la résidence principale et la décote de lissage en entrée de barème.",
+      comparable: true,
+      compareMetrics:[
+        {key:"ifiNet", label:"IFI dû", format:"euro", better:"lower"},
+        {key:"patrimoineNetTaxable", label:"Patrimoine net taxable", format:"euro"}
+      ],
       fields:[
         {id:"patrimoineImmobilierBrut", label:"Valeur brute du patrimoine immobilier taxable", type:"number", suffix:"€", default:1600000, step:10000, help:"Résidence principale incluse, à sa valeur brute avant abattement.", clientField:"patrimoineImmobilierBrut"},
         {id:"valeurResidencePrincipale", label:"Dont valeur brute de la résidence principale", type:"number", suffix:"€", default:800000, step:10000, help:"Bénéficie d'un abattement de 30% sur cette valeur.", clientField:"valeurResidencePrincipale"},
@@ -2817,7 +2914,8 @@
             ],
             details:[{label:"Motif", value:"Patrimoine net taxable inférieur au seuil d'assujettissement de 1 300 000 € : aucun IFI dû."}],
             chart:null,
-            warnings: warnings
+            warnings: warnings,
+            extra:{ifiNet: 0, patrimoineNetTaxable: patrimoineNetTaxable}
           };
         }
 
@@ -2854,7 +2952,8 @@
             labels:["Patrimoine net (hors IFI)","IFI dû"],
             datasets:[{data:[patrimoineNetTaxable-ifiNet, ifiNet], backgroundColor:["#0f7a72","#b3422c"]}]
           },
-          warnings: warnings
+          warnings: warnings,
+          extra:{ifiNet: ifiNet, patrimoineNetTaxable: patrimoineNetTaxable}
         };
       }
     },
@@ -2863,6 +2962,11 @@
       id:"succession", category:"transmission", status:"ready", icon:"📜",
       name:"Droits de succession",
       desc:"Estime les droits de succession dus sur une part nette taxable, selon le lien de parenté avec le défunt (abattement + barème progressif, Art. 777 et suivants du CGI).",
+      comparable: true,
+      compareMetrics:[
+        {key:"droits", label:"Droits de succession", format:"euro", better:"lower"},
+        {key:"net", label:"Montant net transmis", format:"euro", better:"higher"}
+      ],
       fields:[
         {id:"montantTransmis", label:"Part nette taxable revenant à l'héritier", type:"number", suffix:"€", default:250000, step:1000},
         {id:"lienParente", label:"Lien de parenté avec le défunt", type:"select", default:"enfant", options:[
@@ -2886,7 +2990,8 @@
             ],
             details:[{label:"Motif", value:"Exonération totale entre époux et partenaires liés par un PACS (Art. 796-0 bis CGI)"}],
             chart:null,
-            warnings: warnings
+            warnings: warnings,
+            extra:{droits: 0, net: inputs.montantTransmis}
           };
         }
 
@@ -2921,7 +3026,8 @@
             labels:["Net transmis","Droits de succession"],
             datasets:[{data:[net, droits], backgroundColor:["#0f7a72","#b3422c"]}]
           },
-          warnings: warnings
+          warnings: warnings,
+          extra:{droits: droits, net: net}
         };
       }
     },
@@ -2929,6 +3035,11 @@
       id:"demembrement", category:"transmission", status:"ready", icon:"✂️",
       name:"Démembrement de propriété",
       desc:"Répartit la valeur d'un bien entre usufruit et nue-propriété selon l'âge de l'usufruitier, d'après le barème fiscal légal (Art. 669 CGI).",
+      comparable: true,
+      compareMetrics:[
+        {key:"valeurUsufruit", label:"Valeur de l'usufruit", format:"euro"},
+        {key:"valeurNuePropriete", label:"Valeur de la nue-propriété", format:"euro"}
+      ],
       fields:[
         {id:"valeurPleinePropriete", label:"Valeur en pleine propriété du bien", type:"number", suffix:"€", default:400000, step:5000},
         {id:"ageUsufruitier", label:"Âge de l'usufruitier", type:"number", suffix:"ans", default:65, step:1, clientField:"age"}
@@ -2963,7 +3074,8 @@
             labels:["Usufruit","Nue-propriété"],
             datasets:[{data:[valeurUsufruit, valeurNuePropriete], backgroundColor:["#9c7a3c","#122b46"]}]
           },
-          warnings:["Barème fiscal forfaitaire (Art. 669 CGI), utilisé pour les droits d'enregistrement et l'IFI — ne reflète pas la valeur économique réelle de l'usufruit (espérance de vie, rendement du bien), qui peut être évaluée différemment pour d'autres besoins (vente, partage)."]
+          warnings:["Barème fiscal forfaitaire (Art. 669 CGI), utilisé pour les droits d'enregistrement et l'IFI — ne reflète pas la valeur économique réelle de l'usufruit (espérance de vie, rendement du bien), qui peut être évaluée différemment pour d'autres besoins (vente, partage)."],
+          extra:{valeurUsufruit: valeurUsufruit, valeurNuePropriete: valeurNuePropriete}
         };
       }
     }
@@ -3022,11 +3134,20 @@
   // Affiche/masque les champs conditionnels. f.visibleWhen (sérialisé en JSON dans data-visible-when) est un
   // tableau de conditions {field, values} — le champ n'est visible que si TOUTES sont vraies (ET logique).
   // Un contrôleur de type checkbox est évalué sur son état coché (values:["true"]/["false"]), pas sur .value.
+  // Un champ contrôleur peut vivre dans une colonne de scénario préfixée (data-scenario="A"/"B"/"C", mode
+  // comparaison) : dans ce cas son id réel est "f_A_..." et non "f_...". Hors comparaison (formulaire simple),
+  // aucun ancêtre [data-scenario] n'existe et le préfixe reste vide, comportement inchangé.
+  function fieldVisibilityScenarioPrefix(el){
+    var scenarioCol = el.closest("[data-scenario]");
+    return scenarioCol ? scenarioCol.getAttribute("data-scenario") + "_" : "";
+  }
+
   function applyFieldVisibility(formEl){
     formEl.querySelectorAll("[data-visible-when]").forEach(function(wrap){
       var conditions = JSON.parse(wrap.getAttribute("data-visible-when"));
+      var prefix = fieldVisibilityScenarioPrefix(wrap);
       var visible = conditions.every(function(cond){
-        var controllerEl = document.getElementById("f_" + cond.field);
+        var controllerEl = document.getElementById("f_" + prefix + cond.field);
         if(!controllerEl) return false;
         var currentValue = controllerEl.type === "checkbox" ? String(controllerEl.checked) : controllerEl.value;
         return cond.values.indexOf(currentValue) !== -1;
@@ -3041,10 +3162,11 @@
     applyFieldVisibility(formEl);
     var controllerIds = {};
     formEl.querySelectorAll("[data-visible-when]").forEach(function(wrap){
-      JSON.parse(wrap.getAttribute("data-visible-when")).forEach(function(cond){ controllerIds[cond.field] = true; });
+      var prefix = fieldVisibilityScenarioPrefix(wrap);
+      JSON.parse(wrap.getAttribute("data-visible-when")).forEach(function(cond){ controllerIds["f_" + prefix + cond.field] = true; });
     });
-    Object.keys(controllerIds).forEach(function(id){
-      var controllerEl = document.getElementById("f_" + id);
+    Object.keys(controllerIds).forEach(function(fullId){
+      var controllerEl = document.getElementById(fullId);
       if(controllerEl){ controllerEl.addEventListener("change", function(){ applyFieldVisibility(formEl); }); }
     });
   }
@@ -3857,7 +3979,7 @@
         '</div>';
 
       var calcFormEl = document.getElementById("calcForm");
-      wireFieldVisibility(calcFormEl); // no-op tant qu'aucun compareMetrics-tool n'utilise visibleWhen (aucun des 4 de départ)
+      wireFieldVisibility(calcFormEl); // scénario-aware (fieldVisibilityScenarioPrefix) : gère les outils comparables utilisant visibleWhen (ex. plafond-per, pension-retraite)
 
       document.getElementById("clientSelect").addEventListener("change", function(e){
         selectedClientId = e.target.value;
@@ -3865,6 +3987,7 @@
         var newPrefill = client ? mapClientToInputs(client, tool) : {};
         var colA = main.querySelector('.scenario-col[data-scenario="A"] .form-grid');
         colA.innerHTML = tool.fields.map(function(f){ return fieldHTML(f, newPrefill[f.id], "A_"); }).join("");
+        wireFieldVisibility(calcFormEl); // colonne A recréée : ré-attache les listeners de visibilité sur ses nouveaux champs
         document.getElementById("resultsArea").hidden = true;
       });
 
