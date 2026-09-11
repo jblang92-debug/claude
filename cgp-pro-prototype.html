@@ -5,7 +5,6 @@
 <title>CGP Pro — Outils d'aide au rendez-vous client</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <style>
   :root{
     --navy:#122b46;
@@ -304,8 +303,8 @@
   .agenda-form-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap;}
   .agenda-form-actions-left, .agenda-form-actions-right{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
   .form-error{color:var(--danger);font-size:.82rem;margin-top:4px;}
-  .agenda-quick-link, .releve-quick-link{display:inline-block;margin:10px 0;margin-right:16px;font-size:.85rem;color:var(--navy-2);font-weight:600;text-decoration:none;}
-  .agenda-quick-link:hover, .releve-quick-link:hover{text-decoration:underline;}
+  .agenda-quick-link{display:inline-block;margin:10px 0;font-size:.85rem;color:var(--navy-2);font-weight:600;text-decoration:none;}
+  .agenda-quick-link:hover{text-decoration:underline;}
 
   @media (max-width:760px){
     .agenda-day-col{min-width:80px;}
@@ -588,7 +587,6 @@
         <a href="#/historique" class="nav-link">Historique</a>
         <a href="#/agenda" class="nav-link">Agenda</a>
         <a href="#/pipeline" class="nav-link">Pipeline</a>
-        <a href="#/releve" class="nav-link">Relevés</a>
         <a href="#/parametres" class="nav-link">Paramètres</a>
       </nav>
     </div>
@@ -5170,50 +5168,34 @@
     '</div>';
 
     var sims = getSimulations();
-    // Les analyses de relevé rejoignent la même liste (même carte .sim-row, même recherche par client) —
-    // seul le libellé et le routage "Ouvrir"/"Supprimer" diffèrent (kind:"releve" plutôt que "sim").
-    var releves = getReleves().map(function(r){
-      var contrat = [r.inputs && r.inputs.assureur, r.inputs && r.inputs.nomContrat].filter(Boolean).join(" — ");
-      return Object.assign({kind:"releve", label: "Analyse de relevé" + (contrat ? " — " + contrat : "")}, r);
-    });
-    var items = sims.map(function(s){ return Object.assign({kind:"sim", label: s.toolName}, s); }).concat(releves)
-      .sort(function(a,b){ return (b.timestamp||"").localeCompare(a.timestamp||""); });
 
     function draw(filter){
       var list = document.getElementById("simList");
-      var filtered = filter ? items.filter(function(it){ return it.clientName.toLowerCase().indexOf(filter.toLowerCase()) !== -1; }) : items;
-      if(!filtered.length){ list.innerHTML = '<p class="empty">Aucune simulation ni analyse enregistrée.</p>'; return; }
-      list.innerHTML = filtered.map(function(it){
-        var kf = (it.keyFigures||[]).map(function(k){ return escapeHTML(k.label) + ' : <strong>' + escapeHTML(k.value) + '</strong>'; }).join(" · ");
+      var filtered = filter ? sims.filter(function(s){ return s.clientName.toLowerCase().indexOf(filter.toLowerCase()) !== -1; }) : sims;
+      if(!filtered.length){ list.innerHTML = '<p class="empty">Aucune simulation enregistrée.</p>'; return; }
+      list.innerHTML = filtered.map(function(s){
+        var kf = (s.keyFigures||[]).map(function(k){ return escapeHTML(k.label) + ' : <strong>' + escapeHTML(k.value) + '</strong>'; }).join(" · ");
         return '<div class="sim-row">' +
           '<div class="sim-main">' +
-            '<div class="sim-client">' + escapeHTML(it.clientName) + '</div>' +
-            '<div class="sim-tool">' + escapeHTML(it.label) + ' — ' + new Date(it.timestamp).toLocaleString("fr-FR") + '</div>' +
+            '<div class="sim-client">' + escapeHTML(s.clientName) + '</div>' +
+            '<div class="sim-tool">' + escapeHTML(s.toolName) + ' — ' + new Date(s.timestamp).toLocaleString("fr-FR") + '</div>' +
             '<div class="sim-kf">' + kf + '</div>' +
           '</div>' +
           '<div class="sim-actions">' +
-            '<button class="btn btn-outline btn-sm" data-open="' + it.id + '" data-kind="' + it.kind + '">Ouvrir</button>' +
-            '<button class="btn btn-danger btn-sm" data-del="' + it.id + '" data-kind="' + it.kind + '">Supprimer</button>' +
+            '<button class="btn btn-outline btn-sm" data-open="' + s.id + '">Ouvrir</button>' +
+            '<button class="btn btn-danger btn-sm" data-del="' + s.id + '">Supprimer</button>' +
           '</div>' +
         '</div>';
       }).join("");
 
       list.querySelectorAll("[data-open]").forEach(function(b){
         b.addEventListener("click", function(){
-          if(b.dataset.kind === "releve"){ location.hash = "#/releve?releve=" + b.dataset.open; return; }
           var sim = sims.filter(function(s){ return s.id === b.dataset.open; })[0];
           if(sim) location.hash = "#/calc/" + sim.toolId + "/" + sim.id;
         });
       });
       list.querySelectorAll("[data-del]").forEach(function(b){
         b.addEventListener("click", function(){
-          if(b.dataset.kind === "releve"){
-            if(confirm("Supprimer cette analyse de relevé ? Cette action est irréversible.")){
-              deleteReleve(b.dataset.del);
-              renderHistorique();
-            }
-            return;
-          }
           if(confirm("Supprimer cette simulation ? Elle sera déplacée dans la Corbeille (récupérable pendant 30 jours).")){
             deleteSimulation(b.dataset.del);
             renderHistorique();
@@ -5712,7 +5694,6 @@
       '<h1>' + (isNew ? "Nouveau client" : "Modifier " + escapeHTML(clientFullName(client))) + '</h1>' +
       (!isNew ? besoinsPrioriteBadgesHTML(client) : "") +
       (!isNew ? '<a class="agenda-quick-link" href="#/agenda?client=' + client.id + '">📅 Voir les rendez-vous de ce client</a>' : "") +
-      (!isNew ? '<a class="releve-quick-link" href="#/releve?client=' + client.id + '">🔎 Analyser un relevé</a>' : "") +
       (!isNew ? '<div class="client-tabs">' +
         '<button type="button" class="client-tab-btn ' + (activeTab==="fiche"?"active":"") + '" data-tab="fiche">Fiche client</button>' +
         '<button type="button" class="client-tab-btn ' + (activeTab==="historique"?"active":"") + '" data-tab="historique">Historique des échanges</button>' +
@@ -6116,8 +6097,7 @@
         clients: getClientsRaw(), // inclut la corbeille : une sauvegarde ne doit pas faire perdre ce qui y est encore récupérable
         simulations: getSimulationsRaw(),
         cabinet: getCabinetProfile(),
-        rdvs: getRdvs(),
-        releves: getReleves()
+        rdvs: getRdvs()
       };
       var blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
       var url = URL.createObjectURL(blob);
@@ -6149,24 +6129,22 @@
           e.target.value = "";
           return;
         }
-        // Rétrocompatibilité : une sauvegarde faite avant l'ajout de l'agenda (rdvs) ou de l'analyse de
-        // relevé (releves) n'a pas ces clés — ce n'est pas un fichier invalide, on importe une liste vide.
+        // Rétrocompatibilité : une sauvegarde faite avant l'ajout de l'agenda n'a pas de clé "rdvs" —
+        // ce n'est pas un fichier invalide, on importe simplement un agenda vide.
         var rdvsToImport = Array.isArray(data.rdvs) ? data.rdvs : [];
-        var relevesToImport = Array.isArray(data.releves) ? data.releves : [];
         var summary = data.clients.length + " fiche(s) client, " + data.simulations.length + " simulation(s), " +
-          rdvsToImport.length + " rendez-vous, " + relevesToImport.length + " analyse(s) de relevé, paramètres du cabinet";
-        if(!confirm("Importer cette sauvegarde (" + summary + ") ?\n\nCela remplacera TOUTES les données actuellement enregistrées dans ce navigateur (fiches clients, simulations, rendez-vous, analyses de relevé, paramètres du cabinet). Cette action est irréversible.")){
+          rdvsToImport.length + " rendez-vous, paramètres du cabinet";
+        if(!confirm("Importer cette sauvegarde (" + summary + ") ?\n\nCela remplacera TOUTES les données actuellement enregistrées dans ce navigateur (fiches clients, simulations, rendez-vous, paramètres du cabinet). Cette action est irréversible.")){
           e.target.value = "";
           return;
         }
-        // On tente les 5 écritures même si l'une échoue (pas de court-circuit), pour sauver un maximum
+        // On tente les 4 écritures même si l'une échoue (pas de court-circuit), pour sauver un maximum
         // de la sauvegarde importée plutôt que de tout abandonner au premier quota dépassé.
         var okClients = persistToStorage(CLIENTS_KEY, JSON.stringify(data.clients));
         var okSims = persistToStorage(STORAGE_KEY, JSON.stringify(data.simulations));
         var okCabinet = persistToStorage(CABINET_KEY, JSON.stringify(data.cabinet));
         var okRdvs = persistToStorage(RDV_KEY, JSON.stringify(rdvsToImport));
-        var okReleves = persistToStorage(RELEVES_KEY, JSON.stringify(relevesToImport));
-        var ok = okClients && okSims && okCabinet && okRdvs && okReleves;
+        var ok = okClients && okSims && okCabinet && okRdvs;
         e.target.value = "";
         if(ok){
           backupMsg.textContent = "Sauvegarde importée ✓ — rechargement...";
@@ -6249,313 +6227,6 @@
     }
 
     render();
-  }
-
-  /* ============================ Analyse de relevé (import PDF, extraction, calcul) ============================ */
-  // 100% local : le PDF choisi par l'utilisateur est lu par FileReader puis parsé dans le navigateur par
-  // pdf.js (bibliothèque chargée depuis un CDN comme Chart.js, aucune donnée du relevé n'est envoyée en
-  // ligne). Si pdf.js n'a pas pu se charger (pas de réseau au premier chargement de la page) ou si le PDF
-  // n'a pas de couche texte (scan/photo), l'extraction échoue proprement et l'écran reste utilisable en
-  // saisie 100% manuelle — jamais bloquant.
-  var RELEVES_KEY = "cgppro_releves_v1";
-  function pdfJsReady(){ return typeof pdfjsLib !== "undefined"; }
-  if(pdfJsReady()){
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
-  }
-
-  // FileReader lit le fichier LOCAL choisi par l'utilisateur ; pdf.js le parse dans le navigateur et
-  // renvoie le texte de chaque page concaténé sans heuristique de mise en page (join(" ") par page,
-  // pages jointes par "\n") — c'est ce texte brut que le moteur de motifs ci-dessous interroge.
-  function extractPdfText(file){
-    return new Promise(function(resolve, reject){
-      if(!pdfJsReady()){ reject(new Error("pdfjs-unavailable")); return; }
-      var reader = new FileReader();
-      reader.onload = function(ev){
-        pdfjsLib.getDocument({data: new Uint8Array(ev.target.result)}).promise.then(function(pdf){
-          var pagePromises = [];
-          for(var i=1; i<=pdf.numPages; i++){
-            pagePromises.push(pdf.getPage(i).then(function(page){
-              return page.getTextContent().then(function(content){
-                return content.items.map(function(it){ return it.str; }).join(" ");
-              });
-            }));
-          }
-          Promise.all(pagePromises).then(function(pageTexts){ resolve(pageTexts.join("\n")); }).catch(reject);
-        }).catch(reject);
-      };
-      reader.onerror = function(){ reject(new Error("file-read-error")); };
-      reader.readAsArrayBuffer(file);
-    });
-  }
-
-  // ---- Moteur d'extraction par motifs (regex), best-effort : ne lève jamais, un champ non trouvé reste null.
-  var MOIS_FR = {"janvier":1,"février":2,"mars":3,"avril":4,"mai":5,"juin":6,"juillet":7,"août":8,"septembre":9,"octobre":10,"novembre":11,"décembre":12};
-  // Convertit une date longue à la française ("31 décembre 2025") en JJ/MM/AAAA ; laisse les autres formats
-  // (déjà JJ/MM/AAAA, ou non reconnus) inchangés.
-  function normalizeFrenchDateText(raw){
-    if(!raw) return raw;
-    var m = raw.match(/^(\d{1,2})\s+([a-zéû]+)\s+(\d{4})$/i);
-    if(m && MOIS_FR[m[2].toLowerCase()]){
-      var day = m[1].length<2 ? "0"+m[1] : m[1];
-      var month = String(MOIS_FR[m[2].toLowerCase()]);
-      if(month.length<2) month = "0"+month;
-      return day + "/" + month + "/" + m[3];
-    }
-    return raw;
-  }
-  function parseFrenchNumber(s){
-    if(s===null || s===undefined || s==="") return null;
-    var n = parseFloat(String(s).replace(/[\s ]/g,"").replace(",", "."));
-    return isNaN(n) ? null : n;
-  }
-
-  // Motifs génériques (repli), pensés pour les formulations les plus courantes des relevés d'assurance-vie
-  // et PER français. Chaque champ peut avoir plusieurs motifs, essayés dans l'ordre jusqu'au premier match.
-  var RELEVE_GENERIC_PATTERNS = {
-    assureur:          [/(?:compagnie|assureur)\s*:?\s*([A-Za-zÀ-ÿ\s&\-]{2,40})/i],
-    nomContrat:        [/n[°o]\s*(?:de\s*)?contrat\s*:?\s*([A-Za-z0-9\-]{3,30})/i, /(?:produit)\s*:?\s*([A-Za-z0-9À-ÿ\s\-]{2,40})/i],
-    dateReleve:        [/(?:relevé|situation)\s+(?:au|du)\s+(\d{1,2}\/\d{1,2}\/\d{4})/i, /(?:relevé|situation)\s+(?:au|du)\s+(\d{1,2}\s+[a-zéû]+\s+\d{4})/i],
-    valorisationFin:   [/valeur\s+de\s+rachat(?:\s+du\s+contrat)?\s*:?\s*([\d\s .,]+)\s*€/i, /valorisation\s+(?:actuelle|au)\s*:?\s*([\d\s .,]+)\s*€/i],
-    valorisationDebut: [/valeur\s+(?:au|à l'ouverture|début de période)\s*:?\s*([\d\s .,]+)\s*€/i],
-    versements:        [/total\s+des?\s+versements?\s*:?\s*([\d\s .,]+)\s*€/i],
-    rachats:           [/total\s+des?\s+rachats?\s*:?\s*([\d\s .,]+)\s*€/i],
-    fraisGestion:      [/(?:taux\s+de\s+)?frais\s+de\s+gestion\s+annuels?\s*:?\s*([\d,]+)\s*%/i],
-    partFondsEuros:    [/([\d,]+)\s*%\s*Fonds en euros/i, /fonds\s+en\s+euros\s*:?\s*([\d,]+)\s*%/i],
-    partUC:            [/([\d,]+)\s*%\s*Unit[ée]s? de compte/i, /unit[ée]s?\s+de\s+compte\s*:?\s*([\d,]+)\s*%/i]
-  };
-
-  // Un profil par assureur reconnu (motifs affinés sur un relevé réel) : ajouter un assureur = ajouter un
-  // objet ici, sans toucher au reste du moteur. Le profil générique ci-dessus sert de repli pour tout
-  // assureur non reconnu par `detect`, et complète aussi les champs qu'un profil spécifique ne définit pas.
-  var RELEVE_EXTRACTION_PROFILES = [
-    {
-      id: "la-france-mutualiste",
-      label: "La France Mutualiste",
-      detect: [/la france mutualiste/i],
-      patterns: {
-        assureur: [/(la france mutualiste)/i]
-        // Les autres champs (nomContrat, dateReleve, valorisationFin, fraisGestion, partFondsEuros, partUC)
-        // sont déjà bien couverts par les motifs génériques sur ce format ; valorisationDebut/versements/
-        // rachats n'y figurent pas sous forme d'un total unique (seulement une ventilation par support),
-        // donc laissés à la saisie manuelle plutôt que d'être mal déduits.
-      }
-    }
-  ];
-
-  function extractFieldValue(text, patterns){
-    for(var i=0; i<patterns.length; i++){
-      var m = text.match(patterns[i]);
-      if(m && m[1]) return m[1].trim();
-    }
-    return null;
-  }
-
-  // best-effort strict : renvoie toujours un objet (jamais d'exception), un champ non trouvé reste null.
-  function extractReleveFields(text){
-    var detected = RELEVE_EXTRACTION_PROFILES.filter(function(p){
-      return p.detect.some(function(re){ return re.test(text); });
-    })[0];
-    var specificPatterns = detected ? detected.patterns : {};
-    var result = {profileId: detected ? detected.id : "generique"};
-    Object.keys(RELEVE_GENERIC_PATTERNS).forEach(function(key){
-      var patterns = specificPatterns[key] || RELEVE_GENERIC_PATTERNS[key];
-      var val = extractFieldValue(text, patterns);
-      result[key] = key === "dateReleve" ? normalizeFrenchDateText(val) : val;
-    });
-    return result;
-  }
-
-  // Convertit le résultat brut de extractReleveFields() (chaînes ou null) en valeurs prêtes pour
-  // fieldHTML/readInputs (nombres parsés pour les champs numériques, défaut du champ si non trouvé).
-  function mapExtractedToReleveInputs(extracted){
-    var mapped = {};
-    RELEVE_FIELDS.forEach(function(f){
-      var raw = extracted[f.id];
-      if(raw === null || raw === undefined){ mapped[f.id] = f.default; return; }
-      if(f.type === "number"){ var n = parseFrenchNumber(raw); mapped[f.id] = n===null ? f.default : n; }
-      else { mapped[f.id] = raw; }
-    });
-    return mapped;
-  }
-
-  var RELEVE_FIELDS = [
-    {id:"assureur", label:"Assureur / compagnie", type:"text", default:""},
-    {id:"nomContrat", label:"Nom ou numéro du contrat", type:"text", default:""},
-    {id:"typeContrat", label:"Type de contrat", type:"select", default:"av", options:[
-      {value:"av", label:"Assurance-vie"},
-      {value:"per", label:"PER"}
-    ]},
-    {id:"dateReleve", label:"Date du relevé", type:"text", default:"", help:"Format JJ/MM/AAAA"},
-    // step:"any" sur tous les champs chiffrés : ce sont des valeurs RELEVÉES (extraites ou recopiées d'un
-    // vrai relevé), quasi jamais des multiples ronds — un step strict (ex. 100 ou 1) bloquerait
-    // silencieusement la validation du <input type=number> (et donc la soumission du formulaire) dès
-    // qu'un montant ou un pourcentage réel (ex. 0,77 % ou 1 229,37 €) ne tombe pas pile sur ce multiple.
-    {id:"valorisationDebut", label:"Valorisation en début de période", type:"number", suffix:"€", default:0, step:"any"},
-    {id:"valorisationFin", label:"Valorisation en fin de période (date du relevé)", type:"number", suffix:"€", default:0, step:"any"},
-    {id:"versements", label:"Versements sur la période", type:"number", suffix:"€", default:0, step:"any"},
-    {id:"rachats", label:"Rachats / retraits sur la période", type:"number", suffix:"€", default:0, step:"any"},
-    {id:"fraisGestion", label:"Frais de gestion annuels déclarés", type:"number", suffix:"%", default:0, step:"any"},
-    {id:"partFondsEuros", label:"Part fonds euros (optionnel)", type:"number", suffix:"%", default:0, step:"any"},
-    {id:"partUC", label:"Part unités de compte (optionnel)", type:"number", suffix:"%", default:0, step:"any"}
-  ];
-
-  // Taux de frais annuels moyens de marché retenus comme référence de comparaison (ordres de grandeur
-  // usuels, à ajuster ici si le cabinet a ses propres références) : UC généralement plus chargées en frais
-  // que le fonds en euros, d'où deux benchmarks distincts selon le support majoritaire du contrat.
-  var RELEVE_BENCHMARK_UC = 0.85;
-  var RELEVE_BENCHMARK_EUROS = 0.60;
-
-  function computeReleveAnalysis(inputs){
-    var debut = inputs.valorisationDebut, fin = inputs.valorisationFin;
-    var performanceNette = debut > 0 ? (fin - inputs.versements + inputs.rachats - debut) / debut * 100 : null;
-    var benchmark = inputs.partUC >= inputs.partFondsEuros ? RELEVE_BENCHMARK_UC : RELEVE_BENCHMARK_EUROS;
-    var ecartFrais = inputs.fraisGestion - benchmark;
-    var contratLabel = [inputs.assureur, inputs.nomContrat].filter(Boolean).join(" — ") || "ce contrat";
-
-    return {
-      keyFigures: [
-        {label:"Performance nette de la période", value: performanceNette===null ? "—" : pct(performanceNette)},
-        {label:"Frais de gestion déclarés", value: pct(inputs.fraisGestion)},
-        {label:"Écart vs référence marché (" + pct(benchmark) + ")", value: (ecartFrais>=0?"+":"") + pct(ecartFrais)}
-      ],
-      details: [
-        {label:"Valorisation en début de période", value: euro.format(inputs.valorisationDebut)},
-        {label:"Valorisation en fin de période", value: euro.format(inputs.valorisationFin)},
-        {label:"Versements sur la période", value: euro.format(inputs.versements)},
-        {label:"Rachats sur la période", value: euro.format(inputs.rachats)},
-        {label:"Répartition fonds euros / UC", value: pct(inputs.partFondsEuros,0) + " / " + pct(inputs.partUC,0)}
-      ],
-      summaryHTML: "Sur la période analysée, <strong>" + escapeHTML(contratLabel) + "</strong> affiche une performance nette de <strong>" +
-        (performanceNette===null?"—":pct(performanceNette)) + "</strong>, pour des frais de gestion annoncés à <strong>" + pct(inputs.fraisGestion) +
-        "</strong> (référence de marché retenue : " + pct(benchmark) + ")."
-    };
-  }
-
-  function getReleves(){ try{ return JSON.parse(localStorage.getItem(RELEVES_KEY)) || []; } catch(e){ return []; } }
-  function saveReleve(entry){
-    var all = getReleves();
-    all.unshift(entry);
-    return persistToStorage(RELEVES_KEY, JSON.stringify(all));
-  }
-  function deleteReleve(id){
-    var all = getReleves().filter(function(r){ return r.id !== id; });
-    return persistToStorage(RELEVES_KEY, JSON.stringify(all));
-  }
-
-  function renderReleveAnalyse(opts){
-    opts = opts || {};
-    var main = document.getElementById("main");
-    var clients = getClients();
-    var existing = opts.releveId ? getReleves().filter(function(r){ return r.id === opts.releveId; })[0] : null;
-    var selectedClientId = existing ? (existing.clientId || "") : (opts.clientId && getClientById(opts.clientId) ? opts.clientId : "");
-    var currentPrefill = existing ? existing.inputs : {};
-    var lastInputs = null, lastResult = null;
-
-    var clientOptionsHTML = '<option value="">— Aucun / autre —</option>' +
-      clients.map(function(c){ return '<option value="' + c.id + '" ' + (c.id===selectedClientId?"selected":"") + '>' + escapeHTML(clientFullName(c)) + '</option>'; }).join("");
-
-    function renderForm(){
-      main.innerHTML = '<div class="container calc-page">' +
-        '<a href="#/" class="back-link">← Retour aux outils</a>' +
-        '<h1>Analyse de relevé (assurance-vie / PER)</h1>' +
-        '<p class="tool-desc">Importez un relevé de situation PDF pour en extraire automatiquement les chiffres clés — 100% local, rien n\'est envoyé en ligne — ou saisissez directement les valeurs à la main.</p>' +
-        '<div class="client-select-bar">' +
-          '<div class="field"><label for="clientSelect">Client (optionnel)</label><select id="clientSelect">' + clientOptionsHTML + '</select></div>' +
-          '<a href="#/clients/new" class="link-new-client">+ Nouveau client</a>' +
-        '</div>' +
-        '<div class="calc-form">' +
-          '<div class="field"><label for="releveFileInput">Importer un relevé de situation (PDF)</label>' +
-            '<input type="file" id="releveFileInput" accept="application/pdf"></div>' +
-          '<div class="help">Le fichier est lu et analysé entièrement dans ce navigateur — il n\'est jamais transmis en ligne.</div>' +
-          '<div class="save-msg" id="releveExtractMsg"></div>' +
-        '</div>' +
-        '<form id="releveForm" class="calc-form">' +
-          '<div class="warning" id="releveExtractBanner" hidden>⚠ Valeurs détectées automatiquement — à vérifier avant validation.</div>' +
-          '<div class="form-grid" id="releveFormGrid">' + RELEVE_FIELDS.map(function(f){ return fieldHTML(f, currentPrefill[f.id]); }).join("") + '</div>' +
-          '<button type="submit" class="btn btn-primary">Calculer</button>' +
-        '</form>' +
-        '<div id="releveResultsArea" hidden></div>' +
-      '</div>';
-
-      document.getElementById("clientSelect").addEventListener("change", function(e){ selectedClientId = e.target.value; });
-
-      document.getElementById("releveFileInput").addEventListener("change", function(e){
-        var file = e.target.files[0];
-        if(!file) return;
-        var msg = document.getElementById("releveExtractMsg");
-        msg.textContent = "Analyse du PDF en cours...";
-        extractPdfText(file).then(function(text){
-          if(!text || !text.trim()){
-            msg.textContent = "Aucun texte détecté dans ce PDF (probablement un scan ou une photo) — remplissez les champs manuellement.";
-            return;
-          }
-          var extracted = extractReleveFields(text);
-          var mapped = mapExtractedToReleveInputs(extracted);
-          document.getElementById("releveFormGrid").innerHTML = RELEVE_FIELDS.map(function(f){ return fieldHTML(f, mapped[f.id]); }).join("");
-          document.getElementById("releveExtractBanner").hidden = false;
-          msg.textContent = "Extraction terminée ✓ — vérifiez chaque champ avant de calculer.";
-        }).catch(function(){
-          msg.textContent = "Impossible de lire ce PDF automatiquement (bibliothèque de lecture indisponible ou fichier invalide) — remplissez les champs manuellement.";
-        });
-      });
-
-      document.getElementById("releveForm").addEventListener("submit", function(e){ e.preventDefault(); runCompute(); });
-
-      if(existing){ runCompute(); }
-    }
-
-    function runCompute(){
-      lastInputs = readInputs(RELEVE_FIELDS);
-      lastResult = computeReleveAnalysis(lastInputs);
-      renderResults();
-    }
-
-    function renderResults(){
-      var area = document.getElementById("releveResultsArea");
-      area.hidden = false;
-      area.innerHTML =
-        '<hr class="sep">' +
-        '<div class="key-figures" id="releveKeyFigures"></div>' +
-        '<div class="tech-detail" id="releveDetailsArea"></div>' +
-        '<div id="releveSummaryArea"></div>' +
-        '<div class="actions-bar">' +
-          '<div class="actions-buttons">' +
-            '<button class="btn btn-outline" id="releveExportBtn" type="button">⤓ Exporter en PDF</button>' +
-            '<button class="btn btn-primary" id="releveSaveBtn" type="button">💾 Enregistrer pour ce client</button>' +
-          '</div>' +
-          '<div class="save-msg" id="releveSaveMsg"></div>' +
-        '</div>';
-
-      document.getElementById("releveKeyFigures").innerHTML = lastResult.keyFigures.map(function(k){
-        return '<div class="key-figure"><div class="value">' + escapeHTML(k.value) + '</div><div class="label">' + escapeHTML(k.label) + '</div></div>';
-      }).join("");
-      document.getElementById("releveDetailsArea").innerHTML = '<table class="details-table">' +
-        lastResult.details.map(function(d){ return '<tr><td>' + escapeHTML(d.label) + '</td><td>' + escapeHTML(d.value) + '</td></tr>'; }).join("") + '</table>';
-      document.getElementById("releveSummaryArea").innerHTML = '<p class="summary-sentence">' + lastResult.summaryHTML + '</p>';
-
-      document.getElementById("releveExportBtn").addEventListener("click", function(){
-        var clientName = selectedClientId && getClientById(selectedClientId) ? clientFullName(getClientById(selectedClientId)) : "";
-        exportPDF({name:"Analyse de relevé", fields: RELEVE_FIELDS}, lastInputs, lastResult, clientName);
-      });
-      document.getElementById("releveSaveBtn").addEventListener("click", function(){
-        var client = selectedClientId ? getClientById(selectedClientId) : null;
-        var entry = {
-          id: "releve_" + Date.now() + "_" + Math.random().toString(36).slice(2,7),
-          clientId: client ? client.id : null,
-          clientName: client ? clientFullName(client) : "(sans nom)",
-          timestamp: new Date().toISOString(),
-          inputs: lastInputs,
-          keyFigures: lastResult.keyFigures
-        };
-        var msg = document.getElementById("releveSaveMsg");
-        if(saveReleve(entry)){
-          msg.textContent = "Analyse enregistrée ✓";
-          setTimeout(function(){ msg.textContent = ""; }, 2500);
-        }
-      });
-    }
-
-    renderForm();
   }
 
   /* ============================ Agenda (page) ============================ */
@@ -7102,15 +6773,12 @@
   function parseHash(){
     var raw = location.hash.replace(/^#\/?/, "");
     var clientIdParam = null;
-    var releveIdParam = null;
     var queryIdx = raw.indexOf("?");
     if(queryIdx !== -1){
       var query = raw.slice(queryIdx+1);
       raw = raw.slice(0, queryIdx);
       var m = query.match(/(?:^|&)client=([^&]*)/);
       if(m) clientIdParam = decodeURIComponent(m[1]);
-      var mr = query.match(/(?:^|&)releve=([^&]*)/);
-      if(mr) releveIdParam = decodeURIComponent(mr[1]);
     }
     var parts = raw.split("/").filter(Boolean);
     var result;
@@ -7124,13 +6792,11 @@
     else if(parts[0] === "bilan") result = {name:"bilan-picker"};
     else if(parts[0] === "agenda") result = {name:"agenda"};
     else if(parts[0] === "pipeline") result = {name:"pipeline"};
-    else if(parts[0] === "releve") result = {name:"releve"};
     else if(parts[0] === "corbeille") result = {name:"corbeille"};
     else if(parts[0] === "parametres") result = {name:"parametres"};
     else if(parts[0] === "mentions-legales") result = {name:"mentions"};
     else result = {name:"home"};
     result.clientIdParam = clientIdParam;
-    result.releveIdParam = releveIdParam;
     return result;
   }
 
@@ -7164,8 +6830,6 @@
       renderAgenda(v.clientIdParam);
     } else if(v.name === "pipeline"){
       renderPipeline();
-    } else if(v.name === "releve"){
-      renderReleveAnalyse({clientId: v.clientIdParam, releveId: v.releveIdParam});
     } else if(v.name === "corbeille"){
       renderCorbeille();
     } else if(v.name === "parametres"){
