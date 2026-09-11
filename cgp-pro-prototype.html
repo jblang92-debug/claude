@@ -136,6 +136,15 @@
   .statut-badge-prospect{background:var(--accent-2);}
   .statut-badge-client{background:var(--navy);}
 
+  .pipeline-segments{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;}
+  .pipeline-segment{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;}
+  .pipeline-segment h3{font-size:.9rem;margin:0 0 12px;color:var(--navy);display:flex;align-items:center;gap:8px;}
+  .pipeline-count{background:var(--bg);color:var(--muted);font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:20px;}
+  .pipeline-rows{display:flex;flex-direction:column;gap:6px;}
+  .pipeline-row{display:flex;justify-content:space-between;align-items:center;background:var(--bg);border-radius:8px;padding:9px 12px;color:var(--ink);text-decoration:none;font-size:.85rem;font-weight:600;}
+  .pipeline-row:hover{background:#eef1f5;}
+  .pipeline-row-arrow{color:var(--muted);}
+
   /* Onglets de la fiche client (Fiche client / Historique des échanges) */
   .client-tabs{display:flex;gap:22px;border-bottom:1px solid var(--border);margin:18px 0 22px;}
   .client-tab-btn{background:none;border:none;padding:10px 2px;font-size:.9rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;font-family:inherit;}
@@ -566,6 +575,7 @@
         <a href="#/bilan" class="nav-link">Bilan patrimonial</a>
         <a href="#/historique" class="nav-link">Historique</a>
         <a href="#/agenda" class="nav-link">Agenda</a>
+        <a href="#/pipeline" class="nav-link">Pipeline</a>
         <a href="#/parametres" class="nav-link">Paramètres</a>
       </nav>
     </div>
@@ -705,6 +715,50 @@
     return r;
   }
   function capitalizeFirst(s){ return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+  // Export .ics (RFC 5545) des rendez-vous — pour importer l'agenda CGP Pro dans un calendrier externe
+  // (Outlook, Google Calendar, téléphone...). Toujours 100% local : un simple fichier généré côté client,
+  // rien n'est envoyé en ligne.
+  function icsEscape(s){
+    return String(s||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n");
+  }
+  // Heure "flottante" (sans indicateur de fuseau) : représente l'heure locale telle que saisie, sans
+  // conversion UTC — cohérent avec localISODate ailleurs dans l'agenda, pour éviter tout décalage.
+  function icsDateTimeLocal(dateStr, timeStr){
+    return dateStr.replace(/-/g,"") + "T" + timeStr.replace(":","") + "00";
+  }
+  function icsDateTimeUtcNow(){
+    return new Date().toISOString().replace(/[-:]/g,"").split(".")[0] + "Z";
+  }
+  function generateIcs(rdvs){
+    var lines = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//CGP Pro//Agenda//FR","CALSCALE:GREGORIAN"];
+    rdvs.forEach(function(r){
+      var client = getClientById(r.clientId);
+      var name = client ? clientFullName(client) : "(contact supprimé)";
+      var summary = (r.typeRdv ? r.typeRdv + " — " : "") + name;
+      lines.push("BEGIN:VEVENT");
+      lines.push("UID:" + r.id + "@cgppro");
+      lines.push("DTSTAMP:" + icsDateTimeUtcNow());
+      lines.push("DTSTART:" + icsDateTimeLocal(r.date, r.heureDebut));
+      lines.push("DTEND:" + icsDateTimeLocal(r.date, r.heureFin));
+      lines.push("SUMMARY:" + icsEscape(summary));
+      if(r.objet){ lines.push("DESCRIPTION:" + icsEscape(r.objet)); }
+      lines.push("END:VEVENT");
+    });
+    lines.push("END:VCALENDAR");
+    return lines.join("\r\n");
+  }
+  function downloadIcs(rdvs, filename){
+    var blob = new Blob([generateIcs(rdvs)], {type: "text/calendar"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 
   // Migration douce : complète en mémoire (sans réécriture immédiate du localStorage) les fiches créées
   // avant l'ajout du modèle foyer/actifs. Un ancien client sans "adultes" devient un foyer à un adulte
@@ -5950,6 +6004,7 @@
           '<div class="agenda-view-switch">' +
             views.map(function(v){ return '<button type="button" class="agenda-view-btn' + (state.view===v.id?" active":"") + '" data-agenda-view="' + v.id + '">' + v.label + '</button>'; }).join("") +
           '</div>' +
+          '<button type="button" class="btn btn-outline btn-sm" id="agendaIcsBtn">⬇ Exporter (.ics)</button>' +
           '<button type="button" class="btn btn-primary btn-sm" id="agendaNewBtn">+ Nouveau rendez-vous</button>' +
         '</div>' +
       '</div>';
@@ -6280,6 +6335,11 @@
       document.getElementById("agendaNewBtn").addEventListener("click", function(){
         openForm(null, {date: localISODate(state.currentDate), heureDebut:"09:00", heureFin:"10:00"});
       });
+      document.getElementById("agendaIcsBtn").addEventListener("click", function(){
+        var rdvsToExport = getRdvs().filter(function(r){ return !filterClient || r.clientId === filterClient.id; });
+        var suffix = filterClient ? "-" + clientFullName(filterClient).toLowerCase().replace(/[^a-z0-9]+/g,"-") : "";
+        downloadIcs(rdvsToExport, "cgp-pro-agenda" + suffix + ".ics");
+      });
     }
 
     function wireViewEvents(){
@@ -6338,6 +6398,70 @@
     render();
   }
 
+  /* ============================ Pipeline commercial (page) ============================ */
+  // Petit tableau de bord dérivé des données déjà existantes (clients + agenda), sans nouveau modèle de
+  // données : segmente les prospects par étape (aucun RDV / RDV pris mais pas encore de R2 / R2 fait) et
+  // calcule un taux de conversion prospect -> client comme photographie de l'instant (pas un historique).
+  function collectPipelineStats(){
+    var clients = getClients();
+    var rdvs = getRdvs();
+    var prospects = clients.filter(function(c){ return c.statutProspectClient !== "client"; });
+    var clientsConvertis = clients.filter(function(c){ return c.statutProspectClient === "client"; });
+
+    function rdvsDe(clientId){ return rdvs.filter(function(r){ return r.clientId === clientId; }); }
+
+    var sansRdv = [], enAttenteR2 = [], avecR2 = [];
+    prospects.forEach(function(c){
+      var mine = rdvsDe(c.id);
+      if(!mine.length){ sansRdv.push(c); }
+      else if(mine.some(function(r){ return r.typeRdv === "R2"; })){ avecR2.push(c); }
+      else { enAttenteR2.push(c); }
+    });
+
+    var total = clients.length;
+    var tauxConversion = total ? Math.round(clientsConvertis.length / total * 100) : 0;
+    return {sansRdv:sansRdv, enAttenteR2:enAttenteR2, avecR2:avecR2, clientsConvertis:clientsConvertis, total:total, tauxConversion:tauxConversion};
+  }
+
+  function renderPipeline(){
+    var main = document.getElementById("main");
+    var stats = collectPipelineStats();
+
+    function segmentHTML(title, clients, emptyMsg){
+      return '<div class="pipeline-segment">' +
+        '<h3>' + escapeHTML(title) + ' <span class="pipeline-count">' + clients.length + '</span></h3>' +
+        (clients.length ?
+          '<div class="pipeline-rows">' +
+            clients.map(function(c){
+              return '<a class="pipeline-row" href="#/clients/' + c.id + '">' +
+                '<span>' + escapeHTML(clientFullName(c)) + '</span>' +
+                '<span class="pipeline-row-arrow">→</span>' +
+              '</a>';
+            }).join("") +
+          '</div>'
+          : '<p class="empty">' + escapeHTML(emptyMsg) + '</p>') +
+      '</div>';
+    }
+
+    main.innerHTML = '<div class="container pipeline-page">' +
+      '<a href="#/" class="back-link">← Retour aux outils</a>' +
+      '<h1>Pipeline commercial</h1>' +
+      '<p class="tool-desc">Photographie de vos prospects et clients à l\'instant présent, à partir des fiches et de l\'agenda — cliquez un nom pour ouvrir sa fiche.</p>' +
+      '<div class="key-figures">' +
+        '<div class="key-figure"><div class="value">' + stats.total + '</div><div class="label">Contacts au total</div></div>' +
+        '<div class="key-figure"><div class="value">' + stats.sansRdv.length + '</div><div class="label">Prospects sans RDV</div></div>' +
+        '<div class="key-figure"><div class="value">' + stats.enAttenteR2.length + '</div><div class="label">En attente du R2</div></div>' +
+        '<div class="key-figure"><div class="value">' + stats.avecR2.length + '</div><div class="label">R2 réalisé / prévu</div></div>' +
+        '<div class="key-figure"><div class="value">' + stats.tauxConversion + ' %</div><div class="label">Taux de conversion en clients</div></div>' +
+      '</div>' +
+      '<div class="pipeline-segments">' +
+        segmentHTML("Prospects sans rendez-vous", stats.sansRdv, "Aucun prospect sans rendez-vous — tout le monde a été contacté.") +
+        segmentHTML("En attente du R2", stats.enAttenteR2, "Aucun prospect en attente d'un R2.") +
+        segmentHTML("R2 réalisé ou prévu", stats.avecR2, "Aucun R2 en cours.") +
+      '</div>' +
+    '</div>';
+  }
+
   /* ============================ Mentions légales ============================ */
   function renderMentionsLegales(){
     var main = document.getElementById("main");
@@ -6380,6 +6504,7 @@
     else if(parts[0] === "bilan" && parts[1]) result = {name:"bilan", clientId:parts[1]};
     else if(parts[0] === "bilan") result = {name:"bilan-picker"};
     else if(parts[0] === "agenda") result = {name:"agenda"};
+    else if(parts[0] === "pipeline") result = {name:"pipeline"};
     else if(parts[0] === "parametres") result = {name:"parametres"};
     else if(parts[0] === "mentions-legales") result = {name:"mentions"};
     else result = {name:"home"};
@@ -6415,6 +6540,8 @@
       renderRapportConfig(v.clientId);
     } else if(v.name === "agenda"){
       renderAgenda(v.clientIdParam);
+    } else if(v.name === "pipeline"){
+      renderPipeline();
     } else if(v.name === "parametres"){
       renderParametres();
     } else if(v.name === "mentions"){
