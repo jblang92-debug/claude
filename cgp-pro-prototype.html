@@ -141,9 +141,11 @@
   .pipeline-segment h3{font-size:.9rem;margin:0 0 12px;color:var(--navy);display:flex;align-items:center;gap:8px;}
   .pipeline-count{background:var(--bg);color:var(--muted);font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:20px;}
   .pipeline-rows{display:flex;flex-direction:column;gap:6px;}
-  .pipeline-row{display:flex;justify-content:space-between;align-items:center;background:var(--bg);border-radius:8px;padding:9px 12px;color:var(--ink);text-decoration:none;font-size:.85rem;font-weight:600;}
+  .pipeline-row{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--bg);border-radius:8px;padding:9px 12px;flex-wrap:wrap;}
   .pipeline-row:hover{background:#eef1f5;}
+  .pipeline-row-link{display:flex;justify-content:space-between;align-items:center;gap:8px;flex:1;min-width:120px;color:var(--ink);text-decoration:none;font-size:.85rem;font-weight:600;}
   .pipeline-row-arrow{color:var(--muted);}
+  .pipeline-sign-btn{flex-shrink:0;white-space:nowrap;}
 
   /* Onglets de la fiche client (Fiche client / Historique des échanges) */
   .client-tabs{display:flex;gap:22px;border-bottom:1px solid var(--border);margin:18px 0 22px;}
@@ -6556,10 +6558,13 @@
         (clients.length ?
           '<div class="pipeline-rows">' +
             clients.map(function(c){
-              return '<a class="pipeline-row" href="#/clients/' + c.id + '">' +
-                '<span>' + escapeHTML(clientFullName(c)) + '</span>' +
-                '<span class="pipeline-row-arrow">→</span>' +
-              '</a>';
+              return '<div class="pipeline-row">' +
+                '<a class="pipeline-row-link" href="#/clients/' + c.id + '">' +
+                  '<span>' + escapeHTML(clientFullName(c)) + '</span>' +
+                  '<span class="pipeline-row-arrow">→</span>' +
+                '</a>' +
+                '<button type="button" class="btn btn-outline btn-sm pipeline-sign-btn" data-mark-signed="' + c.id + '">✓ Marquer comme signé</button>' +
+              '</div>';
             }).join("") +
           '</div>'
           : '<p class="empty">' + escapeHTML(emptyMsg) + '</p>') +
@@ -6583,6 +6588,16 @@
         segmentHTML("R2 réalisé ou prévu", stats.avecR2, "Aucun R2 en cours.") +
       '</div>' +
     '</div>';
+
+    main.querySelectorAll("[data-mark-signed]").forEach(function(btn){
+      btn.addEventListener("click", function(e){
+        e.preventDefault();
+        var client = getClientById(btn.getAttribute("data-mark-signed"));
+        if(!client) return;
+        var updated = Object.assign({}, client, {statutProspectClient: "client", updatedAt: new Date().toISOString()});
+        if(saveClient(updated)){ renderPipeline(); }
+      });
+    });
   }
 
   /* ============================ Mentions légales ============================ */
