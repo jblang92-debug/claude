@@ -129,6 +129,11 @@
   .client-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
   .client-tag{font-size:.7rem;font-weight:700;background:#eef1f5;color:var(--navy-2);padding:3px 9px;border-radius:20px;}
   .page-header-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+  .clients-filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+  .clients-filters input[type=text]{flex:1 1 220px;}
+  .clients-filters select{flex:0 1 220px;}
+  .statut-badge-prospect{background:var(--accent-2);}
+  .statut-badge-client{background:var(--navy);}
 
   /* Onglets de la fiche client (Fiche client / Historique des échanges) */
   .client-tabs{display:flex;gap:22px;border-bottom:1px solid var(--border);margin:18px 0 22px;}
@@ -242,7 +247,7 @@
   .agenda-day-col{flex:1;min-width:110px;position:relative;border-left:1px solid var(--border);}
   .agenda-slot{height:32px;border-bottom:1px dashed var(--border);cursor:pointer;}
   .agenda-slot:hover{background:#f7f9fb;}
-  .agenda-rdv{position:absolute;left:2px;right:2px;border-radius:6px;padding:3px 6px;overflow:hidden;cursor:pointer;color:#fff;font-size:.68rem;line-height:1.3;z-index:2;box-shadow:var(--shadow);}
+  .agenda-rdv{position:absolute;border-radius:6px;padding:3px 6px;overflow:hidden;cursor:pointer;color:#fff;font-size:.68rem;line-height:1.3;z-index:2;box-shadow:var(--shadow);}
   .agenda-rdv-time{font-weight:700;}
   .agenda-rdv-client{font-weight:600;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;}
   .agenda-rdv-objet{opacity:.85;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;}
@@ -5316,46 +5321,88 @@
 
   function renderClients(){
     var main = document.getElementById("main");
+    var allClients = getClients();
+    var filters = {search:"", statut:"", priorite:""};
+
     main.innerHTML = '<div class="container clients-page">' +
       '<a href="#/" class="back-link">← Retour aux outils</a>' +
       '<div class="page-header-row"><h1>Clients</h1><a href="#/clients/new" class="btn btn-primary">+ Nouveau client</a></div>' +
+      (allClients.length ? '<div class="clients-filters">' +
+        '<input type="text" id="clientSearchInput" placeholder="Rechercher (nom, ville...)">' +
+        '<select id="clientFilterStatut"><option value="">Tous les statuts</option>' +
+          STATUTS_PROSPECT_CLIENT.map(function(o){ return '<option value="' + o.value + '">' + escapeHTML(o.label) + '</option>'; }).join("") +
+        '</select>' +
+        '<select id="clientFilterPriorite"><option value="">Toute priorité de besoin</option>' +
+          NIVEAUX_PRIORITE_BESOIN.slice().reverse().map(function(o){ return '<option value="' + o.value + '">Au moins un besoin : ' + escapeHTML(o.label) + '</option>'; }).join("") +
+        '</select>' +
+      '</div>' : '') +
       '<div id="clientList"></div>' +
     '</div>';
 
-    var clients = getClients();
     var list = document.getElementById("clientList");
-    if(!clients.length){
+    if(!allClients.length){
       list.innerHTML = '<p class="empty">Aucun client enregistré pour l\'instant.</p>';
       return;
     }
-    list.innerHTML = clients.map(function(c){
-      var tags = Object.keys(PROJET_LABELS).filter(function(k){ return c[k]; }).map(function(k){ return '<span class="client-tag">' + PROJET_LABELS[k] + '</span>'; }).join("");
-      var nbEnfants = (c.enfants||[]).length;
-      var nbACharge = nombreEnfantsACharge(c);
-      var composition = (c.adultes && c.adultes[1] ? "Couple" : "Personne seule") +
-        (nbEnfants ? " · " + nbEnfants + " enfant" + (nbEnfants>1?"s":"") + (nbACharge ? " (" + nbACharge + " à charge)" : "") : "");
-      return '<div class="client-card">' +
-        '<div>' +
-          '<div class="client-card-name">' + escapeHTML(clientFullName(c)) + '</div>' +
-          '<div class="client-card-meta">' + composition + ' · ' + euro.format(c.revenusMensuelsNets||0) + ' /mois · patrimoine financier ' + euro.format(c.patrimoineFinancier||0) + '</div>' +
-          (tags ? '<div class="client-tags">' + tags + '</div>' : '') +
-        '</div>' +
-        '<div class="sim-actions">' +
-          '<a class="btn btn-outline btn-sm" href="#/bilan/' + c.id + '">Bilan patrimonial</a>' +
-          '<a class="btn btn-outline btn-sm" href="#/clients/' + c.id + '">Modifier</a>' +
-          '<button class="btn btn-danger btn-sm" data-del="' + c.id + '">Supprimer</button>' +
-        '</div>' +
-      '</div>';
-    }).join("");
 
-    list.querySelectorAll("[data-del]").forEach(function(b){
-      b.addEventListener("click", function(){
-        if(confirm("Supprimer cette fiche client ? Les simulations déjà enregistrées ne seront pas supprimées.")){
-          deleteClient(b.dataset.del);
-          renderClients();
-        }
+    function matchesFilters(c){
+      if(filters.search){
+        var haystack = (clientFullName(c) + " " + (c.ville||"")).toLowerCase();
+        if(haystack.indexOf(filters.search.toLowerCase()) === -1) return false;
+      }
+      if(filters.statut && c.statutProspectClient !== filters.statut) return false;
+      if(filters.priorite){
+        var hasLevel = BESOINS_THEMES.some(function(t){ return c["besoin" + t.prefix + "Priorite"] === filters.priorite; });
+        if(!hasLevel) return false;
+      }
+      return true;
+    }
+
+    function renderList(){
+      var clients = allClients.filter(matchesFilters);
+      if(!clients.length){
+        list.innerHTML = '<p class="empty">Aucun client ne correspond à ces critères.</p>';
+        return;
+      }
+      list.innerHTML = clients.map(function(c){
+        var tags = Object.keys(PROJET_LABELS).filter(function(k){ return c[k]; }).map(function(k){ return '<span class="client-tag">' + PROJET_LABELS[k] + '</span>'; }).join("");
+        var nbEnfants = (c.enfants||[]).length;
+        var nbACharge = nombreEnfantsACharge(c);
+        var composition = (c.adultes && c.adultes[1] ? "Couple" : "Personne seule") +
+          (nbEnfants ? " · " + nbEnfants + " enfant" + (nbEnfants>1?"s":"") + (nbACharge ? " (" + nbACharge + " à charge)" : "") : "");
+        var statut = c.statutProspectClient || "prospect";
+        return '<div class="client-card">' +
+          '<div>' +
+            '<div class="client-card-name">' + escapeHTML(clientFullName(c)) +
+              ' <span class="priorite-badge statut-badge-' + statut + '">' + escapeHTML(labelFromList(STATUTS_PROSPECT_CLIENT, statut)) + '</span>' +
+            '</div>' +
+            '<div class="client-card-meta">' + composition + (c.ville ? " · " + escapeHTML(c.ville) : "") + ' · ' + euro.format(c.revenusMensuelsNets||0) + ' /mois · patrimoine financier ' + euro.format(c.patrimoineFinancier||0) + '</div>' +
+            (tags ? '<div class="client-tags">' + tags + '</div>' : '') +
+          '</div>' +
+          '<div class="sim-actions">' +
+            '<a class="btn btn-outline btn-sm" href="#/bilan/' + c.id + '">Bilan patrimonial</a>' +
+            '<a class="btn btn-outline btn-sm" href="#/clients/' + c.id + '">Modifier</a>' +
+            '<button class="btn btn-danger btn-sm" data-del="' + c.id + '">Supprimer</button>' +
+          '</div>' +
+        '</div>';
+      }).join("");
+
+      list.querySelectorAll("[data-del]").forEach(function(b){
+        b.addEventListener("click", function(){
+          if(confirm("Supprimer cette fiche client ? Les simulations déjà enregistrées ne seront pas supprimées.")){
+            deleteClient(b.dataset.del);
+            allClients = getClients();
+            renderList();
+          }
+        });
       });
-    });
+    }
+
+    document.getElementById("clientSearchInput").addEventListener("input", function(e){ filters.search = e.target.value; renderList(); });
+    document.getElementById("clientFilterStatut").addEventListener("change", function(e){ filters.statut = e.target.value; renderList(); });
+    document.getElementById("clientFilterPriorite").addEventListener("change", function(e){ filters.priorite = e.target.value; renderList(); });
+
+    renderList();
   }
 
   // Coup d'œil rapide en RDV : un badge coloré par pilier selon son niveau de priorité pour ce client.
@@ -5900,15 +5947,55 @@
       return client ? clientFullName(client) : "(contact supprimé)";
     }
 
+    // Calcule, pour un jour donné, la colonne et le nombre de colonnes de chaque RDV parmi ceux qui se
+    // chevauchent dans le temps — pour les afficher côte à côte au lieu de se superposer. Algorithme
+    // classique de calendrier : regrouper les RDV en "grappes" mutuellement chevauchantes (transitif, via
+    // la borne de fin maximale déjà vue dans la grappe), puis assigner gloutonnement chaque RDV à la
+    // première colonne libre au sein de sa grappe ; toute la grappe partage le même nombre de colonnes.
+    function layoutDayRdvs(rdvsForDay){
+      var sorted = rdvsForDay.slice().sort(function(a,b){
+        return agendaMinutesSinceStart(a.heureDebut) - agendaMinutesSinceStart(b.heureDebut);
+      });
+      var groups = [];
+      sorted.forEach(function(r){
+        var start = agendaMinutesSinceStart(r.heureDebut), end = agendaMinutesSinceStart(r.heureFin);
+        var group = groups.length ? groups[groups.length-1] : null;
+        if(group && start < group.maxEnd){
+          group.events.push(r);
+          group.maxEnd = Math.max(group.maxEnd, end);
+        } else {
+          groups.push({events:[r], maxEnd: end});
+        }
+      });
+      var placements = [];
+      groups.forEach(function(group){
+        var columnFreeAt = []; // columnFreeAt[i] = instant (minutes) à partir duquel la colonne i est libre
+        var colOf = [];
+        group.events.forEach(function(r){
+          var start = agendaMinutesSinceStart(r.heureDebut);
+          var col = columnFreeAt.findIndex(function(freeAt){ return start >= freeAt; });
+          if(col === -1){ col = columnFreeAt.length; columnFreeAt.push(0); }
+          columnFreeAt[col] = agendaMinutesSinceStart(r.heureFin);
+          colOf.push(col);
+        });
+        var numCols = columnFreeAt.length;
+        group.events.forEach(function(r, idx){ placements.push({rdv:r, col:colOf[idx], numCols:numCols}); });
+      });
+      return placements;
+    }
+
     function dayColumnHTML(date){
       var iso = localISODate(date);
       var rdvsForDay = getRdvs().filter(function(r){ return r.date === iso; });
       var slotsHTML = agendaSlotTimes().map(function(t){
         return '<div class="agenda-slot" data-date="' + iso + '" data-time="' + t + '"></div>';
       }).join("");
-      var blocksHTML = rdvsForDay.map(function(r){
+      var blocksHTML = layoutDayRdvs(rdvsForDay).map(function(p){
+        var r = p.rdv;
         var top = agendaTopPx(r.heureDebut), h = agendaHeightPx(r.heureDebut, r.heureFin);
-        return '<div class="agenda-rdv ' + rdvColorClass(r) + '" style="top:' + top + 'px;height:' + h + 'px;" data-rdv-id="' + r.id + '">' +
+        var widthPct = 100 / p.numCols, leftPct = p.col * widthPct;
+        var style = 'top:' + top + 'px;height:' + h + 'px;left:calc(' + leftPct + '% + 2px);width:calc(' + widthPct + '% - 4px);';
+        return '<div class="agenda-rdv ' + rdvColorClass(r) + '" style="' + style + '" data-rdv-id="' + r.id + '">' +
           '<div class="agenda-rdv-time">' + escapeHTML(r.heureDebut) + '–' + escapeHTML(r.heureFin) + '</div>' +
           '<div class="agenda-rdv-client">' + escapeHTML(rdvBadgeName(r)) + '</div>' +
           (r.objet ? '<div class="agenda-rdv-objet">' + escapeHTML(r.objet) + '</div>' : '') +
