@@ -1,0 +1,626 @@
+<title>Feuille de route du cabinet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout : en-tête + bilan de répartition (résumé avant détail), puis la feuille de route par étape, règles du jeu en marge. */
+:root {
+  --bg: #f3f5f4;
+  --surface: #ffffff;
+  --sunken: #e8ecea;
+  --line: #d5dcd9;
+  --fg: #16211f;
+  --muted: #5b6a66;
+  --accent: #1d5c53;
+  --accent-soft: #d8e8e4;
+  --pa: #2f58a0;
+  --pa-soft: #dde6f5;
+  --pb: #8a3f7a;
+  --pb-soft: #f1e0ec;
+  --both: #1d5c53;
+  --warn: #a4610d;
+  --warn-soft: #f7e8d0;
+  --bad: #b3342a;
+  --bad-soft: #f8dedb;
+  --ok: #2d7a45;
+  --ok-soft: #dcefe1;
+  --f-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111816; --surface: #18211f; --sunken: #0d1312; --line: #2b3835;
+    --fg: #e6edeb; --muted: #97a8a3; --accent: #6cc2b3; --accent-soft: #1f3a35;
+    --pa: #8fb0ec; --pa-soft: #1f2c44; --pb: #d99bc9; --pb-soft: #3a2336; --both: #6cc2b3;
+    --warn: #e0a54c; --warn-soft: #3a2c16; --bad: #ec8378; --bad-soft: #3d1f1c; --ok: #7cc893; --ok-soft: #1d3324;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111816; --surface: #18211f; --sunken: #0d1312; --line: #2b3835;
+  --fg: #e6edeb; --muted: #97a8a3; --accent: #6cc2b3; --accent-soft: #1f3a35;
+  --pa: #8fb0ec; --pa-soft: #1f2c44; --pb: #d99bc9; --pb-soft: #3a2336; --both: #6cc2b3;
+  --warn: #e0a54c; --warn-soft: #3a2c16; --bad: #ec8378; --bad-soft: #3d1f1c; --ok: #7cc893; --ok-soft: #1d3324;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1160px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(26px, 4vw, 34px); line-height: 1.15; }
+h2 { font-size: 21px; }
+h3 { font-size: 17px; }
+p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+/* En-tête */
+header.top { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: end; justify-content: space-between; }
+header.top .lede { color: var(--muted); max-width: 60ch; margin-top: 6px; }
+.names { display: flex; gap: 10px; flex-wrap: wrap; }
+.name-field { display: grid; gap: 4px; }
+.name-field label { font-size: 12px; color: var(--muted); font-weight: 600; }
+.name-field input { width: 170px; max-width: 100%; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); border-left: 4px solid var(--c); }
+.banner { padding: 10px 14px; border-radius: var(--r); background: var(--warn-soft); color: var(--fg); font-size: 14px; }
+
+/* Bilan */
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.card .who { display: flex; align-items: center; gap: 10px; }
+.avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; background: var(--c-soft); color: var(--c); flex: none; }
+.big { font-family: var(--f-display); font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
+.big small { font-family: var(--f-body); font-size: 13px; color: var(--muted); margin-left: 6px; }
+.meter { height: 8px; border-radius: 4px; background: var(--sunken); overflow: hidden; display: flex; }
+.meter > span { display: block; height: 100%; }
+.facts { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.facts b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.balance-bar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; font-size: 12px; font-weight: 600; }
+.balance-bar span { display: flex; align-items: center; justify-content: center; min-width: 0; white-space: nowrap; overflow: hidden; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 14px; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--bad); }
+.btn.danger.armed { background: var(--bad); border-color: var(--bad); color: var(--surface); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--accent); padding-inline: 6px; }
+
+/* Étapes (progression) */
+.phase-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.phase-chip { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; display: grid; gap: 6px; text-align: left; }
+.phase-chip:hover { border-color: var(--accent); }
+.phase-chip .t { font-size: 13px; font-weight: 600; line-height: 1.3; }
+.phase-chip .n { font-size: 12px; color: var(--muted); }
+
+/* Corps */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 28px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 2px; background: var(--sunken); border-radius: var(--r); padding: 3px; }
+.seg button { border: 0; background: transparent; padding: 5px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.search { flex: 1 1 180px; min-width: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+
+.phase { display: grid; gap: 8px; scroll-margin-top: 70px; }
+.phase + .phase { margin-top: 26px; }
+.phase-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.phase-head .num { font-family: var(--f-mono); font-size: 13px; color: var(--accent); }
+.phase-head .meta { margin-left: auto; font-size: 13px; color: var(--muted); }
+.phase-head p.desc { flex-basis: 100%; font-size: 13px; color: var(--muted); }
+
+.task { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); border-left: 4px solid var(--c, var(--line)); }
+.task.done { opacity: .66; }
+.task.done .ttl { text-decoration: line-through; text-decoration-color: var(--muted); }
+.row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px 12px; align-items: center; padding: 10px 12px; }
+.status { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); display: grid; place-items: center; padding: 0; }
+.status[data-s="doing"] { border-color: var(--warn); background: var(--warn-soft); }
+.status[data-s="done"] { border-color: var(--ok); background: var(--ok); }
+.status svg { width: 14px; height: 14px; }
+.main { min-width: 0; display: grid; gap: 3px; }
+.ttl { background: none; border: 0; padding: 0; text-align: left; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.ttl:hover { color: var(--accent); }
+.sub { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12.5px; color: var(--muted); align-items: center; }
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.pill.doing { background: var(--warn-soft); color: var(--warn); }
+.pill.late { background: var(--bad-soft); color: var(--bad); }
+.pill.soon { background: var(--warn-soft); color: var(--warn); }
+.pill.none { background: var(--sunken); color: var(--muted); }
+.dots { letter-spacing: 1px; color: var(--accent); }
+.owner { display: inline-flex; gap: 2px; background: var(--sunken); border-radius: var(--r); padding: 3px; }
+.owner button { border: 0; background: transparent; min-width: 34px; padding: 4px 7px; border-radius: 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.owner button[aria-pressed="true"][data-o="A"] { background: var(--pa); color: var(--surface); }
+.owner button[aria-pressed="true"][data-o="B"] { background: var(--pb); color: var(--surface); }
+.owner button[aria-pressed="true"][data-o="AB"] { background: var(--both); color: var(--surface); }
+@media (max-width: 560px) {
+  .row { grid-template-columns: auto minmax(0, 1fr); }
+  .owner { grid-column: 2; justify-self: start; }
+}
+.editor { border-top: 1px solid var(--line); padding: 14px 12px; display: grid; gap: 12px; background: var(--sunken); border-radius: 0 0 var(--r) 0; }
+.grid-f { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.f { display: grid; gap: 4px; min-width: 0; }
+.f label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.f input, .f select, .f textarea { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.f textarea { min-height: 84px; resize: vertical; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+.actions .l, .actions .r { display: flex; gap: 8px; flex-wrap: wrap; }
+.add { display: flex; gap: 8px; }
+.add input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px dashed var(--line); border-radius: var(--r); background: transparent; }
+.add input:focus { border-style: solid; background: var(--surface); }
+
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); padding: 28px 20px; display: grid; gap: 12px; justify-items: start; }
+.empty p { color: var(--muted); max-width: 60ch; }
+.nomatch { color: var(--muted); font-size: 14px; padding: 12px 0; }
+
+aside.rules { display: grid; gap: 14px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+@media (max-width: 900px) { aside.rules { position: static; } }
+aside.rules ol { margin: 0; padding-left: 20px; display: grid; gap: 10px; font-size: 14px; }
+aside.rules li b { display: block; }
+aside.rules li span { color: var(--muted); }
+.legend { display: grid; gap: 6px; font-size: 13px; }
+.legend div { display: flex; align-items: center; gap: 8px; }
+
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 14px; border-radius: var(--r); font-size: 14px; display: flex; gap: 14px; align-items: center; z-index: 20; max-width: calc(100% - 32px); }
+.toast button { background: none; border: 0; color: var(--bg); font-weight: 700; text-decoration: underline; }
+@media (prefers-reduced-motion: no-preference) { .task, .status, .btn { transition: border-color .15s, background-color .15s, opacity .15s; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Création du cabinet · gestion de patrimoine</div>
+      <h1>Feuille de route du cabinet</h1>
+      <p class="lede">Qui porte quoi, jusqu'à l'ouverture. Chaque tâche a un porteur ; « Les deux » est réservé aux décisions qui engagent l'association.</p>
+    </div>
+    <div class="names">
+      <div class="name-field" style="--c: var(--pa)"><label for="nameA">Associé 1</label><input id="nameA" autocomplete="off" placeholder="Prénom"></div>
+      <div class="name-field" style="--c: var(--pb)"><label for="nameB">Associé 2</label><input id="nameB" autocomplete="off" placeholder="Prénom"></div>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <section class="summary" id="summary" aria-label="Bilan de la répartition"></section>
+  <nav class="phase-strip" id="phaseStrip" aria-label="Avancement par étape"></nav>
+
+  <div class="layout">
+    <main>
+      <div class="toolbar" role="toolbar" aria-label="Filtres">
+        <div class="seg" id="fWho" aria-label="Filtrer par porteur"></div>
+        <div class="seg" id="fStatus" aria-label="Filtrer par statut"></div>
+        <input class="search" id="q" type="search" placeholder="Rechercher une tâche…" aria-label="Rechercher">
+      </div>
+      <div id="list"></div>
+    </main>
+
+    <aside class="rules">
+      <div class="card">
+        <h3>Règles du jeu</h3>
+        <ol>
+          <li><b>Un porteur par tâche.</b><span>Il fait avancer, l'autre relit. Pas de tâche orpheline.</span></li>
+          <li><b>« Les deux » pour les décisions engageantes.</b><span>Pacte d'associés, statuts, capital, choix des partenaires, tarifs.</span></li>
+          <li><b>Équilibrer la charge, pas le nombre.</b><span>Une tâche vaut 1 à 3 points selon l'effort. Visez un écart inférieur à 20 %.</span></li>
+          <li><b>Point hebdo de 30 min.</b><span>Filtrer « En cours » et « En retard », débloquer, réattribuer si besoin.</span></li>
+          <li><b>Jouer sur les forces.</b><span>Profil réglementaire et technique d'un côté, commercial et réseau de l'autre.</span></li>
+        </ol>
+      </div>
+      <div class="card legend">
+        <div class="eyebrow">Lecture</div>
+        <div><span class="status" data-s="todo" aria-hidden="true" style="width:18px;height:18px"></span>À faire, cliquer pour avancer</div>
+        <div><span class="status" data-s="doing" aria-hidden="true" style="width:18px;height:18px"></span>En cours</div>
+        <div><span class="status" data-s="done" aria-hidden="true" style="width:18px;height:18px"></span>Terminé</div>
+        <div><span class="dots">●●○</span>Charge estimée (points)</div>
+      </div>
+    </aside>
+  </div>
+</div>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script>
+const PHASES = [
+  { key: "projet", title: "Projet & association", desc: "Aligner la vision, le modèle économique et les règles entre associés." },
+  { key: "societe", title: "Création de la société", desc: "Forme juridique, statuts, capital, immatriculation." },
+  { key: "reglementaire", title: "Statuts réglementaires", desc: "Associations professionnelles, ORIAS, assurances obligatoires. C'est le chemin critique : démarrer tôt." },
+  { key: "conformite", title: "Conformité & documents clients", desc: "Le socle documentaire exigé dès le premier rendez-vous." },
+  { key: "partenaires", title: "Partenaires & outils", desc: "Conventions avec les fournisseurs et équipement du cabinet." },
+  { key: "finances", title: "Finances & statut des dirigeants", desc: "Financer le démarrage et se rémunérer." },
+  { key: "lancement", title: "Lancement commercial", desc: "Se faire connaître et signer les premiers clients." },
+];
+
+/* Liste type proposée depuis l'écran vide : ids stables t01…, ordre = rang dans la liste. */
+const TEMPLATE = [
+  ["projet", "Définir la cible et le positionnement (clientèle, spécialités, zone)", 2, "Ex. dirigeants de PME, professions libérales, retraite, transmission. Détermine les statuts réglementaires utiles."],
+  ["projet", "Choisir le modèle de rémunération (honoraires, rétrocessions, mixte)", 2, "Impacte le statut CIF indépendant ou non indépendant et la communication tarifaire."],
+  ["projet", "Répartir capital, rôles et temps de travail entre associés", 2, ""],
+  ["projet", "Rédiger le pacte d'associés", 3, "Gouvernance, décisions importantes, clauses de sortie (good/bad leaver), non-concurrence, valorisation des parts, décès/invalidité. Se faire accompagner par un avocat."],
+  ["projet", "Construire le business plan sur 3 ans", 3, "Hypothèses d'encours, taux de rétrocession, honoraires, charges fixes, point mort."],
+  ["projet", "Choisir le nom et vérifier sa disponibilité (INPI, domaine web)", 1, ""],
+  ["societe", "Choisir la forme juridique (SAS, SARL…) avec l'expert-comptable", 1, ""],
+  ["societe", "Sélectionner l'expert-comptable du cabinet", 1, ""],
+  ["societe", "Rédiger et signer les statuts", 2, "Objet social couvrant CIF, courtage en assurance, IOBSP, et le cas échéant transaction immobilière."],
+  ["societe", "Ouvrir le compte bancaire professionnel et déposer le capital", 1, ""],
+  ["societe", "Publier l'annonce légale et immatriculer (guichet unique INPI)", 1, "Récupérer le Kbis : il est demandé par l'ORIAS et les partenaires."],
+  ["reglementaire", "Vérifier la capacité professionnelle de chaque associé (diplômes, expérience)", 1, "Conditions différentes pour CIF, courtier en assurance (COA) et IOBSP."],
+  ["reglementaire", "Adhérer à une association CIF agréée par l'AMF", 2, "Par exemple ANACOFI-CIF, CNCGP, CNCEF Patrimoine. Comparer cotisation, services, formation, médiateur."],
+  ["reglementaire", "Adhérer à une association agréée ACPR pour le courtage (assurance, IOBSP)", 1, "Obligatoire pour les courtiers en assurance et en opérations de banque avant l'inscription ORIAS."],
+  ["reglementaire", "Souscrire la RC professionnelle (et la garantie financière si besoin)", 2, "Attestations à fournir à l'ORIAS pour chaque catégorie."],
+  ["reglementaire", "Inscrire le cabinet à l'ORIAS (CIF, COA, IOBSP)", 2, "Renouvellement annuel. Le numéro ORIAS doit figurer sur tous les documents et le site."],
+  ["reglementaire", "Obtenir la carte T (transaction immobilière) si activité immobilière", 2, "Auprès de la CCI. Facultatif selon l'offre du cabinet."],
+  ["reglementaire", "Planifier la formation continue annuelle (CIF, DDA, IOBSP)", 1, ""],
+  ["conformite", "Rédiger le document d'entrée en relation (DER)", 1, "Souvent fourni en modèle par l'association professionnelle."],
+  ["conformite", "Préparer la lettre de mission et le recueil d'informations client", 2, "Connaissance client, situation patrimoniale, objectifs, profil de risque, préférences en durabilité."],
+  ["conformite", "Mettre en place le rapport / la déclaration d'adéquation", 1, ""],
+  ["conformite", "Écrire les procédures LCB-FT et désigner le correspondant Tracfin", 2, ""],
+  ["conformite", "Formaliser la politique de conflits d'intérêts et de traitement des réclamations", 1, "Prévoir le médiateur de la consommation."],
+  ["conformite", "Mettre le cabinet en conformité RGPD (registre, mentions, sécurité)", 1, ""],
+  ["partenaires", "Sélectionner les assureurs et plateformes (assurance vie, PER, capitalisation)", 3, "Signer les conventions de courtage et de rémunération."],
+  ["partenaires", "Référencer sociétés de gestion, SCPI et autres fournisseurs", 2, ""],
+  ["partenaires", "Choisir le logiciel métier (CRM, agrégation, bilans patrimoniaux)", 2, ""],
+  ["partenaires", "Équiper le cabinet (signature électronique, messagerie, stockage sécurisé)", 1, ""],
+  ["partenaires", "Trouver les locaux ou une domiciliation", 2, ""],
+  ["finances", "Choisir le statut social des dirigeants et leur rémunération", 1, "Assimilé salarié ou TNS selon la forme retenue ; à arbitrer avec l'expert-comptable."],
+  ["finances", "Monter le plan de financement (apport, prêt bancaire, Bpifrance, prêt d'honneur)", 2, ""],
+  ["finances", "Vérifier les aides à la création (ACRE, ARE ou ARCE)", 1, ""],
+  ["finances", "Souscrire prévoyance et assurance homme-clé", 1, ""],
+  ["lancement", "Créer l'identité visuelle et le site (mentions réglementaires incluses)", 2, ""],
+  ["lancement", "Arrêter la grille tarifaire publique", 1, ""],
+  ["lancement", "Constituer le réseau de prescripteurs (experts-comptables, notaires, avocats)", 3, ""],
+  ["lancement", "Préparer le plan de prospection des 20 premiers clients", 2, ""],
+  ["lancement", "Organiser la communication de lancement (LinkedIn, événement)", 1, ""],
+];
+
+const OWNERS = [["A", "1"], ["B", "2"], ["AB", "Les deux"]];
+const STATUS_NEXT = { todo: "doing", doing: "done", done: "todo" };
+const STATUS_LABEL = { todo: "À faire", doing: "En cours", done: "Terminé" };
+
+const state = { tasks: [], team: { nameA: "", nameB: "" }, loaded: false, who: "all", status: "open", q: "", openId: null, armedDelete: null };
+
+/* ---------- Stockage : base partagée si disponible, sinon navigateur ---------- */
+function localStore() {
+  const KEY = "cabinet-roadmap-v1";
+  let data = { tasks: {}, team: {} };
+  try { data = JSON.parse(localStorage.getItem(KEY)) || data; } catch (e) {}
+  const subs = { tasks: [], team: [] };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} };
+  const emit = () => {
+    subs.tasks.forEach(f => f(Object.entries(data.tasks).map(([id, d]) => ({ id, ...d }))));
+    subs.team.forEach(f => f(data.team || {}));
+  };
+  return {
+    shared: false,
+    onTasks(f) { subs.tasks.push(f); setTimeout(emit, 0); },
+    onTeam(f) { subs.team.push(f); setTimeout(emit, 0); },
+    async setTask(id, d) { data.tasks[id] = d; save(); emit(); },
+    async updateTask(id, p) { data.tasks[id] = { ...data.tasks[id], ...p }; save(); emit(); },
+    async deleteTask(id) { delete data.tasks[id]; save(); emit(); },
+    async setTeam(t) { data.team = t; save(); emit(); },
+  };
+}
+function dbStore(db) {
+  const col = db.collection("tasks");
+  const teamRef = db.doc("config/team");
+  const queues = {};
+  const serial = (id, fn) => (queues[id] = (queues[id] || Promise.resolve()).then(fn, fn));
+  return {
+    shared: true,
+    onTasks(f) { col.onSnapshot(s => f(s.docs.map(d => ({ id: d.id, ...d.data() }))), onDbError); },
+    onTeam(f) { teamRef.onSnapshot(s => f(s.exists ? s.data() : {}), onDbError); },
+    setTask: (id, d) => serial(id, () => col.doc(id).set(d)),
+    updateTask: (id, p) => serial(id, () => col.doc(id).update(p)),
+    deleteTask: (id) => serial(id, () => col.doc(id).delete()),
+    setTeam: (t) => serial("__team", () => teamRef.set(t)),
+  };
+}
+function onDbError(e) {
+  showBanner("La synchronisation s'est interrompue. Rechargez la page pour la rétablir.");
+}
+let store = null;
+
+/* ---------- Utilitaires ---------- */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const nameOf = (k) => k === "A" ? (state.team.nameA || "Associé 1") : k === "B" ? (state.team.nameB || "Associé 2") : k === "AB" ? "Les deux" : "À attribuer";
+const initials = (k) => { if (k === "AB") return "Les 2"; const n = nameOf(k).trim(); const m = n.match(/^Associé (\d)$/); return m ? "A" + m[1] : n.slice(0, 2).toUpperCase(); };
+const colorOf = (k) => k === "A" ? "var(--pa)" : k === "B" ? "var(--pb)" : k === "AB" ? "var(--both)" : "var(--line)";
+const todayISO = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+const daysUntil = (iso) => Math.round((new Date(iso + "T00:00:00") - new Date(todayISO() + "T00:00:00")) / 86400000);
+const fmtDate = (iso) => new Date(iso + "T00:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+const pts = (t) => Math.min(3, Math.max(1, Number(t.charge) || 1));
+const newId = () => "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+function sorted() { return [...state.tasks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || String(a.id).localeCompare(b.id)); }
+
+let toastTimer = null;
+function toast(msg, undo) {
+  const el = $("toast");
+  el.innerHTML = "";
+  const span = document.createElement("span"); span.textContent = msg; el.appendChild(span);
+  if (undo) { const b = document.createElement("button"); b.textContent = "Annuler"; b.onclick = () => { el.hidden = true; undo(); }; el.appendChild(b); }
+  el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (el.hidden = true), undo ? 8000 : 3000);
+}
+function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.hidden = false; }
+function writeFailed() { toast("L'enregistrement a échoué. Vérifiez que vous avez les droits de modification."); }
+
+/* ---------- Bilan ---------- */
+function loadOf(k) {
+  let open = 0, total = 0, n = 0, done = 0, late = 0;
+  for (const t of state.tasks) {
+    const share = t.owner === k ? 1 : t.owner === "AB" ? 0.5 : 0;
+    if (!share) continue;
+    const p = pts(t) * share;
+    total += p; n++;
+    if (t.status === "done") done++; else { open += p; if (t.due && daysUntil(t.due) < 0) late++; }
+  }
+  return { open, total, n, done, late };
+}
+const fmtPts = (x) => (Math.round(x * 10) / 10).toLocaleString("fr-FR");
+
+function renderSummary() {
+  const el = $("summary");
+  if (!state.tasks.length) { el.innerHTML = ""; return; }
+  const A = loadOf("A"), B = loadOf("B");
+  const unassigned = state.tasks.filter(t => !t.owner);
+  const done = state.tasks.filter(t => t.status === "done").length;
+  const pct = Math.round(100 * done / state.tasks.length);
+  const sum = A.total + B.total;
+  const shareA = sum ? Math.round(100 * A.total / sum) : 50;
+  const gap = sum ? Math.abs(A.total - B.total) / Math.max(A.total, B.total) : 0;
+  const person = (k, L) => `
+    <div class="card" style="--c:${colorOf(k)};--c-soft:var(--p${k.toLowerCase()}-soft)">
+      <div class="who"><span class="avatar">${esc(initials(k))}</span><h3>${esc(nameOf(k))}</h3></div>
+      <div class="big">${fmtPts(L.open)}<small>points restants sur ${fmtPts(L.total)}</small></div>
+      <div class="meter" aria-hidden="true"><span style="width:${L.total ? 100 * (L.total - L.open) / L.total : 0}%;background:var(--c)"></span></div>
+      <div class="facts"><span><b>${L.n}</b> tâches</span><span><b>${L.done}</b> terminées</span>${L.late ? `<span style="color:var(--bad)"><b style="color:var(--bad)">${L.late}</b> en retard</span>` : ""}</div>
+    </div>`;
+  el.innerHTML = `
+    <div class="card">
+      <div class="eyebrow">Avancement global</div>
+      <div class="big">${pct} %<small>${done} / ${state.tasks.length} tâches</small></div>
+      <div class="meter" aria-hidden="true"><span style="width:${pct}%;background:var(--accent)"></span></div>
+      <div class="facts"><span><b>${state.tasks.filter(t => t.status === "doing").length}</b> en cours</span><span><b>${state.tasks.filter(t => t.status !== "done" && t.due && daysUntil(t.due) < 0).length}</b> en retard</span></div>
+    </div>
+    ${person("A", A)}
+    ${person("B", B)}
+    <div class="card">
+      <div class="eyebrow">Équilibre de la charge</div>
+      ${sum ? `<div class="balance-bar" role="img" aria-label="${esc(nameOf("A"))} ${shareA} %, ${esc(nameOf("B"))} ${100 - shareA} %">
+        <span style="width:${shareA}%;background:var(--pa-soft);color:var(--pa)">${shareA} %</span>
+        <span style="width:${100 - shareA}%;background:var(--pb-soft);color:var(--pb)">${100 - shareA} %</span></div>
+        <div class="facts">${gap <= 0.2 ? `<span style="color:var(--ok)">Répartition équilibrée</span>` : `<span style="color:var(--warn)">Écart de ${Math.round(gap * 100)} % entre associés</span>`}</div>`
+      : `<p class="facts">Aucune tâche attribuée pour l'instant.</p>`}
+      <div class="facts"><span><b>${unassigned.length}</b> tâches à attribuer</span></div>
+      <div><button class="btn primary" id="balanceBtn" ${unassigned.length ? "" : "disabled"}>Répartir les tâches restantes</button></div>
+    </div>`;
+  const bb = $("balanceBtn"); if (bb) bb.onclick = autoBalance;
+}
+
+function renderPhaseStrip() {
+  const el = $("phaseStrip");
+  if (!state.tasks.length) { el.innerHTML = ""; return; }
+  el.innerHTML = PHASES.map((p, i) => {
+    const ts = state.tasks.filter(t => t.phase === p.key);
+    if (!ts.length) return "";
+    const d = ts.filter(t => t.status === "done").length;
+    return `<button class="phase-chip" data-jump="${p.key}">
+      <span class="t"><span class="mono" style="color:var(--accent)">${i + 1}.</span> ${esc(p.title)}</span>
+      <span class="meter" aria-hidden="true"><span style="width:${100 * d / ts.length}%;background:var(--accent)"></span></span>
+      <span class="n mono">${d} / ${ts.length}</span></button>`;
+  }).join("");
+  el.querySelectorAll("[data-jump]").forEach(b => b.onclick = () => document.getElementById("ph-" + b.dataset.jump)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+}
+
+/* ---------- Filtres ---------- */
+function renderFilters() {
+  const who = [["all", "Tout le monde"], ["A", nameOf("A")], ["B", nameOf("B")], ["AB", "Les deux"], ["none", "À attribuer"]];
+  $("fWho").innerHTML = who.map(([k, l]) => `<button data-k="${k}" aria-pressed="${state.who === k}">${esc(l)}</button>`).join("");
+  $("fWho").querySelectorAll("button").forEach(b => b.onclick = () => { state.who = b.dataset.k; renderFilters(); renderList(); });
+  const st = [["open", "À traiter"], ["doing", "En cours"], ["late", "En retard"], ["done", "Terminées"], ["all", "Toutes"]];
+  $("fStatus").innerHTML = st.map(([k, l]) => `<button data-k="${k}" aria-pressed="${state.status === k}">${l}</button>`).join("");
+  $("fStatus").querySelectorAll("button").forEach(b => b.onclick = () => { state.status = b.dataset.k; renderFilters(); renderList(); });
+}
+function matches(t) {
+  if (state.openId === t.id) return true;
+  if (state.who === "none" ? t.owner : state.who !== "all" && t.owner !== state.who && !(t.owner === "AB" && (state.who === "A" || state.who === "B"))) return false;
+  if (state.status === "open" && t.status === "done") return false;
+  if (state.status === "doing" && t.status !== "doing") return false;
+  if (state.status === "done" && t.status !== "done") return false;
+  if (state.status === "late" && !(t.status !== "done" && t.due && daysUntil(t.due) < 0)) return false;
+  if (state.q && !(t.title + " " + (t.notes || "")).toLowerCase().includes(state.q.toLowerCase())) return false;
+  return true;
+}
+
+/* ---------- Liste ---------- */
+const CHECK = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 5" fill="none" stroke="var(--surface)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const HALF = `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.5" fill="var(--warn)"/></svg>`;
+
+function dueChip(t) {
+  if (!t.due) return "";
+  const d = daysUntil(t.due);
+  if (t.status !== "done" && d < 0) return `<span class="pill late">En retard · ${fmtDate(t.due)}</span>`;
+  if (t.status !== "done" && d <= 7) return `<span class="pill soon">${d === 0 ? "Aujourd'hui" : "Dans " + d + " j"} · ${fmtDate(t.due)}</span>`;
+  return `<span class="mono">${fmtDate(t.due)}</span>`;
+}
+
+function taskHTML(t) {
+  const s = t.status || "todo";
+  const open = state.openId === t.id;
+  return `<article class="task ${s === "done" ? "done" : ""}" style="--c:${colorOf(t.owner)}" data-id="${esc(t.id)}">
+    <div class="row">
+      <button class="status" data-act="status" data-s="${s}" aria-label="Statut : ${STATUS_LABEL[s]}. Passer à ${STATUS_LABEL[STATUS_NEXT[s]]}" title="${STATUS_LABEL[s]}">${s === "done" ? CHECK : s === "doing" ? HALF : ""}</button>
+      <div class="main">
+        <button class="ttl" data-act="edit" aria-expanded="${open}">${esc(t.title)}</button>
+        <div class="sub">
+          ${s === "doing" ? `<span class="pill doing">En cours</span>` : ""}
+          ${t.owner ? "" : `<span class="pill none">À attribuer</span>`}
+          <span class="dots" title="Charge : ${pts(t)} point(s)" aria-label="Charge ${pts(t)} sur 3">${"●".repeat(pts(t))}${"○".repeat(3 - pts(t))}</span>
+          ${dueChip(t)}
+          ${t.notes ? `<span title="${esc(t.notes)}">Note</span>` : ""}
+        </div>
+      </div>
+      <div class="owner" role="group" aria-label="Porteur">
+        ${OWNERS.map(([k]) => `<button data-act="owner" data-o="${k}" aria-pressed="${t.owner === k}" title="${esc(nameOf(k))}">${esc(initials(k))}</button>`).join("")}
+      </div>
+    </div>
+    ${open ? editorHTML(t) : ""}
+  </article>`;
+}
+
+function editorHTML(t) {
+  const armed = state.armedDelete === t.id;
+  return `<form class="editor" data-form="${esc(t.id)}">
+    <div class="f"><label for="e-title">Intitulé</label><input id="e-title" name="title" value="${esc(t.title)}" required></div>
+    <div class="grid-f">
+      <div class="f"><label for="e-phase">Étape</label><select id="e-phase" name="phase">${PHASES.map(p => `<option value="${p.key}" ${p.key === t.phase ? "selected" : ""}>${esc(p.title)}</option>`).join("")}</select></div>
+      <div class="f"><label for="e-owner">Porteur</label><select id="e-owner" name="owner"><option value="">À attribuer</option>${OWNERS.map(([k]) => `<option value="${k}" ${t.owner === k ? "selected" : ""}>${esc(nameOf(k))}</option>`).join("")}</select></div>
+      <div class="f"><label for="e-status">Statut</label><select id="e-status" name="status">${Object.entries(STATUS_LABEL).map(([k, l]) => `<option value="${k}" ${t.status === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="f"><label for="e-charge">Charge</label><select id="e-charge" name="charge">${[[1, "1 · rapide"], [2, "2 · quelques jours"], [3, "3 · gros chantier"]].map(([v, l]) => `<option value="${v}" ${pts(t) === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="f"><label for="e-due">Échéance</label><input id="e-due" name="due" type="date" value="${esc(t.due || "")}"></div>
+    </div>
+    <div class="f"><label for="e-notes">Notes, liens, prochaines étapes</label><textarea id="e-notes" name="notes">${esc(t.notes || "")}</textarea></div>
+    <div class="actions">
+      <div class="l"><button type="submit" class="btn primary">Enregistrer</button><button type="button" class="btn" data-act="close">Fermer</button></div>
+      <div class="r"><button type="button" class="btn danger ${armed ? "armed" : ""}" data-act="delete">${armed ? "Confirmer la suppression" : "Supprimer"}</button></div>
+    </div>
+  </form>`;
+}
+
+function renderList() {
+  const el = $("list");
+  if (!state.loaded) { el.innerHTML = `<div class="empty"><h3>Chargement de la feuille de route…</h3><p>Les tâches partagées entre associés apparaissent ici.</p></div>`; return; }
+  if (!state.tasks.length) {
+    el.innerHTML = `<div class="empty">
+      <h3>Aucune tâche pour l'instant</h3>
+      <p>Partez de la feuille de route type d'un cabinet de gestion de patrimoine : ${TEMPLATE.length} tâches en ${PHASES.length} étapes, de la rédaction du pacte d'associés à la signature des premiers clients. Vous pourrez tout modifier ensuite.</p>
+      <button class="btn primary" id="loadTpl">Charger la feuille de route type</button>
+    </div>`;
+    $("loadTpl").onclick = loadTemplate;
+    return;
+  }
+  const all = sorted();
+  let html = "", shown = 0;
+  PHASES.forEach((p, i) => {
+    const ts = all.filter(t => t.phase === p.key);
+    const vis = ts.filter(matches);
+    shown += vis.length;
+    const done = ts.filter(t => t.status === "done").length;
+    const filtered = state.who !== "all" || state.status !== "all" || state.q;
+    if (!vis.length && filtered) return;
+    html += `<section class="phase" id="ph-${p.key}">
+      <div class="phase-head"><span class="num">Étape ${i + 1}</span><h2>${esc(p.title)}</h2><span class="meta mono">${done} / ${ts.length} terminées</span><p class="desc">${esc(p.desc)}</p></div>
+      ${vis.map(taskHTML).join("")}
+      <form class="add" data-add="${p.key}"><input name="t" id="add-${p.key}" placeholder="Ajouter une tâche à « ${esc(p.title)} »" aria-label="Nouvelle tâche, étape ${i + 1}" autocomplete="off"><button class="btn" type="submit">Ajouter</button></form>
+    </section>`;
+  });
+  if (!shown) html = `<p class="nomatch">Aucune tâche ne correspond à ces filtres.</p>` + html;
+  el.innerHTML = html;
+  const f = el.querySelector("#e-title"); if (f && document.activeElement === document.body) f.focus({ preventScroll: true });
+}
+
+function renderAll() {
+  const a = $("nameA"), b = $("nameB");
+  if (document.activeElement !== a) a.value = state.team.nameA || "";
+  if (document.activeElement !== b) b.value = state.team.nameB || "";
+  renderSummary(); renderPhaseStrip(); renderFilters(); renderList();
+}
+
+/* ---------- Actions ---------- */
+const findTask = (id) => state.tasks.find(t => t.id === id);
+
+$("list").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-act]"); if (!btn) return;
+  const art = btn.closest("[data-id]"); const id = art?.dataset.id; const t = id && findTask(id);
+  const act = btn.dataset.act;
+  if (act === "edit") { state.openId = state.openId === id ? null : id; state.armedDelete = null; renderList(); return; }
+  if (act === "close") { state.openId = null; state.armedDelete = null; renderList(); return; }
+  if (!t) return;
+  if (act === "status") { store.updateTask(id, { status: STATUS_NEXT[t.status || "todo"] }).catch(writeFailed); return; }
+  if (act === "owner") { const o = btn.dataset.o; store.updateTask(id, { owner: t.owner === o ? "" : o }).catch(writeFailed); return; }
+  if (act === "delete") {
+    if (state.armedDelete !== id) { state.armedDelete = id; renderList(); return; }
+    const copy = { ...t }; delete copy.id;
+    state.openId = null; state.armedDelete = null;
+    try { await store.deleteTask(id); toast("Tâche supprimée.", () => store.setTask(id, copy).catch(writeFailed)); } catch (err) { writeFailed(); }
+  }
+});
+
+$("list").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  if (form.dataset.add) {
+    const input = form.elements.t; const title = input.value.trim(); if (!title) return;
+    const inPhase = state.tasks.filter(t => t.phase === form.dataset.add);
+    const order = Math.max(0, ...state.tasks.map(t => t.order || 0)) + 10;
+    input.value = "";
+    try {
+      await store.setTask(newId(), { title, phase: form.dataset.add, owner: state.who === "A" || state.who === "B" || state.who === "AB" ? state.who : "", status: "todo", charge: 1, due: "", notes: "", order });
+      toast("Tâche ajoutée.");
+      setTimeout(() => $("add-" + form.dataset.add)?.focus(), 50);
+    } catch (err) { writeFailed(); }
+    return;
+  }
+  if (form.dataset.form) {
+    const id = form.dataset.form; const fd = new FormData(form);
+    const patch = { title: String(fd.get("title")).trim(), phase: fd.get("phase"), owner: fd.get("owner"), status: fd.get("status"), charge: Number(fd.get("charge")), due: fd.get("due") || "", notes: String(fd.get("notes")).trim() };
+    if (!patch.title) return;
+    state.openId = null;
+    try { await store.updateTask(id, patch); toast("Modifications enregistrées."); } catch (err) { writeFailed(); }
+  }
+});
+
+$("q").addEventListener("input", (e) => { state.q = e.target.value.trim(); renderList(); });
+
+let nameTimer = null;
+["nameA", "nameB"].forEach(id => $(id).addEventListener("input", () => {
+  clearTimeout(nameTimer);
+  nameTimer = setTimeout(() => {
+    const team = { nameA: $("nameA").value.trim().slice(0, 40), nameB: $("nameB").value.trim().slice(0, 40) };
+    if (team.nameA === (state.team.nameA || "") && team.nameB === (state.team.nameB || "")) return;
+    state.team = team; renderSummary(); renderFilters(); renderList();
+    store.setTeam(team).catch(writeFailed);
+  }, 600);
+}));
+
+async function loadTemplate() {
+  const btn = $("loadTpl"); btn.disabled = true; btn.textContent = "Chargement…";
+  try {
+    for (let i = 0; i < TEMPLATE.length; i++) {
+      const [phase, title, charge, notes] = TEMPLATE[i];
+      await store.setTask("t" + String(i + 1).padStart(2, "0"), { title, phase, owner: "", status: "todo", charge, due: "", notes, order: (i + 1) * 10 });
+    }
+    toast("Feuille de route chargée. Répartissez les tâches.");
+  } catch (err) { writeFailed(); btn.disabled = false; btn.textContent = "Charger la feuille de route type"; }
+}
+
+/* Attribue chaque tâche non attribuée à l'associé le moins chargé, les plus lourdes d'abord. */
+async function autoBalance() {
+  const todo = state.tasks.filter(t => !t.owner).sort((a, b) => pts(b) - pts(a) || (a.order || 0) - (b.order || 0));
+  let a = loadOf("A").total, b = loadOf("B").total;
+  const plan = todo.map(t => { const o = a <= b ? "A" : "B"; if (o === "A") a += pts(t); else b += pts(t); return [t.id, o]; });
+  $("balanceBtn").disabled = true;
+  try {
+    for (const [id, o] of plan) await store.updateTask(id, { owner: o });
+    toast(`${plan.length} tâches réparties.`, async () => { for (const [id] of plan) await store.updateTask(id, { owner: "" }).catch(writeFailed); });
+  } catch (err) { writeFailed(); renderSummary(); }
+}
+
+/* ---------- Démarrage ---------- */
+function start(s) {
+  store = s;
+  let got = { tasks: false, team: false };
+  const ready = () => { state.loaded = got.tasks; renderAll(); };
+  store.onTasks(list => { state.tasks = list; got.tasks = true; ready(); });
+  store.onTeam(t => { state.team = { nameA: t.nameA || "", nameB: t.nameB || "" }; got.team = true; ready(); });
+}
+
+renderAll();
+(async () => {
+  let db = null;
+  try { db = window.claude?.use ? await window.claude.use("db") : null; } catch (e) { db = null; }
+  if (db) start(dbStore(db));
+  else { showBanner("Mode local : la base partagée n'est pas disponible ici, les modifications restent dans ce navigateur. Ouvrez le lien partagé du cabinet pour travailler à deux."); start(localStore()); }
+})();
+</script>
