@@ -3196,8 +3196,12 @@
         '<textarea id="' + id + '" rows="' + (f.rows||6) + '">' + escapeHTML(val||"") + '</textarea>' +
         (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
     }
+    // step="any" toujours : ce sont des valeurs réelles (saisies ou recopiées d'un document), jamais
+    // forcément des multiples ronds d'un pas donné — un step strict (ex. 500 ou 0.1) bloquerait
+    // silencieusement la validation native du <input type=number> (et donc la soumission du formulaire)
+    // dès qu'une valeur précise à la virgule près ne tombe pas pile sur ce multiple.
     return '<div ' + wrapAttrs + '><label for="' + id + '">' + escapeHTML(f.label) + '</label>' +
-      '<div class="input-suffix"><input type="number" id="' + id + '" value="' + escapeHTML(val) + '" step="' + (f.step||"any") + '">' +
+      '<div class="input-suffix"><input type="number" id="' + id + '" value="' + escapeHTML(val) + '" step="any">' +
       '<span class="suffix">' + escapeHTML(f.suffix||"") + '</span></div>' +
       (f.help ? '<div class="help">' + escapeHTML(f.help) + '</div>' : '') + '</div>';
   }
